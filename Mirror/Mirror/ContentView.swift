@@ -8,6 +8,27 @@
 import SwiftUI
 import AVFoundation
 
+struct CircleButton: View {
+    let systemName: String
+    let title: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: systemName)
+                    .font(.system(size: 24))
+                Text(title)
+                    .font(.system(size: 12))
+            }
+            .foregroundColor(.white)
+            .frame(width: 60, height: 60)
+            .background(Color.black.opacity(0.5))
+            .clipShape(Circle())
+        }
+    }
+}
+
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     
@@ -16,6 +37,34 @@ struct ContentView: View {
             if cameraManager.permissionGranted {
                 CameraView(session: $cameraManager.session)
                     .ignoresSafeArea()
+                
+                // 底部按钮栏
+                VStack {
+                    Spacer()
+                    HStack(spacing: 40) {
+                        CircleButton(systemName: "camera", title: "左") {
+                            print("点击了左侧按钮")
+                            print("时间：\(Date())")
+                            print("功能：正常拍摄")
+                            print("------------------------")
+                        }
+                        
+                        CircleButton(systemName: "rectangle.split.2x1", title: "中") {
+                            print("点击了中间按钮")
+                            print("时间：\(Date())")
+                            print("功能：分屏拍摄")
+                            print("------------------------")
+                        }
+                        
+                        CircleButton(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right", title: "右") {
+                            print("点击了右侧按钮")
+                            print("时间：\(Date())")
+                            print("功能：镜面拍摄")
+                            print("------------------------")
+                        }
+                    }
+                    .padding(.bottom, 50)
+                }
             } else {
                 VStack {
                     Image(systemName: "camera.fill")
