@@ -35,7 +35,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             if cameraManager.permissionGranted {
-                CameraView(session: $cameraManager.session)
+                CameraView(session: $cameraManager.session, isMirrored: $cameraManager.isMirrored)
                     .ignoresSafeArea()
                 
                 // 底部按钮栏
@@ -46,20 +46,21 @@ struct ContentView: View {
                             print("点击了左侧按钮")
                             print("时间：\(Date())")
                             print("功能：正常拍摄")
+                            print("切换到正常模式")
+                            cameraManager.isMirrored = false
                             print("------------------------")
                         }
                         
                         CircleButton(systemName: "rectangle.split.2x1", title: "中") {
                             print("点击了中间按钮")
-                            print("时间：\(Date())")
-                            print("功能：分屏拍摄")
-                            print("------------------------")
                         }
                         
                         CircleButton(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right", title: "右") {
                             print("点击了右侧按钮")
                             print("时间：\(Date())")
-                            print("功能：镜面拍摄")
+                            print("功能：镜像拍摄")
+                            print("切换到镜像模式")
+                            cameraManager.isMirrored = true
                             print("------------------------")
                         }
                     }
