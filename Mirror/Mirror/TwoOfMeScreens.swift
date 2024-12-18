@@ -16,8 +16,10 @@ struct TwoOfMeScreens: View {
     @State private var isScreensSwapped = false
     @State private var isDragging = false
     @State private var isLongPressed = false
+    @State private var isSelected = false  // 添加选中状态
     @State private var originalImage: UIImage?     // 原始画面
     @State private var mirroredImage: UIImage?     // 镜像画面
+    @State private var previousBrightness: CGFloat = UIScreen.main.brightness  // 添加原始亮度状态
     
     // 定义拖拽阈值和边缘区域宽度
     private let dismissThreshold: CGFloat = 100.0
@@ -34,8 +36,8 @@ struct TwoOfMeScreens: View {
         let content: AnyView  // 使用 AnyView 来支持不同类型的内容
         let offset: CGFloat
         let isSwapped: Bool
-        let isLongPressed: Bool
-        let longPressAction: (Bool) -> Void
+        let isSelected: Bool  // 修改为选中状态
+        let toggleSelection: () -> Void  // 添加切换选中状态的回调
         let dragAction: (DragGesture.Value) -> Void
         let dragEndAction: (DragGesture.Value) -> Void
         
@@ -44,26 +46,24 @@ struct TwoOfMeScreens: View {
                 .frame(height: UIScreen.main.bounds.height / 2)
                 .overlay(
                     Rectangle()
-                        .stroke(isLongPressed ? Color.yellow : Color.green, 
-                              lineWidth: isLongPressed ? 20 : 1)
+                        .stroke(isSelected ? Color.yellow : Color.green, 
+                              lineWidth: isSelected ? 20 : 1)
                 )
                 .offset(y: offset)
-                .onLongPressGesture(minimumDuration: 1.0, maximumDistance: 50) {
-                    print("\(screenID == .original ? "原始" : "镜像")屏长按结束")
-                    longPressAction(false)
-                } onPressingChanged: { isPressing in
-                    if isPressing {
-                        print("\(screenID == .original ? "原始" : "镜像")屏开始长按")
-                        longPressAction(true)
-                    }
+                .onTapGesture {  // 替换长按手势为点击手势
+                    toggleSelection()
                 }
                 .gesture(
                     DragGesture()
                         .onChanged { gesture in
-                            dragAction(gesture)
+                            if isSelected {  // 只在选中状态下允许拖动
+                                dragAction(gesture)
+                            }
                         }
                         .onEnded { gesture in
-                            dragEndAction(gesture)
+                            if isSelected {
+                                dragEndAction(gesture)
+                            }
                         }
                 )
         }
@@ -109,19 +109,33 @@ struct TwoOfMeScreens: View {
                         ),
                         offset: originalScreenOffset,
                         isSwapped: isScreensSwapped,
-                        isLongPressed: isLongPressed,
-                        longPressAction: { isPressing in
-                            isLongPressed = isPressing
-                            if isPressing {
-                                feedbackGenerator.impactOccurred(intensity: 1.0)
+                        isSelected: isSelected,
+                        toggleSelection: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSelected.toggle()
+                                
+                                if isSelected {
+                                    // 保存当前亮度并设置为最大
+                                    previousBrightness = UIScreen.main.brightness
+                                    UIScreen.main.brightness = 1.0
+                                    print("分屏选中 - 提高亮度至最大")
+                                    print("原始亮度：\(previousBrightness)")
+                                } else {
+                                    // 恢复原始亮度
+                                    UIScreen.main.brightness = previousBrightness
+                                    print("分屏取消选中 - 恢复原始亮度：\(previousBrightness)")
+                                }
+                                
+                                if isSelected {
+                                    feedbackGenerator.impactOccurred(intensity: 1.0)
+                                }
                             }
+                            print("分屏选中状态：\(isSelected)")
                         },
                         dragAction: { gesture in
-                            if isLongPressed {
-                                isDragging = true
-                                originalScreenOffset = gesture.translation.height
-                                mirroredScreenOffset = -gesture.translation.height
-                            }
+                            isDragging = true
+                            originalScreenOffset = gesture.translation.height
+                            mirroredScreenOffset = -gesture.translation.height
                         },
                         dragEndAction: { gesture in
                             handleDragEnd(gesture)
@@ -159,19 +173,33 @@ struct TwoOfMeScreens: View {
                         ),
                         offset: mirroredScreenOffset,
                         isSwapped: isScreensSwapped,
-                        isLongPressed: isLongPressed,
-                        longPressAction: { isPressing in
-                            isLongPressed = isPressing
-                            if isPressing {
-                                feedbackGenerator.impactOccurred(intensity: 1.0)
+                        isSelected: isSelected,
+                        toggleSelection: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSelected.toggle()
+                                
+                                if isSelected {
+                                    // 保存当前亮度并设置为最大
+                                    previousBrightness = UIScreen.main.brightness
+                                    UIScreen.main.brightness = 1.0
+                                    print("分屏选中 - 提高亮度至最大")
+                                    print("原始亮度：\(previousBrightness)")
+                                } else {
+                                    // 恢复原始亮度
+                                    UIScreen.main.brightness = previousBrightness
+                                    print("分屏取消选中 - 恢复原始亮度：\(previousBrightness)")
+                                }
+                                
+                                if isSelected {
+                                    feedbackGenerator.impactOccurred(intensity: 1.0)
+                                }
                             }
+                            print("分屏选中状态：\(isSelected)")
                         },
                         dragAction: { gesture in
-                            if isLongPressed {
-                                isDragging = true
-                                mirroredScreenOffset = gesture.translation.height
-                                originalScreenOffset = -gesture.translation.height
-                            }
+                            isDragging = true
+                            mirroredScreenOffset = gesture.translation.height
+                            originalScreenOffset = -gesture.translation.height
                         },
                         dragEndAction: { gesture in
                             handleDragEnd(gesture)
@@ -182,8 +210,8 @@ struct TwoOfMeScreens: View {
                 .edgesIgnoringSafeArea(.all)
                 .offset(x: horizontalDragOffset.width)
                 
-                // 长按提示
-                if isLongPressed {
+                // 交换提示图标（只在选中状态下显示）
+                if isSelected {
                     VStack {
                         Image(systemName: "arrow.up.arrow.down.circle.fill")
                             .font(.system(size: 40))
@@ -191,7 +219,7 @@ struct TwoOfMeScreens: View {
                             .background(Color.black.opacity(0.5))
                             .clipShape(Circle())
                     }
-                    .position(x: screenWidth/2, y: centerY)
+                    .position(x: geometry.size.width/2, y: geometry.size.height/2)
                 }
                 
                 // 左边缘拖拽区域
@@ -202,13 +230,13 @@ struct TwoOfMeScreens: View {
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
-                                if !isLongPressed {
+                                if !isSelected {
                                     horizontalDragOffset = CGSize(width: gesture.translation.width, height: 0)
                                     print("左边缘拖拽距离: \(gesture.translation.width)")
                                 }
                             }
                             .onEnded { gesture in
-                                if !isLongPressed {
+                                if !isSelected {
                                     if gesture.translation.width > dismissThreshold {
                                         print("左边缘达到退出阈值，关闭页面")
                                         presentationMode.wrappedValue.dismiss()
@@ -230,13 +258,13 @@ struct TwoOfMeScreens: View {
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
-                                if !isLongPressed {
+                                if !isSelected {
                                     horizontalDragOffset = CGSize(width: gesture.translation.width, height: 0)
                                     print("右边拖拽距离: \(gesture.translation.width)")
                                 }
                             }
                             .onEnded { gesture in
-                                if !isLongPressed {
+                                if !isSelected {
                                     if gesture.translation.width < -dismissThreshold {
                                         print("从右边缘达到退出阈值，关闭页面")
                                         presentationMode.wrappedValue.dismiss()
@@ -265,6 +293,13 @@ struct TwoOfMeScreens: View {
             }
         }
         .ignoresSafeArea(.all)
+        .onDisappear {
+            // 确保在视图消失时恢复原始亮度
+            if isSelected {
+                UIScreen.main.brightness = previousBrightness
+                print("TwoOfMe视图消失 - 恢复原始亮度：\(previousBrightness)")
+            }
+        }
     }
     
     private func setupVideoProcessing() {
@@ -290,7 +325,7 @@ struct TwoOfMeScreens: View {
     
     // 抽取拖拽结束处理逻辑
     private func handleDragEnd(_ gesture: DragGesture.Value) {
-        if isLongPressed {
+        if isSelected {  // 修改判断条件
             isDragging = false
             if abs(gesture.translation.height) > swapThreshold {
                 withAnimation(.spring()) {
@@ -305,15 +340,15 @@ struct TwoOfMeScreens: View {
                     mirroredScreenOffset = 0
                 }
             }
-            isLongPressed = false
+            // 不再重置 isSelected，让用户手动取消选中状态
         }
     }
 }
 
 // 添加 VideoProcessor 类
 class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
-    var normalImageHandler: ((UIImage) -> Void)?  // 正常画面处理器
-    var flippedImageHandler: ((UIImage) -> Void)?  // 翻转画面处理器
+    var normalImageHandler: ((UIImage) -> Void)?
+    var flippedImageHandler: ((UIImage) -> Void)?
     let context = CIContext()
     
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
@@ -333,9 +368,19 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             }
         }
         
-        // 生成水平翻转画面
-        let flippedImage = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
-        if let cgImage = context.createCGImage(flippedImage, from: flippedImage.extent) {
+        // 生成镜像画面（根据设备方向处理）
+        var mirroredImage = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
+        
+        // 根据设备方向旋转镜像画面
+        let deviceOrientation = UIDevice.current.orientation
+        if deviceOrientation == .landscapeLeft || deviceOrientation == .landscapeRight {
+            let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
+                .rotated(by: .pi)
+            mirroredImage = mirroredImage.transformed(by: rotationTransform)
+            print("镜像画面旋转180度 - 设备方向：\(deviceOrientation.rawValue)")
+        }
+        
+        if let cgImage = context.createCGImage(mirroredImage, from: mirroredImage.extent) {
             let flippedUIImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
             DispatchQueue.main.async {
                 self.flippedImageHandler?(flippedUIImage)
