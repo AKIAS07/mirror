@@ -6,6 +6,15 @@ class CameraManager: ObservableObject {
     @Published var permissionGranted = false
     private var currentCameraInput: AVCaptureDeviceInput?
     @Published var isMirrored = false
+    let videoOutput = AVCaptureVideoDataOutput()
+    var videoOutputDelegate: AVCaptureVideoDataOutputSampleBufferDelegate? {
+        didSet {
+            if let delegate = videoOutputDelegate {
+                let queue = DispatchQueue(label: "videoQueue", qos: .userInteractive)
+                videoOutput.setSampleBufferDelegate(delegate, queue: queue)
+            }
+        }
+    }
     
     init() {
         if session.canSetSessionPreset(.high) {
@@ -39,6 +48,7 @@ class CameraManager: ObservableObject {
             session.beginConfiguration()
             
             session.inputs.forEach { session.removeInput($0) }
+            session.outputs.forEach { session.removeOutput($0) }
             
             guard let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
                 return
@@ -49,6 +59,13 @@ class CameraManager: ObservableObject {
             
             if session.canAddInput(input) {
                 session.addInput(input)
+            }
+            
+            videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)]
+            videoOutput.alwaysDiscardsLateVideoFrames = true
+            
+            if session.canAddOutput(videoOutput) {
+                session.addOutput(videoOutput)
             }
             
             session.commitConfiguration()
