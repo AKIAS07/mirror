@@ -31,6 +31,7 @@ struct CircleButton: View {
 
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
+    @State private var showingTwoOfMe = false
     
     var body: some View {
         ZStack {
@@ -53,6 +54,10 @@ struct ContentView: View {
                         
                         CircleButton(systemName: "rectangle.split.2x1", title: "中") {
                             print("点击了中间按钮")
+                            print("时间：\(Date())")
+                            print("功能：Two of Me")
+                            showingTwoOfMe = true
+                            print("------------------------")
                         }
                         
                         CircleButton(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right", title: "右") {
@@ -89,6 +94,9 @@ struct ContentView: View {
         }
         .onAppear {
             cameraManager.checkPermission()
+        }
+        .fullScreenCover(isPresented: $showingTwoOfMe) {
+            TwoOfMeScreens()
         }
     }
 }
