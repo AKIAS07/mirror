@@ -32,14 +32,34 @@ struct CircleButton: View {
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @State private var showingTwoOfMe = false
+    @State private var isCameraActive = true
+    @State private var showRestartHint = false
     
     var body: some View {
         ZStack {
             if cameraManager.permissionGranted {
-                CameraView(session: $cameraManager.session, isMirrored: $cameraManager.isMirrored)
-                    .ignoresSafeArea()
+                if isCameraActive {
+                    CameraView(session: $cameraManager.session, isMirrored: $cameraManager.isMirrored)
+                        .ignoresSafeArea()
+                } else {
+                    Color.black
+                        .ignoresSafeArea()
+                        .overlay(
+                            VStack(spacing: 20) {
+                                Text("请点击屏幕重新开启摄像头")
+                                    .foregroundColor(.white)
+                                    .font(.title2)
+                                
+                                Image(systemName: "camera.circle")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(.white)
+                            }
+                        )
+                        .onTapGesture {
+                            restartCamera()
+                        }
+                }
                 
-                // 底部按钮栏
                 VStack {
                     Spacer()
                     HStack(spacing: 40) {
@@ -96,7 +116,26 @@ struct ContentView: View {
             cameraManager.checkPermission()
         }
         .fullScreenCover(isPresented: $showingTwoOfMe) {
+            handleTwoOfMeDismiss()
+        } content: {
             TwoOfMeScreens()
+        }
+    }
+    
+    private func handleTwoOfMeDismiss() {
+        cameraManager.session.stopRunning()
+        cameraManager.isMirrored = false
+        isCameraActive = false
+        showRestartHint = true
+    }
+    
+    private func restartCamera() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            cameraManager.session.startRunning()
+            DispatchQueue.main.async {
+                isCameraActive = true
+                showRestartHint = false
+            }
         }
     }
 }
