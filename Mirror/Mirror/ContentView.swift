@@ -104,7 +104,7 @@ struct CameraContainer: View {
         GeometryReader { geometry in
             ZStack {
                 if isActive {
-                    // ��
+                    // ��画面
                     if let image = processedImage {
                         Image(uiImage: image)
                             .resizable()
@@ -116,7 +116,7 @@ struct CameraContainer: View {
                     // 修改边框视图布局
                     GeometryReader { borderGeometry in
                         Rectangle()
-                            .stroke(containerSelected ? BorderStyle.selectedColor : BorderStyle.normalColor,  // 使用 containerSelected
+                            .stroke(containerSelected ? BorderStyle.selectedColor : BorderStyle.normalColor,
                                    lineWidth: containerSelected ? BorderStyle.selectedWidth : BorderStyle.normalWidth)
                             .frame(
                                 width: UIScreen.main.bounds.width,
@@ -135,24 +135,7 @@ struct CameraContainer: View {
                                 print("屏幕尺寸：width=\(UIScreen.main.bounds.width), height=\(UIScreen.main.bounds.height)")
                                 print("------------------------")
                             }
-                            .onChange(of: containerSelected) { newValue in
-                                print("------------------------")
-                                print("边框状态变化：")
-                                print("选中状态：\(newValue)")
-                                print("边框尺寸：width=\(UIScreen.main.bounds.width), height=\(borderGeometry.size.height)")
-                                print("边框坐标：x=\(borderGeometry.frame(in: .global).origin.x), y=\(borderGeometry.frame(in: .global).origin.y)")
-                                print("------------------------")
-                            }
                     }
-                    
-                    // 方向指示图标
-                    Image(systemName: "arrow.up.forward.circle.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.white)
-                        .background(Circle().fill(Color.black.opacity(0.3)))
-                        .scaleEffect(x: isMirrored ? -1 : 1, y: 1)
-                        .rotationEffect(getRotationAngle())
-                        .position(x: geometry.size.width/2, y: geometry.size.height/2)
                 } else {
                     RestartCameraView(action: restartAction)
                 }
@@ -297,7 +280,7 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
     }
 }
 
-// 修改统一的重启提示视图
+// 修改统一启动提���视图
 struct RestartCameraView: View {
     let action: () -> Void
     
@@ -351,7 +334,7 @@ struct ContentView: View {
             ZStack {
                 if cameraManager.permissionGranted {
                     if cameraManager.isMirrored {
-                        // 镜像模式视图
+                        // 镜像模式图
                         GeometryReader { geometry in
                             if isCameraActive {  // 添加条件判断
                                 ZStack {
@@ -429,7 +412,7 @@ struct ContentView: View {
                                 print("安全区域：\(geometry.safeAreaInsets)")
                                 print("------------------------")
                                 isSelected = normalModeSelected
-                                // 如果是选中状态，设置最大亮度
+                                // 如果是��中状态，设置最大亮度
                                 if normalModeSelected {
                                     previousBrightness = UIScreen.main.brightness
                                     UIScreen.main.brightness = 1.0
@@ -472,7 +455,7 @@ struct ContentView: View {
                                     .offset(y: -buttonSpacing)
                                     
                                     HStack(spacing: buttonSpacing) {
-                                        // 左按钮 - 镜像模式
+                                        // 左按钮 - 镜模式
                                         CircleButton(
                                             systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
                                             title: "",
@@ -505,11 +488,30 @@ struct ContentView: View {
                                         )
                                     }
                                     
-                                    // 中间按钮
+                                    // 中间钮
                                     CircleButton(
                                         systemName: "rectangle.split.2x1",
                                         title: "",
                                         action: {
+                                            // 在进入 Two of Me 模式前，确保恢复原始亮度
+                                            if cameraManager.isMirrored {
+                                                if isSelected {
+                                                    UIScreen.main.brightness = previousBrightness
+                                                    print("进入 Two of Me 前 - 镜像模式恢复原始亮度：\(previousBrightness)")
+                                                    isSelected = false
+                                                }
+                                            } else {
+                                                if normalModeSelected {
+                                                    UIScreen.main.brightness = previousBrightness
+                                                    print("进入 Two of Me 前 - 正常模式恢复原始亮度：\(previousBrightness)")
+                                                    normalModeSelected = false
+                                                }
+                                            }
+                                            
+                                            // 确保在显示 TwoOfMe 页面前恢复原始亮度
+                                            UIScreen.main.brightness = previousBrightness
+                                            print("进入 Two of Me 前 - 强制恢复原始亮度：\(previousBrightness)")
+                                            
                                             print("进入 Two of Me 模式")
                                             showingTwoOfMe = true
                                         }
@@ -568,7 +570,7 @@ struct ContentView: View {
                     forName: UIApplication.willResignActiveNotification,
                     object: nil,
                     queue: .main) { _ in
-                        print("应用进入后台")
+                        print("应用进后台")
                         handleAppBackground()
                     }
                 
@@ -576,7 +578,7 @@ struct ContentView: View {
                     forName: UIApplication.didBecomeActiveNotification,
                     object: nil,
                     queue: .main) { _ in
-                        print("应用回到前��")
+                        print("应用回到前台")
                         handleAppForeground()
                     }
                 
@@ -605,7 +607,7 @@ struct ContentView: View {
                     if cameraManager.isMirrored {
                         if isSelected {
                             UIScreen.main.brightness = 1.0
-                            print("���用回到前台 - 镜像模式恢复最大亮度")
+                            print("应用回到前台 - 镜像模式恢复最大亮度")
                         }
                     } else {
                         if normalModeSelected {
@@ -620,6 +622,7 @@ struct ContentView: View {
             handleTwoOfMeDismiss()
         } content: {
             TwoOfMeScreens()
+                .transition(.move(edge: .trailing))  // 从右边进入
         }
     }
     
@@ -634,7 +637,7 @@ struct ContentView: View {
     private func handleAppForeground() {
         print("显示重启相机提示")
         showRestartHint = true
-        // 不自动重启相机，等待用户点击
+        // 不自动重启相机等待用户点击
     }
     
     private func handleTwoOfMeDismiss() {

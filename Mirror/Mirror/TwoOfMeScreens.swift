@@ -173,6 +173,8 @@ struct TwoOfMeScreens: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .edgesIgnoringSafeArea(.all)
                 .offset(x: horizontalDragOffset.width)
+                .transition(.move(edge: .trailing))
+                .animation(.easeInOut(duration: 0.3), value: horizontalDragOffset)
                 
                 // 交换提示图标（只在选中状态下显示，且2秒后自动消失）
                 if isSelected && showSwapIcon {
@@ -194,12 +196,16 @@ struct TwoOfMeScreens: View {
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
-                                if !isSelected {  // 只在未选中状态下允许拖拽
-                                    horizontalDragOffset = CGSize(width: gesture.translation.width, height: 0)
-                                    print("左边缘拖拽距离: \(gesture.translation.width)")
-                                } else {
-                                    // 在选中状态下尝试拖拽时显示提示
-                                    if gesture.translation.width > 20 {  // 添加一个小阈值
+                                if !isSelected {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        horizontalDragOffset = CGSize(width: gesture.translation.width, height: 0)
+                                    }
+                                    if abs(gesture.translation.width) > dismissThreshold * 0.8 &&
+                                       abs(horizontalDragOffset.width) <= dismissThreshold * 0.8 {
+                                        print("开始向左拖拽退出")
+                                    }
+                                } else if !showAlert {
+                                    if gesture.translation.width > 20 {
                                         showAlert = true
                                         print("显示提示：请先取消打光功能")
                                     }
@@ -208,11 +214,16 @@ struct TwoOfMeScreens: View {
                             .onEnded { gesture in
                                 if !isSelected {
                                     if gesture.translation.width > dismissThreshold {
-                                        print("左边缘达到退出阈值，关闭页面")
-                                        presentationMode.wrappedValue.dismiss()
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            horizontalDragOffset = CGSize(width: UIScreen.main.bounds.width, height: 0)
+                                        }
+                                        print("达到左侧退出阈值")
+                                        print("关闭页面")
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                            presentationMode.wrappedValue.dismiss()
+                                        }
                                     } else {
-                                        print("从左边缘未达到退出阈值，回弹")
-                                        withAnimation(.spring()) {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                             horizontalDragOffset = .zero
                                         }
                                     }
@@ -228,12 +239,16 @@ struct TwoOfMeScreens: View {
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
-                                if !isSelected {  // 只在未选中状态下允许拖拽
-                                    horizontalDragOffset = CGSize(width: gesture.translation.width, height: 0)
-                                    print("右边拖拽距离: \(gesture.translation.width)")
-                                } else {
-                                    // 在选中状态下尝试拖拽时显示提示
-                                    if gesture.translation.width < -20 {  // 添加一个小阈值
+                                if !isSelected {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        horizontalDragOffset = CGSize(width: gesture.translation.width, height: 0)
+                                    }
+                                    if abs(gesture.translation.width) > dismissThreshold * 0.8 &&
+                                       abs(horizontalDragOffset.width) <= dismissThreshold * 0.8 {
+                                        print("开始向右拖拽退出")
+                                    }
+                                } else if !showAlert {
+                                    if gesture.translation.width < -20 {
                                         showAlert = true
                                         print("显示提示：请先取消打光功能")
                                     }
@@ -242,11 +257,16 @@ struct TwoOfMeScreens: View {
                             .onEnded { gesture in
                                 if !isSelected {
                                     if gesture.translation.width < -dismissThreshold {
-                                        print("从右边缘达到退出阈值，关闭页面")
-                                        presentationMode.wrappedValue.dismiss()
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            horizontalDragOffset = CGSize(width: -UIScreen.main.bounds.width, height: 0)
+                                        }
+                                        print("达到右侧退出阈值")
+                                        print("关闭页面")
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                            presentationMode.wrappedValue.dismiss()
+                                        }
                                     } else {
-                                        print("从右边缘未达到退出阈值，回弹")
-                                        withAnimation(.spring()) {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                             horizontalDragOffset = .zero
                                         }
                                     }
@@ -277,14 +297,10 @@ struct TwoOfMeScreens: View {
             .onAppear {
                 setupVideoProcessing()
                 print("------------------------")
-                print("视图加载完成")
-                print("设备名称: \(UIDevice.current.name)")
-                print("系统版本: \(UIDevice.current.systemVersion)")
-                print("设备屏幕尺寸: \(screenBounds)")
-                print("安全区域: \(safeArea)")
-                print("边缘拖拽区域宽度: \(edgeWidth)")
+                print("Two of Me 模式初始化")
+                print("屏幕尺寸: \(UIScreen.main.bounds.width) x \(UIScreen.main.bounds.height)")
                 print("------------------------")
-                // 预准备震动反馈
+                // 准备震动反馈
                 feedbackGenerator.prepare()
             }
         }
@@ -321,7 +337,7 @@ struct TwoOfMeScreens: View {
     
     // 抽取拖拽结束处理逻辑
     private func handleDragEnd(_ gesture: DragGesture.Value) {
-        if isSelected {  // 修改判断条件
+        if isSelected {  // 修改断条件
             isDragging = false
             if abs(gesture.translation.height) > swapThreshold {
                 withAnimation(.spring()) {
@@ -330,6 +346,7 @@ struct TwoOfMeScreens: View {
                     mirroredScreenOffset = 0
                 }
                 feedbackGenerator.impactOccurred(intensity: 1.0)
+                print("画面位置已交换")
             } else {
                 withAnimation(.spring()) {
                     originalScreenOffset = 0
@@ -377,6 +394,9 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var normalImageHandler: ((UIImage) -> Void)?
     var flippedImageHandler: ((UIImage) -> Void)?
     let context = CIContext()
+    private var lastLogTime: Date = Date()
+    private let logInterval: TimeInterval = 1.0  // 每秒最多输出一次日志
+    private var lastOrientation: UIDeviceOrientation = .unknown
     
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
@@ -404,7 +424,12 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
                 .rotated(by: .pi)
             mirroredImage = mirroredImage.transformed(by: rotationTransform)
-            print("镜像画面旋转180度 - 备方向：\(deviceOrientation.rawValue)")
+            
+            // 只在方向改变时输出一次日志
+            if deviceOrientation != lastOrientation {
+                print("镜像画面根据设备方向(\(deviceOrientation == .landscapeLeft ? "向左" : "向右"))调整")
+                lastOrientation = deviceOrientation
+            }
         }
         
         if let cgImage = context.createCGImage(mirroredImage, from: mirroredImage.extent) {
