@@ -20,6 +20,8 @@ struct TwoOfMeScreens: View {
     @State private var originalImage: UIImage?     // 原始画面
     @State private var mirroredImage: UIImage?     // 镜像画面
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness  // 添加原始亮度状态
+    @State private var showAlert = false
+    @State private var showSwapIcon = false  // 添加交换图标显示状态
     
     // 定义拖拽阈值和边缘区域宽度
     private let dismissThreshold: CGFloat = 100.0
@@ -46,11 +48,11 @@ struct TwoOfMeScreens: View {
                 .frame(height: UIScreen.main.bounds.height / 2)
                 .overlay(
                     Rectangle()
-                        .stroke(isSelected ? Color.yellow : Color.green, 
-                              lineWidth: isSelected ? 20 : 1)
+                        .stroke(isSelected ? Color.white : Color.green, 
+                              lineWidth: isSelected ? 50 : 1)
                 )
                 .offset(y: offset)
-                .onTapGesture {  // 替换长按手势为点击手势
+                .onTapGesture {
                     toggleSelection()
                 }
                 .gesture(
@@ -111,26 +113,7 @@ struct TwoOfMeScreens: View {
                         isSwapped: isScreensSwapped,
                         isSelected: isSelected,
                         toggleSelection: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isSelected.toggle()
-                                
-                                if isSelected {
-                                    // 保存当前亮度并设置为最大
-                                    previousBrightness = UIScreen.main.brightness
-                                    UIScreen.main.brightness = 1.0
-                                    print("分屏选中 - 提高亮度至最大")
-                                    print("原始亮度：\(previousBrightness)")
-                                } else {
-                                    // 恢复原始亮度
-                                    UIScreen.main.brightness = previousBrightness
-                                    print("分屏取消选中 - 恢复原始亮度：\(previousBrightness)")
-                                }
-                                
-                                if isSelected {
-                                    feedbackGenerator.impactOccurred(intensity: 1.0)
-                                }
-                            }
-                            print("分屏选中状态：\(isSelected)")
+                            toggleSelection()
                         },
                         dragAction: { gesture in
                             isDragging = true
@@ -175,26 +158,7 @@ struct TwoOfMeScreens: View {
                         isSwapped: isScreensSwapped,
                         isSelected: isSelected,
                         toggleSelection: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isSelected.toggle()
-                                
-                                if isSelected {
-                                    // 保存当前亮度并设置为最大
-                                    previousBrightness = UIScreen.main.brightness
-                                    UIScreen.main.brightness = 1.0
-                                    print("分屏选中 - 提高亮度至最大")
-                                    print("原始亮度：\(previousBrightness)")
-                                } else {
-                                    // 恢复原始亮度
-                                    UIScreen.main.brightness = previousBrightness
-                                    print("分屏取消选中 - 恢复原始亮度：\(previousBrightness)")
-                                }
-                                
-                                if isSelected {
-                                    feedbackGenerator.impactOccurred(intensity: 1.0)
-                                }
-                            }
-                            print("分屏选中状态：\(isSelected)")
+                            toggleSelection()
                         },
                         dragAction: { gesture in
                             isDragging = true
@@ -210,8 +174,8 @@ struct TwoOfMeScreens: View {
                 .edgesIgnoringSafeArea(.all)
                 .offset(x: horizontalDragOffset.width)
                 
-                // 交换提示图标（只在选中状态下显示）
-                if isSelected {
+                // 交换提示图标（只在选中状态下显示，且2秒后自动消失）
+                if isSelected && showSwapIcon {
                     VStack {
                         Image(systemName: "arrow.up.arrow.down.circle.fill")
                             .font(.system(size: 40))
@@ -230,9 +194,15 @@ struct TwoOfMeScreens: View {
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
-                                if !isSelected {
+                                if !isSelected {  // 只在未选中状态下允许拖拽
                                     horizontalDragOffset = CGSize(width: gesture.translation.width, height: 0)
                                     print("左边缘拖拽距离: \(gesture.translation.width)")
+                                } else {
+                                    // 在选中状态下尝试拖拽时显示提示
+                                    if gesture.translation.width > 20 {  // 添加一个小阈值
+                                        showAlert = true
+                                        print("显示提示：请先取消打光功能")
+                                    }
                                 }
                             }
                             .onEnded { gesture in
@@ -258,9 +228,15 @@ struct TwoOfMeScreens: View {
                     .gesture(
                         DragGesture()
                             .onChanged { gesture in
-                                if !isSelected {
+                                if !isSelected {  // 只在未选中状态下允许拖拽
                                     horizontalDragOffset = CGSize(width: gesture.translation.width, height: 0)
                                     print("右边拖拽距离: \(gesture.translation.width)")
+                                } else {
+                                    // 在选中状态下尝试拖拽时显示提示
+                                    if gesture.translation.width < -20 {  // 添加一个小阈值
+                                        showAlert = true
+                                        print("显示提示：请先取消打光功能")
+                                    }
                                 }
                             }
                             .onEnded { gesture in
@@ -277,6 +253,26 @@ struct TwoOfMeScreens: View {
                                 }
                             }
                     )
+                
+                // 添加提示视图
+                if showAlert {
+                    VStack {
+                        Text("请先取消打光功能再退出此页面")
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.7))
+                            .cornerRadius(10)
+                    }
+                    .position(x: screenWidth/2, y: screenHeight/2)
+                    .onAppear {
+                        // 2秒后自动隐藏提示
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation {
+                                showAlert = false
+                            }
+                        }
+                    }
+                }
             }
             .onAppear {
                 setupVideoProcessing()
@@ -343,6 +339,37 @@ struct TwoOfMeScreens: View {
             // 不再重置 isSelected，让用户手动取消选中状态
         }
     }
+    
+    // 修改选中状态切换函数
+    private func toggleSelection() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isSelected.toggle()
+            
+            if isSelected {
+                // 保存当前亮度并设置为最大
+                previousBrightness = UIScreen.main.brightness
+                UIScreen.main.brightness = 1.0
+                print("分屏选中 - 提高亮度至最大")
+                print("原始亮度：\(previousBrightness)")
+                
+                // 显示交换图标并设置2秒后消失
+                showSwapIcon = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    withAnimation {
+                        showSwapIcon = false
+                    }
+                }
+                
+                feedbackGenerator.impactOccurred(intensity: 1.0)
+            } else {
+                // 恢复原始亮度
+                UIScreen.main.brightness = previousBrightness
+                print("分屏取消选中 - 恢复原始亮度：\(previousBrightness)")
+                showSwapIcon = false  // 立即隐藏交换图标
+            }
+        }
+        print("分屏选中状态：\(isSelected)")
+    }
 }
 
 // 添加 VideoProcessor 类
@@ -377,7 +404,7 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
                 .rotated(by: .pi)
             mirroredImage = mirroredImage.transformed(by: rotationTransform)
-            print("镜像画面旋转180度 - 设备方向：\(deviceOrientation.rawValue)")
+            print("镜像画面旋转180度 - 备方向：\(deviceOrientation.rawValue)")
         }
         
         if let cgImage = context.createCGImage(mirroredImage, from: mirroredImage.extent) {
