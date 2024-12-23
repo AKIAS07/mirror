@@ -9,9 +9,9 @@ enum ScreenID {
     var debugColor: Color {
         switch self {
         case .original:
-            return Color.yellow.opacity(0.3)
+            return Color.yellow.opacity(0.0)
         case .mirrored:
-            return Color.red.opacity(0.3)
+            return Color.red.opacity(0.0)
         }
     }
     
@@ -79,6 +79,92 @@ struct ButtonContainer: View {
     }
 }
 
+// 修改边框容器视图
+struct EdgeBorderContainer: View {
+    let screenWidth: CGFloat
+    let centerY: CGFloat
+    let showTopBorder: Bool
+    let showBottomBorder: Bool
+    let showLeftBorder: Bool
+    let showRightBorder: Bool
+    
+    // 添加动画状态
+    @State private var topOpacity: Double = 0.0
+    @State private var bottomOpacity: Double = 0.0
+    @State private var leftOpacity: Double = 0.0
+    @State private var rightOpacity: Double = 0.0
+    
+    var body: some View {
+        Group {
+            // 上边框
+            Rectangle()
+                .fill(Color.white)
+                .opacity(topOpacity)  // 使用动画状态
+                .frame(width: screenWidth, height: 20)
+                .position(x: screenWidth/2, y: 10)
+                .onChange(of: showTopBorder) { newValue in
+                    handleBorderChange(newValue: newValue, binding: $topOpacity)
+                }
+            
+            // 下边框
+            Rectangle()
+                .fill(Color.white)
+                .opacity(bottomOpacity)
+                .frame(width: screenWidth, height: 20)
+                .position(x: screenWidth/2, y: centerY - 10)
+                .onChange(of: showBottomBorder) { newValue in
+                    handleBorderChange(newValue: newValue, binding: $bottomOpacity)
+                }
+            
+            // 左边框
+            Rectangle()
+                .fill(Color.white)
+                .opacity(leftOpacity)
+                .frame(width: 20, height: centerY)
+                .position(x: 10, y: centerY/2)
+                .onChange(of: showLeftBorder) { newValue in
+                    handleBorderChange(newValue: newValue, binding: $leftOpacity)
+                }
+            
+            // 右边框
+            Rectangle()
+                .fill(Color.white)
+                .opacity(rightOpacity)
+                .frame(width: 20, height: centerY)
+                .position(x: screenWidth - 10, y: centerY/2)
+                .onChange(of: showRightBorder) { newValue in
+                    handleBorderChange(newValue: newValue, binding: $rightOpacity)
+                }
+        }
+        .zIndex(2)
+        .animation(.easeInOut(duration: 0.3), value: topOpacity)
+        .animation(.easeInOut(duration: 0.3), value: bottomOpacity)
+        .animation(.easeInOut(duration: 0.3), value: leftOpacity)
+        .animation(.easeInOut(duration: 0.3), value: rightOpacity)
+    }
+    
+    // 处理边框显示/隐藏的函数
+    private func handleBorderChange(newValue: Bool, binding: Binding<Double>) {
+        if newValue {
+            // 显示边框
+            withAnimation(.easeIn(duration: 0.3)) {
+                binding.wrappedValue = 1.0
+            }
+            // 1秒后隐藏
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    binding.wrappedValue = 0.0
+                }
+            }
+        } else {
+            // 立即隐藏
+            withAnimation(.easeOut(duration: 0.3)) {
+                binding.wrappedValue = 0.0
+            }
+        }
+    }
+}
+
 struct TwoOfMeScreens: View {
     @StateObject private var cameraManager = CameraManager()
     @State private var originalImage: UIImage?
@@ -123,6 +209,28 @@ struct TwoOfMeScreens: View {
     
     @State private var showScaleLimitMessage = false  // 添加限制提示状态
     @State private var scaleLimitMessage = ""  // 添加限制提示信息
+    
+    // 添加拖动相关的状态和常量
+    @State private var originalOffset: CGSize = .zero
+    @State private var mirroredOffset: CGSize = .zero
+
+    
+    // 添加获取拖动方向的辅助函数
+    private func getDragDirection(translation: CGSize) -> String {
+        let angle = atan2(translation.height, translation.width)
+        let degrees = angle * 180 / .pi
+        
+        switch degrees {
+        case -45...45:
+            return "向右"
+        case 45...135:
+            return "向下"
+        case -135...(-45):
+            return "向上"
+        default:
+            return "向左"
+        }
+    }
     
     // 封装缩放处理方法
     private func handlePinchGesture(
@@ -181,6 +289,289 @@ struct TwoOfMeScreens: View {
         print("------------------------")
     }
     
+    // 添加计算最大可拖动范围的方法
+    private func calculateMaxOffset(for scale: CGFloat, screenWidth: CGFloat, screenHeight: CGFloat) -> CGSize {
+        // 计算放大后的图片尺寸
+        let scaledWidth = screenWidth * scale
+        let scaledHeight = (screenHeight / 2) * scale
+        
+        // 计算可拖动的最��距离（图片边缘刚好到屏幕边缘）
+        let maxHorizontalOffset = (scaledWidth - screenWidth) / 2
+        let maxVerticalOffset = (scaledHeight - screenHeight / 2) / 2
+        
+        return CGSize(width: maxHorizontalOffset, height: maxVerticalOffset)
+    }
+    
+    // 添加中心点相关属性
+    private var screenCenter: CGPoint {
+        CGPoint(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height / 4)  // Original屏幕中心
+    }
+    
+    // 添加计算并应用中心对齐偏移的方法
+    private func centerImage(at scale: CGFloat) {
+        // 计算当前缩放比例下的最大可拖动范围
+        let maxOffset = calculateMaxOffset(
+            for: scale,
+            screenWidth: UIScreen.main.bounds.width,
+            screenHeight: UIScreen.main.bounds.height
+        )
+        
+        // 重置偏移值为0（使图片回到中心）
+        originalOffset = .zero
+        
+        print("------------------------")
+        print("图片已自动居中")
+        print("屏幕中心：x=\(Int(screenCenter.x)), y=\(Int(screenCenter.y))")
+        print("最大可移动范围：\(Int(maxOffset.width))pt")
+        print("------------------------")
+    }
+    
+    // 添加判断图片是否超出边界的方法
+    private func isImageOutOfBounds(scale: CGFloat, offset: CGSize, screenWidth: CGFloat, screenHeight: CGFloat) -> Bool {
+        let maxOffset = calculateMaxOffset(
+            for: scale,
+            screenWidth: screenWidth,
+            screenHeight: screenHeight
+        )
+        
+        // 检查当前偏移是否超出新的最大偏移范围
+        return abs(offset.width) > maxOffset.width || abs(offset.height) > maxOffset.height
+    }
+    
+    // 添加设备方向状态
+    @State private var deviceOrientation: UIDeviceOrientation = .portrait
+    
+    // 修改设备方向监听的代码
+    private func startOrientationObserving() {
+        // 确保可以接收设备方向变化通知
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+        
+        NotificationCenter.default.addObserver(
+            forName: UIDevice.orientationDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            // 立即更新设备方向状态
+            deviceOrientation = UIDevice.current.orientation
+            
+            print("------------------------")
+            print("设备方向改变")
+            print("当前方向：\(getOrientationDescription(deviceOrientation))")
+            print("------------------------")
+        }
+    }
+    
+    // 修改方向描述辅助方法，添加倒置竖屏的描述
+    private func getOrientationDescription(_ orientation: UIDeviceOrientation) -> String {
+        switch orientation {
+        case .portrait:
+            return "竖直"
+        case .portraitUpsideDown:  // 添加倒置竖屏的描述
+            return "倒置竖屏"
+        case .landscapeLeft:
+            return "向左横屏"
+        case .landscapeRight:
+            return "向右横屏"
+        default:
+            return "其他"
+        }
+    }
+    
+    // 修改获取旋转角度的方法
+    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        case .portraitUpsideDown:  // 添加倒置竖屏的处理
+            return .degrees(180)
+        default:
+            return .degrees(0)
+        }
+    }
+    
+    // 添加拖动会话控制相关的状态变量
+    @State private var isDragging: Bool = false        // 是否正在拖动
+    @State private var dragSessionStarted: Bool = false // 当前拖动会话是否已开始
+    @State private var initialDragLocation: CGPoint = .zero  // 记录初始点击位置
+    
+    // 修改获取旋转后动偏移的方
+    private func getRotatedTranslation(_ translation: CGSize, for orientation: UIDeviceOrientation) -> CGSize {
+        switch orientation {
+        case .portrait:
+            return translation
+        case .portraitUpsideDown:
+            return CGSize(width: -translation.width, height: -translation.height)
+        case .landscapeLeft:
+            return CGSize(width: translation.height, height: -translation.width)
+        case .landscapeRight:
+            return CGSize(width: -translation.height, height: translation.width)
+        default:
+            return translation
+        }
+    }
+    
+    // 添加拖动阻尼系数
+    private let dragDampingFactor: CGFloat = 0.3  // 值越小，移动越不灵敏（0.0-1.0）
+    
+    // 添加记录初始触摸位置和初始偏移的状态
+    @State private var initialTouchLocation: CGPoint = .zero
+    @State private var initialOffset: CGSize = .zero
+    
+    // 添加一个状态变量来跟踪是否已经开始拖动
+    @State private var dragStarted: Bool = false
+    
+    // 添加边框显示状态
+    @State private var showTopBorder: Bool = false
+    @State private var showBottomBorder: Bool = false
+    @State private var showLeftBorder: Bool = false
+    @State private var showRightBorder: Bool = false
+    
+    // 添加边缘检测方法
+    private func detectEdges(
+        offset: CGSize,
+        maxOffset: CGSize,
+        orientation: UIDeviceOrientation
+    ) -> (left: Bool, right: Bool, top: Bool, bottom: Bool) {
+        let threshold: CGFloat = 5.0
+        
+        // 计算基本边缘检测（竖屏状态）
+        let baseDetection = (
+            left: abs(offset.width - maxOffset.width) < threshold,
+            right: abs(offset.width + maxOffset.width) < threshold,
+            top: abs(offset.height - maxOffset.height) < threshold,
+            bottom: abs(offset.height + maxOffset.height) < threshold
+        )
+        
+        // 根据设备方向返回对应的边缘状态
+        switch orientation {
+        case .landscapeLeft:
+            return (
+                left: baseDetection.bottom,   // 上边变左边
+                right: baseDetection.top,     // 下边变右边
+                top: baseDetection.left,      // 右边变上边
+                bottom: baseDetection.right   // 左边变下边
+            )
+        case .landscapeRight:
+            return (
+                left: baseDetection.top,      // 下边变左边
+                right: baseDetection.bottom,  // 上边变右边
+                top: baseDetection.right,     // 左边变上边
+                bottom: baseDetection.left    // 右边变下边
+            )
+        case .portraitUpsideDown:
+            return (
+                left: baseDetection.right,    // 左右相反
+                right: baseDetection.left,    // 左右相反
+                top: baseDetection.bottom,    // 上下相反
+                bottom: baseDetection.top     // 上下相反
+            )
+        default:
+            return baseDetection
+        }
+    }
+    
+    // 修改拖拽处理方法中的边缘检测部分
+    private func handleDragGesture(
+        value: DragGesture.Value,
+        screenWidth: CGFloat,
+        screenHeight: CGFloat,
+        centerY: CGFloat
+    ) {
+        if isZone2Enabled && currentScale > 1.0 {
+            // 在拖动开始时记录初始状态和打印日志
+            if !dragStarted {
+                dragStarted = true
+                
+                // 记录初始态
+                initialTouchLocation = value.startLocation
+                initialOffset = originalOffset
+                
+                print("------------------------")
+                print("Original画面拖动开始")
+                print("手指位置：x=\(Int(value.startLocation.x))pt, y=\(Int(value.startLocation.y))pt")
+                print("画面比例：\(Int(currentScale * 100))%")
+                print("设备向：\(getOrientationDescription(deviceOrientation))")
+                print("------------------------")
+            }
+            
+            // 根据设备方向调整移动方向
+            var translation = value.translation
+            switch deviceOrientation {
+            case .landscapeLeft:
+                translation = CGSize(
+                    width: value.translation.height,
+                    height: -value.translation.width
+                )
+            case .landscapeRight:
+                translation = CGSize(
+                    width: -value.translation.height,
+                    height: value.translation.width
+                )
+            case .portraitUpsideDown:
+                translation = CGSize(
+                    width: -value.translation.width,
+                    height: -value.translation.height
+                )
+            default:
+                break
+            }
+            
+            // 计算和应用新的偏移值
+            let newOffset = CGSize(
+                width: initialOffset.width + translation.width,
+                height: initialOffset.height + translation.height
+            )
+            
+            let maxOffset = calculateMaxOffset(
+                for: currentScale,
+                screenWidth: screenWidth,
+                screenHeight: screenHeight
+            )
+            
+            originalOffset = CGSize(
+                width: max(min(newOffset.width, maxOffset.width), -maxOffset.width),
+                height: max(min(newOffset.height, maxOffset.height), -maxOffset.height)
+            )
+            
+            // 使用封装的边缘检测方法
+            let edges = detectEdges(
+                offset: originalOffset,
+                maxOffset: maxOffset,
+                orientation: deviceOrientation
+            )
+            
+            // 更新边框状态
+            showLeftBorder = edges.left
+            showRightBorder = edges.right
+            showTopBorder = edges.top
+            showBottomBorder = edges.bottom
+            
+            // 打印调试信息
+            print("------------------------")
+            print("边缘检测状态")
+            print("设备方向：\(getOrientationDescription(deviceOrientation))")
+            if edges.left { print("  左边缘重合") }
+            if edges.right { print("  右边缘重合") }
+            if edges.top { print("  下边缘重合") }
+            if edges.bottom { print("  上边缘重合") }
+            print("------------------------")
+        }
+    }
+    
+    // 添加拖拽结束处理方法
+    private func handleDragEnd() {
+        // 重置拖动状态
+        dragStarted = false
+        
+        print("------------------------")
+        print("Original画面拖动结束")
+        print("最终偏移：x=\(Int(originalOffset.width))pt, y=\(Int(originalOffset.height))pt")
+        print("画面比例：\(Int(currentScale * 100))%")
+        print("------------------------")
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             let screenBounds = UIScreen.main.bounds
@@ -202,12 +593,45 @@ struct TwoOfMeScreens: View {
                             content: AnyView(
                                 ZStack {
                                     if let image = isOriginalPaused ? pausedOriginalImage : originalImage {
+                                        // 先放置图片
                                         Image(uiImage: image)
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
-                                            .frame(width: screenWidth, height: centerY)
-                                            .scaleEffect(isOriginalPaused ? currentScale : 1.0)  // 使用 currentScale
+                                            .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,
+                                                   height: centerY)
+                                            .scaleEffect(isOriginalPaused ? currentScale : 1.0)
+                                            .offset(isOriginalPaused ? originalOffset : .zero)
+                                            .rotationEffect(isOriginalPaused ? getRotationAngle(deviceOrientation) : .zero)
+                                            .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
                                             .clipped()
+                                            .gesture(isOriginalPaused && currentScale > 1.0 ?
+                                                DragGesture()
+                                                    .onChanged { value in
+                                                        handleDragGesture(
+                                                            value: value,
+                                                            screenWidth: screenWidth,
+                                                            screenHeight: screenHeight,
+                                                            centerY: centerY
+                                                        )
+                                                    }
+                                                    .onEnded { _ in
+                                                        handleDragEnd()
+                                                    }
+                                                : nil
+                                            )
+                                            .zIndex(1)  // 设置图片的 zIndex
+                                        
+                                        // 使用边框容器
+                                        if isOriginalPaused {
+                                            EdgeBorderContainer(
+                                                screenWidth: screenWidth,
+                                                centerY: centerY,
+                                                showTopBorder: showTopBorder,
+                                                showBottomBorder: showBottomBorder,
+                                                showLeftBorder: showLeftBorder,
+                                                showRightBorder: showRightBorder
+                                            )
+                                        }
                                     }
                                 }
                             )
@@ -264,8 +688,12 @@ struct TwoOfMeScreens: View {
                                         Image(uiImage: image)
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
-                                            .frame(width: screenWidth, height: centerY)
-                                            .scaleEffect(isOriginalPaused ? currentScale : 1.0)  // 使用 currentScale
+                                            .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,  // 横屏时调整宽度
+                                                   height: centerY)
+                                            .scaleEffect(isOriginalPaused ? currentScale : 1.0)
+                                            .offset(isOriginalPaused ? originalOffset : .zero)  // 添加偏移
+                                            .rotationEffect(isOriginalPaused ? getRotationAngle(deviceOrientation) : .zero)  // 添加旋转
+                                            .animation(.easeInOut(duration: 0.3), value: deviceOrientation)  // 添加旋转动画
                                             .clipped()
                                     }
                                 }
@@ -277,181 +705,261 @@ struct TwoOfMeScreens: View {
                 
                 // 触控区域
                 ZStack {
-                    // Original屏的触控区2
+                    // Original的触控区2和2a
                     VStack {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .frame(height: (screenHeight - 20) / 2)
-                            .gesture(
-                                TapGesture(count: 2)
-                                    .onEnded {
-                                        if isZone2Enabled {
-                                            print("------------------------")
-                                            print("触控区2被双击")
-                                            print("区域：Original屏幕")
-                                            print("位置：\(isScreensSwapped ? "下部" : "上部")")
-                                            
-                                            togglePauseState(for: .original)
-                                            
-                                            print("当前布局：\(layoutDescription)")
-                                            print("------------------------")
-                                        }
-                                    }
-                                    .exclusively(before: 
-                                        LongPressGesture(minimumDuration: 0.5)
-                                            .onEnded { _ in
-                                                if isZone2Enabled && !isOriginalPaused {  // 只在非定格状态响应长按
-                                                    print("------------------------")
-                                                    print("触控区2被长按")
-                                                    print("区域：Original屏幕")
-                                                    print("位置：\(isScreensSwapped ? "下部" : "上部")")
-                                                    print("当前布局：\(layoutDescription)")
-                                                    print("画面状态：\(isOriginalPaused ? "已定格" : "实时中")")
-                                                    print("------------------------")
-                                                }
+                        if !isOriginalPaused {
+                            // 触控区2（未定格状态）
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .frame(height: (screenHeight - 20) / 2)
+                                .gesture(
+                                    TapGesture(count: 2)
+                                        .onEnded {
+                                            if isZone2Enabled {
+                                                print("------------------------")
+                                                print("触控区2被双击")
+                                                print("区域：Original幕")
+                                                print("位置：\(isScreensSwapped ? "下部" : "上部")")
+                                                print("进入触控区2a")
+                                                
+                                                togglePauseState(for: .original)
+                                                
+                                                print("当前布局：\(layoutDescription)")
+                                                print("------------------------")
                                             }
-                                            .exclusively(before: DragGesture(minimumDistance: 0)
-                                                .onEnded { gesture in
-                                                    if isZone2Enabled && !isOriginalPaused {  // 只在非定格状态响应单击
+                                        }
+                                        .exclusively(before: 
+                                            LongPressGesture(minimumDuration: 0.5)
+                                                .onEnded { _ in
+                                                    if isZone2Enabled {
                                                         print("------------------------")
-                                                        print("触控区2被单击")
+                                                        print("触控区2���长按")
                                                         print("区域：Original屏幕")
                                                         print("位置：\(isScreensSwapped ? "下部" : "上部")")
-                                                        print("点击位置：(x=\(Int(gesture.location.x)), y=\(Int(gesture.location.y)))pt")
                                                         print("当前布局：\(layoutDescription)")
-                                                        print("可点击状态：已启用")
-                                                        
-                                                        if showContainer {
-                                                            print("黑色容器已隐藏")
-                                                            withAnimation(.linear(duration: 0.5)) {
-                                                                containerWidth = 0
-                                                            }
-                                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                                                showContainer = false
-                                                            }
-                                                        }
-                                                        
+                                                        print("画面状态：实时中")
                                                         print("------------------------")
                                                     }
                                                 }
-                                            )
-                                    )
-                            )
-                            .simultaneousGesture(
-                                MagnificationGesture()
-                                    .onChanged { scale in
-                                        if isZone2Enabled && isOriginalPaused {
-                                            handlePinchGesture(
-                                                scale: scale,
-                                                screenID: .original,
-                                                baseScale: originalScale,
-                                                currentScale: &currentScale
+                                                .exclusively(before: DragGesture(minimumDistance: 0)
+                                                    .onEnded { gesture in
+                                                        if isZone2Enabled {
+                                                            print("------------------------")
+                                                            print("触控区2被单击")
+                                                            print("区域：Original屏幕")
+                                                            print("位置：\(isScreensSwapped ? "下部" : "上部")")
+                                                            print("点击��置：(x=\(Int(gesture.location.x)), y=\(Int(gesture.location.y)))pt")
+                                                            print("当前布局：\(layoutDescription)")
+                                                            print("可点击状态：已启用")
+                                                            
+                                                            if showContainer {
+                                                                print("黑色容器已隐藏")
+                                                                withAnimation(.linear(duration: 0.5)) {
+                                                                    containerWidth = 0
+                                                                }
+                                                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                                                    showContainer = false
+                                                                }
+                                                            }
+                                                            
+                                                            print("------------------------")
+                                                        }
+                                                    }
+                                                )
+                                        )
+                                )
+                        } else {
+                            // 触控区2a（定格状态）
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .frame(height: (screenHeight - 20) / 2)
+                                .gesture(
+                                    TapGesture(count: 2)  // 双击退出
+                                        .onEnded {
+                                            if isZone2Enabled {
+                                                print("------------------------")
+                                                print("触控区2a被双击")
+                                                print("区域：Original屏幕")
+                                                print("位置：\(isScreensSwapped ? "下部" : "上部")")
+                                                print("退出到触控区2")
+                                                
+                                                togglePauseState(for: .original)
+                                                
+                                                print("当前布局：\(layoutDescription)")
+                                                print("------------------------")
+                                            }
+                                        }
+                                )
+                                .simultaneousGesture(  // 双指缩放
+                                    MagnificationGesture()
+                                        .onChanged { scale in
+                                            if isZone2Enabled {
+                                                let newScale = originalScale * scale
+                                                currentScale = min(max(newScale, minScale), maxScale)
+                                                print("------------------------")
+                                                print("触控区2a双指手势：\(scale > 1.0 ? "拉开" : "靠近")")
+                                                print("画面比例：\(Int(currentScale * 100))%")
+                                                print("------------------------")
+                                            }
+                                        }
+                                        .onEnded { scale in
+                                            if isZone2Enabled {
+                                                originalScale = currentScale
+                                                print("------------------------")
+                                                print("触控区2a双指手势结束")
+                                                print("最终画面比例：\(Int(originalScale * 100))%")
+                                                
+                                                // 只在缩小操作且图片超出边界时进行中心位置矫正
+                                                if scale < 1.0 && isImageOutOfBounds(
+                                                    scale: currentScale,
+                                                    offset: originalOffset,
+                                                    screenWidth: UIScreen.main.bounds.width,
+                                                    screenHeight: UIScreen.main.bounds.height
+                                                ) {
+                                                    print("图片超出边界，执行缩小后的中心位置矫正")
+                                                    centerImage(at: currentScale)
+                                                } else {
+                                                    print("图片在边界内，保持当前位置")
+                                                }
+                                                
+                                                print("------------------------")
+                                            }
+                                        }
+                                )
+                                .simultaneousGesture(  // 修改拖动手势代码
+                                    DragGesture()
+                                        .onChanged { value in
+                                            handleDragGesture(
+                                                value: value,
+                                                screenWidth: screenWidth,
+                                                screenHeight: screenHeight,
+                                                centerY: centerY
                                             )
                                         }
-                                    }
-                                    .onEnded { scale in
-                                        if isZone2Enabled && isOriginalPaused {
-                                            handlePinchEnd(
-                                                screenID: .original,
-                                                currentScale: currentScale,
-                                                baseScale: &originalScale
-                                            )
+                                        .onEnded { _ in
+                                            handleDragEnd()
                                         }
-                                    }
-                            )
+                                )
+                        }
                         Spacer()
                     }
                     .frame(height: screenHeight / 2)
                     .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight*3/4 : screenHeight/4)
                     
-                    // Mirrored屏的触控区3
+                    // Mirrored屏的触控区3和3a
                     VStack {
-                        Spacer()
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .frame(height: (screenHeight - 20) / 2)
-                            .gesture(
-                                TapGesture(count: 2)
-                                    .onEnded {
-                                        if isZone3Enabled {
-                                            print("------------------------")
-                                            print("触控区3被双击")
-                                            print("区域：Mirrored屏幕")
-                                            print("位置：\(isScreensSwapped ? "上部" : "下部")")
-                                            
-                                            togglePauseState(for: .mirrored)
-                                            
-                                            print("当前布局：\(layoutDescription)")
-                                            print("------------------------")
-                                        }
-                                    }
-                                    .exclusively(before: 
-                                        LongPressGesture(minimumDuration: 0.5)
-                                            .onEnded { _ in
-                                                if isZone3Enabled && !isMirroredPaused {  // 只在非定格状态响应长按
-                                                    print("------------------------")
-                                                    print("触控区3被长按")
-                                                    print("区域：Mirrored屏幕")
-                                                    print("位置：\(isScreensSwapped ? "上部" : "下部")")
-                                                    print("当前布局：\(layoutDescription)")
-                                                    print("画面状态：\(isMirroredPaused ? "已定格" : "实时中")")
-                                                    print("------------------------")
-                                                }
+                        if !isMirroredPaused {
+                            // 触控区3（未定格状态）
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .frame(height: (screenHeight - 20) / 2)
+                                .gesture(
+                                    TapGesture(count: 2)
+                                        .onEnded {
+                                            if isZone3Enabled {
+                                                print("------------------------")
+                                                print("触控区3被双击")
+                                                print("区域：Mirrored屏幕")
+                                                print("位置：\(isScreensSwapped ? "上部" : "下部")")
+                                                print("进入触控区3a")
+                                                
+                                                togglePauseState(for: .mirrored)
+                                                
+                                                print("当前布局：\(layoutDescription)")
+                                                print("------------------------")
                                             }
-                                            .exclusively(before: DragGesture(minimumDistance: 0)
-                                                .onEnded { gesture in
-                                                    if isZone3Enabled && !isMirroredPaused {  // 只在非定格状态响应单击
+                                        }
+                                        .exclusively(before: 
+                                            LongPressGesture(minimumDuration: 0.5)
+                                                .onEnded { _ in
+                                                    if isZone3Enabled {
                                                         print("------------------------")
-                                                        print("触控区3被单击")
+                                                        print("触控区3被长按")
                                                         print("区域：Mirrored屏幕")
                                                         print("位置：\(isScreensSwapped ? "上部" : "下部")")
-                                                        print("点击位置：(x=\(Int(gesture.location.x)), y=\(Int(gesture.location.y)))pt")
                                                         print("当前布局：\(layoutDescription)")
-                                                        print("可点击状态：已启用")
-                                                        
-                                                        if showContainer {
-                                                            print("黑色容器已隐藏")
-                                                            withAnimation(.linear(duration: 0.5)) {
-                                                                containerWidth = 0
-                                                            }
-                                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                                                showContainer = false
-                                                            }
-                                                        }
-                                                        
+                                                        print("画面状态：实时中")
                                                         print("------------------------")
                                                     }
                                                 }
-                                            )
-                                    )
-                            )
-                            .simultaneousGesture(
-                                MagnificationGesture()
-                                    .onChanged { scale in
-                                        if isZone3Enabled && isMirroredPaused {
-                                            handlePinchGesture(
-                                                scale: scale,
-                                                screenID: .mirrored,
-                                                baseScale: mirroredScale,
-                                                currentScale: &currentMirroredScale
-                                            )
+                                                .exclusively(before: DragGesture(minimumDistance: 0)
+                                                    .onEnded { gesture in
+                                                        if isZone3Enabled {
+                                                            print("------------------------")
+                                                            print("触控区3被单击")
+                                                            print("区域：Mirrored屏幕")
+                                                            print("位置：\(isScreensSwapped ? "下部" : "上部")")
+                                                            print("点击位置：(x=\(Int(gesture.location.x)), y=\(Int(gesture.location.y)))pt")
+                                                            print("当前布局：\(layoutDescription)")
+                                                            print("可点击状态：已启用")
+                                                            
+                                                            if showContainer {
+                                                                print("黑色容器已隐藏")
+                                                                withAnimation(.linear(duration: 0.5)) {
+                                                                    containerWidth = 0
+                                                                }
+                                                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                                                    showContainer = false
+                                                                }
+                                                            }
+                                                            
+                                                            print("------------------------")
+                                                        }
+                                                    }
+                                                )
+                                        )
+                                )
+                        } else {
+                            // 触控区3a（定格状态）
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .frame(height: (screenHeight - 20) / 2)
+                                .gesture(
+                                    TapGesture(count: 2)  // 双击退出
+                                        .onEnded {
+                                            if isZone3Enabled {
+                                                print("------------------------")
+                                                print("触控区3a被双击")
+                                                print("区域：Mirrored屏幕")
+                                                print("位置：\(isScreensSwapped ? "下部" : "上部")")
+                                                print("退出到触控区3")
+                                                
+                                                togglePauseState(for: .mirrored)
+                                                
+                                                print("当前布局：\(layoutDescription)")
+                                                print("------------------------")
+                                            }
                                         }
-                                    }
-                                    .onEnded { scale in
-                                        if isZone3Enabled && isMirroredPaused {
-                                            handlePinchEnd(
-                                                screenID: .mirrored,
-                                                currentScale: currentMirroredScale,
-                                                baseScale: &mirroredScale
-                                            )
+                                )
+                                .simultaneousGesture(  // 双指缩放
+                                    MagnificationGesture()
+                                        .onChanged { scale in
+                                            if isZone3Enabled {
+                                                let newScale = mirroredScale * scale
+                                                currentMirroredScale = min(max(newScale, minScale), maxScale)
+                                                print("------------------------")
+                                                print("触控区3a双指手势：\(scale > 1.0 ? "拉开" : "靠近")")
+                                                print("画面比例：\(Int(currentMirroredScale * 100))%")
+                                                print("------------------------")
+                                            }
                                         }
-                                    }
-                            )
+                                        .onEnded { scale in
+                                            if isZone3Enabled {
+                                                mirroredScale = currentMirroredScale
+                                                print("------------------------")
+                                                print("触控区3a双指手势结束")
+                                                print("最终面比例：\(Int(mirroredScale * 100))%")
+                                                print("------------------------")
+                                            }
+                                        }
+                                )
+                        }
+                        Spacer()
                     }
                     .frame(height: screenHeight / 2)
                     .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight/4 : screenHeight*3/4)
                     
-                    // 触控区1（透明矩形）
+                    // 触控1（透明形）
                     ZStack {
                         Color.clear
                             .contentShape(Rectangle())
@@ -470,7 +978,7 @@ struct TwoOfMeScreens: View {
                                     isScreensSwapped.toggle()
                                 }
                                 
-                                // 延迟打印交换后状态，确保状���已更新
+                                // 延打印交换后状态，确保状态已更新
                                 DispatchQueue.main.async {
                                     print("交换完成")
                                     print("新布局：\(layoutDescription)")
@@ -507,13 +1015,20 @@ struct TwoOfMeScreens: View {
                 }
             }
             .onAppear {
+                // 确保开启设备方向监听
+                UIDevice.current.beginGeneratingDeviceOrientationNotifications()
                 setupVideoProcessing()
+                startOrientationObserving()
                 print("------------------------")
                 print("视图初始化")
-                print("触控区2：永远对应Original屏幕（双击可定格/恢复画面）")
+                print("触控区2永远对应Original幕（双击可定格/恢复画面）")
                 print("触控区3：永远对应Mirrored屏幕（双击可定格/恢复画面）")
                 print("初始布局：\(layoutDescription)")
                 print("------------------------")
+            }
+            .onDisappear {
+                UIDevice.current.endGeneratingDeviceOrientationNotifications()
+                NotificationCenter.default.removeObserver(self)
             }
         }
         .ignoresSafeArea(.all)
@@ -540,10 +1055,10 @@ struct TwoOfMeScreens: View {
         cameraManager.checkPermission()
     }
     
-    // 添加布局变化监听
+    // 添加布局变化监
     private func onLayoutChanged() {
         print("------------------------")
-        print("布局发生变化")
+        print("布局生变化")
         print("当前布局：\(layoutDescription)")
         print("------------------------")
     }
@@ -555,13 +1070,15 @@ struct TwoOfMeScreens: View {
                 isOriginalPaused = false
                 pausedOriginalImage = nil
                 originalScale = 1.0
-                currentScale = 1.0  // 使用 currentScale
+                currentScale = 1.0
+                originalOffset = .zero  // 重置偏移
                 print("Original画面已恢复")
             } else {
                 isOriginalPaused = true
                 pausedOriginalImage = originalImage
                 originalScale = 1.0
-                currentScale = 1.0  // 使用 currentScale
+                currentScale = 1.0
+                originalOffset = .zero  // 重置偏移
                 print("Original画面已定格")
             }
         case .mirrored:
@@ -588,13 +1105,13 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var flippedImageHandler: ((UIImage) -> Void)?
     let context = CIContext()
     private var lastLogTime: Date = Date()
-    private let logInterval: TimeInterval = 1.0  // 秒最多输出一次日志
+    private let logInterval: TimeInterval = 1.0  // 最多出一次日志
     private var lastOrientation: UIDeviceOrientation = .unknown
     
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
-        // 修正视频方向
+        // 修正频方向
         connection.videoOrientation = .portrait
         connection.isVideoMirrored = true
         
@@ -608,7 +1125,7 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
             }
         }
         
-        // 生成镜像画面（据设备方向处理）
+        // 生成镜像画面（备方向处理）
         var mirroredImage = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
         
         // 根据设备方向旋转镜像画面
@@ -618,9 +1135,9 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
                 .rotated(by: .pi)
             mirroredImage = mirroredImage.transformed(by: rotationTransform)
             
-            // 只在向改变时输出一次日志
+            // 只在向改变时输出次日志
             if deviceOrientation != lastOrientation {
-                print("镜像画面根据设备方向(\(deviceOrientation == .landscapeLeft ? "向左" : "向右"))整")
+                print("镜像画面根设备方向(\(deviceOrientation == .landscapeLeft ? "向左" : "向右"))整")
                 lastOrientation = deviceOrientation
             }
         }
