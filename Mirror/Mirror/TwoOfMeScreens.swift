@@ -237,7 +237,7 @@ struct TwoOfMeScreens: View {
         scale: CGFloat,
         screenID: ScreenID,
         baseScale: CGFloat,
-        currentScale: inout CGFloat  // 使用 inout 参数来修改当前缩放值
+        currentScale: inout CGFloat
     ) {
         let newScale = baseScale * scale
         
@@ -267,7 +267,7 @@ struct TwoOfMeScreens: View {
             let now = Date()
             if now.timeIntervalSince(lastOutputTime) >= outputInterval {
                 print("------------------------")
-                print("触控区\(screenID == .original ? "2" : "3")双指手势：\(scale > 1.0 ? "拉开" : "靠近")")
+                print("触控区\(screenID == .original ? "2" : "3")双指手势\(scale > 1.0 ? "拉开" : "靠近")")
                 print("画面比例：\(Int(currentScale * 100))%")
                 print("------------------------")
                 lastOutputTime = now
@@ -279,7 +279,7 @@ struct TwoOfMeScreens: View {
     private func handlePinchEnd(
         screenID: ScreenID,
         currentScale: CGFloat,
-        baseScale: inout CGFloat  // 使用 inout 参数来修改基准缩放值
+        baseScale: inout CGFloat
     ) {
         baseScale = currentScale
         showScaleLimitMessage = false
@@ -295,7 +295,7 @@ struct TwoOfMeScreens: View {
         let scaledWidth = screenWidth * scale
         let scaledHeight = (screenHeight / 2) * scale
         
-        // 计算可拖动的最��距离（图片边缘刚好到屏幕边缘）
+        // 计算可拖动的最距离（图片边缘刚好到屏幕边缘）
         let maxHorizontalOffset = (scaledWidth - screenWidth) / 2
         let maxVerticalOffset = (scaledHeight - screenHeight / 2) / 2
         
@@ -343,7 +343,7 @@ struct TwoOfMeScreens: View {
     
     // 修改设备方向监听的代码
     private func startOrientationObserving() {
-        // 确保可以接收设备方向变化通知
+        // 确保以接收设备方向变化通知
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         
         NotificationCenter.default.addObserver(
@@ -394,7 +394,7 @@ struct TwoOfMeScreens: View {
     // 添加拖动会话控制相关的状态变量
     @State private var isDragging: Bool = false        // 是否正在拖动
     @State private var dragSessionStarted: Bool = false // 当前拖动会话是否已开始
-    @State private var initialDragLocation: CGPoint = .zero  // 记录初始点击位置
+    @State private var initialDragLocation: CGPoint = .zero  // ��录初始点击位置
     
     // 修改获取旋转后动偏移的方
     private func getRotatedTranslation(_ translation: CGSize, for orientation: UIDeviceOrientation) -> CGSize {
@@ -542,7 +542,7 @@ struct TwoOfMeScreens: View {
                 orientation: deviceOrientation
             )
             
-            // 更新边框状态
+            // 更新边框��态
             showLeftBorder = edges.left
             showRightBorder = edges.right
             showTopBorder = edges.top
@@ -572,6 +572,136 @@ struct TwoOfMeScreens: View {
         print("------------------------")
     }
     
+    // 添加 Mirrored 屏幕的拖拽相关状态
+    @State private var mirroredDragStarted: Bool = false
+    @State private var mirroredInitialTouchLocation: CGPoint = .zero
+    @State private var mirroredInitialOffset: CGSize = .zero
+
+    // 添加 Mirrored 屏幕的边框状态
+    @State private var showMirroredTopBorder: Bool = false
+    @State private var showMirroredBottomBorder: Bool = false
+    @State private var showMirroredLeftBorder: Bool = false
+    @State private var showMirroredRightBorder: Bool = false
+
+    // 添加 Mirrored 屏幕的拖拽处理方法
+    private func handleMirroredDragGesture(
+        value: DragGesture.Value,
+        screenWidth: CGFloat,
+        screenHeight: CGFloat,
+        centerY: CGFloat
+    ) {
+        if isZone3Enabled && currentMirroredScale > 1.0 {
+            // 在拖动开始时记录初始状态和打印日志
+            if !mirroredDragStarted {
+                mirroredDragStarted = true
+                
+                // 记录初始状态
+                mirroredInitialTouchLocation = value.startLocation
+                mirroredInitialOffset = mirroredOffset
+                
+                print("------------------------")
+                print("Mirrored画面拖动开始")
+                print("手指位置：x=\(Int(value.startLocation.x))pt, y=\(Int(value.startLocation.y))pt")
+                print("画面比例：\(Int(currentMirroredScale * 100))%")
+                print("设备方向：\(getOrientationDescription(deviceOrientation))")
+                print("------------------------")
+            }
+            
+            // 根据设备方向调整移动方向
+            var translation = value.translation
+            switch deviceOrientation {
+            case .landscapeLeft:
+                translation = CGSize(
+                    width: value.translation.height,
+                    height: -value.translation.width
+                )
+            case .landscapeRight:
+                translation = CGSize(
+                    width: -value.translation.height,
+                    height: value.translation.width
+                )
+            case .portraitUpsideDown:
+                translation = CGSize(
+                    width: -value.translation.width,
+                    height: -value.translation.height
+                )
+            default:
+                break
+            }
+            
+            // 计算和应用新的偏移值
+            let newOffset = CGSize(
+                width: mirroredInitialOffset.width + translation.width,
+                height: mirroredInitialOffset.height + translation.height
+            )
+            
+            let maxOffset = calculateMaxOffset(
+                for: currentMirroredScale,
+                screenWidth: screenWidth,
+                screenHeight: screenHeight
+            )
+            
+            mirroredOffset = CGSize(
+                width: max(min(newOffset.width, maxOffset.width), -maxOffset.width),
+                height: max(min(newOffset.height, maxOffset.height), -maxOffset.height)
+            )
+            
+            // 使用边缘检测方法
+            let edges = detectEdges(
+                offset: mirroredOffset,
+                maxOffset: maxOffset,
+                orientation: deviceOrientation
+            )
+            
+            // 更新边框状态
+            showMirroredLeftBorder = edges.left
+            showMirroredRightBorder = edges.right
+            showMirroredTopBorder = edges.top
+            showMirroredBottomBorder = edges.bottom
+            
+            // 打印调试信息
+            print("------------------------")
+            print("Mirrored边缘检测状态")
+            print("设备方向：\(getOrientationDescription(deviceOrientation))")
+            if edges.left { print("  左边缘重合") }
+            if edges.right { print("  右边缘重合") }
+            if edges.top { print("  下边框重合") }
+            if edges.bottom { print("  上边缘重合") }
+            print("------------------------")
+        }
+    }
+
+    // 添加 Mirrored 拖拽结束处理方法
+    private func handleMirroredDragEnd() {
+        // 重置拖动状态
+        mirroredDragStarted = false
+        
+        print("------------------------")
+        print("Mirrored画面拖动结束")
+        print("最终偏移：x=\(Int(mirroredOffset.width))pt, y=\(Int(mirroredOffset.height))pt")
+        print("画面比例：\(Int(currentMirroredScale * 100))%")
+        print("------------------------")
+    }
+    
+    // 添加 Mirrored 屏幕的中心点矫正方法
+    private func centerMirroredImage(at scale: CGFloat) {
+        // 计算当前缩放比例下的最大可拖动范围
+        let maxOffset = calculateMaxOffset(
+            for: scale,
+            screenWidth: UIScreen.main.bounds.width,
+            screenHeight: UIScreen.main.bounds.height
+        )
+        
+        // 重置偏移值为0（使图片回到中心）
+        mirroredOffset = .zero
+        
+        print("------------------------")
+        print("Mirrored图片已自动居中")
+        print("屏幕中心：x=\(Int(screenCenter.x)), y=\(Int(screenCenter.y))")
+        print("最大可移动范围：\(Int(maxOffset.width))pt")
+        print("------------------------")
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             let screenBounds = UIScreen.main.bounds
@@ -593,7 +723,6 @@ struct TwoOfMeScreens: View {
                             content: AnyView(
                                 ZStack {
                                     if let image = isOriginalPaused ? pausedOriginalImage : originalImage {
-                                        // 先放置图片
                                         Image(uiImage: image)
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
@@ -619,9 +748,9 @@ struct TwoOfMeScreens: View {
                                                     }
                                                 : nil
                                             )
-                                            .zIndex(1)  // 设置图片的 zIndex
+                                            .zIndex(1)
                                         
-                                        // 使用边框容器
+                                        // 添加边框容器
                                         if isOriginalPaused {
                                             EdgeBorderContainer(
                                                 screenWidth: screenWidth,
@@ -650,9 +779,63 @@ struct TwoOfMeScreens: View {
                                         Image(uiImage: image)
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
-                                            .frame(width: screenWidth, height: centerY)
+                                            .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,
+                                                   height: centerY)
                                             .scaleEffect(isMirroredPaused ? currentMirroredScale : 1.0)
+                                            .offset(isMirroredPaused ? mirroredOffset : .zero)
+                                            .rotationEffect(isMirroredPaused ? getRotationAngle(deviceOrientation) : .zero)
+                                            .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
                                             .clipped()
+                                            .gesture(isMirroredPaused && currentMirroredScale > 1.0 ?
+                                                DragGesture()
+                                                    .onChanged { value in
+                                                        handleMirroredDragGesture(
+                                                            value: value,
+                                                            screenWidth: screenWidth,
+                                                            screenHeight: screenHeight,
+                                                            centerY: centerY
+                                                        )
+                                                    }
+                                                    .onEnded { _ in
+                                                        handleMirroredDragEnd()
+                                                    }
+                                                : nil
+                                            )
+                                            .simultaneousGesture(  // 双指缩放
+                                                MagnificationGesture()
+                                                    .onChanged { scale in
+                                                        if isZone3Enabled {
+                                                            handlePinchGesture(
+                                                                scale: scale,
+                                                                screenID: .mirrored,
+                                                                baseScale: mirroredScale,
+                                                                currentScale: &currentMirroredScale
+                                                            )
+                                                        }
+                                                    }
+                                                    .onEnded { scale in
+                                                        if isZone3Enabled {
+                                                            handlePinchEnd(
+                                                                screenID: .mirrored,
+                                                                currentScale: currentMirroredScale,
+                                                                baseScale: &mirroredScale
+                                                            )
+                                                        }
+                                                    }
+                                            )
+                                            .zIndex(1)
+                                        
+                                        // 添加边框容器
+                                        if isMirroredPaused {
+                                            EdgeBorderContainer(
+                                                screenWidth: screenWidth,
+                                                centerY: centerY,
+                                                showTopBorder: showMirroredTopBorder,
+                                                showBottomBorder: showMirroredBottomBorder,
+                                                showLeftBorder: showMirroredLeftBorder,
+                                                showRightBorder: showMirroredRightBorder
+                                            )
+                                        }
                                     }
                                 }
                             )
@@ -667,9 +850,63 @@ struct TwoOfMeScreens: View {
                                         Image(uiImage: image)
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
-                                            .frame(width: screenWidth, height: centerY)
-                                            .scaleEffect(isMirroredPaused ? currentMirroredScale : 1.0)  // 添加缩放效果
+                                            .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,
+                                                   height: centerY)
+                                            .scaleEffect(isMirroredPaused ? currentMirroredScale : 1.0)
+                                            .offset(isMirroredPaused ? mirroredOffset : .zero)
+                                            .rotationEffect(isMirroredPaused ? getRotationAngle(deviceOrientation) : .zero)
+                                            .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
                                             .clipped()
+                                            .gesture(isMirroredPaused && currentMirroredScale > 1.0 ?
+                                                DragGesture()
+                                                    .onChanged { value in
+                                                        handleMirroredDragGesture(
+                                                            value: value,
+                                                            screenWidth: screenWidth,
+                                                            screenHeight: screenHeight,
+                                                            centerY: centerY
+                                                        )
+                                                    }
+                                                    .onEnded { _ in
+                                                        handleMirroredDragEnd()
+                                                    }
+                                                : nil
+                                            )
+                                            .simultaneousGesture(  // 双指缩放
+                                                MagnificationGesture()
+                                                    .onChanged { scale in
+                                                        if isZone3Enabled {
+                                                            handlePinchGesture(
+                                                                scale: scale,
+                                                                screenID: .mirrored,
+                                                                baseScale: mirroredScale,
+                                                                currentScale: &currentMirroredScale
+                                                            )
+                                                        }
+                                                    }
+                                                    .onEnded { scale in
+                                                        if isZone3Enabled {
+                                                            handlePinchEnd(
+                                                                screenID: .mirrored,
+                                                                currentScale: currentMirroredScale,
+                                                                baseScale: &mirroredScale
+                                                            )
+                                                        }
+                                                    }
+                                            )
+                                            .zIndex(1)
+                                        
+                                        // 添加边框容器
+                                        if isMirroredPaused {
+                                            EdgeBorderContainer(
+                                                screenWidth: screenWidth,
+                                                centerY: centerY,
+                                                showTopBorder: showMirroredTopBorder,
+                                                showBottomBorder: showMirroredBottomBorder,
+                                                showLeftBorder: showMirroredLeftBorder,
+                                                showRightBorder: showMirroredRightBorder
+                                            )
+                                        }
                                     }
                                 }
                             )
@@ -688,13 +925,41 @@ struct TwoOfMeScreens: View {
                                         Image(uiImage: image)
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
-                                            .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,  // 横屏时调整宽度
+                                            .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,
                                                    height: centerY)
                                             .scaleEffect(isOriginalPaused ? currentScale : 1.0)
-                                            .offset(isOriginalPaused ? originalOffset : .zero)  // 添加偏移
-                                            .rotationEffect(isOriginalPaused ? getRotationAngle(deviceOrientation) : .zero)  // 添加旋转
-                                            .animation(.easeInOut(duration: 0.3), value: deviceOrientation)  // 添加旋转动画
+                                            .offset(isOriginalPaused ? originalOffset : .zero)
+                                            .rotationEffect(isOriginalPaused ? getRotationAngle(deviceOrientation) : .zero)
+                                            .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
                                             .clipped()
+                                            .gesture(isOriginalPaused && currentScale > 1.0 ?
+                                                DragGesture()
+                                                    .onChanged { value in
+                                                        handleDragGesture(
+                                                            value: value,
+                                                            screenWidth: screenWidth,
+                                                            screenHeight: screenHeight,
+                                                            centerY: centerY
+                                                        )
+                                                    }
+                                                    .onEnded { _ in
+                                                        handleDragEnd()
+                                                    }
+                                                : nil
+                                            )
+                                            .zIndex(1)
+                                        
+                                        // 添加边框容器
+                                        if isOriginalPaused {
+                                            EdgeBorderContainer(
+                                                screenWidth: screenWidth,
+                                                centerY: centerY,
+                                                showTopBorder: showTopBorder,
+                                                showBottomBorder: showBottomBorder,
+                                                showLeftBorder: showLeftBorder,
+                                                showRightBorder: showRightBorder
+                                            )
+                                        }
                                     }
                                 }
                             )
@@ -733,7 +998,7 @@ struct TwoOfMeScreens: View {
                                                 .onEnded { _ in
                                                     if isZone2Enabled {
                                                         print("------------------------")
-                                                        print("触控区2���长按")
+                                                        print("触控区2被长按")
                                                         print("区域：Original屏幕")
                                                         print("位置：\(isScreensSwapped ? "下部" : "上部")")
                                                         print("当前布局：\(layoutDescription)")
@@ -748,7 +1013,7 @@ struct TwoOfMeScreens: View {
                                                             print("触控区2被单击")
                                                             print("区域：Original屏幕")
                                                             print("位置：\(isScreensSwapped ? "下部" : "上部")")
-                                                            print("点击��置：(x=\(Int(gesture.location.x)), y=\(Int(gesture.location.y)))pt")
+                                                            print("点击位置：(x=\(Int(gesture.location.x)), y=\(Int(gesture.location.y)))pt")
                                                             print("当前布局：\(layoutDescription)")
                                                             print("可点击状态：已启用")
                                                             
@@ -809,7 +1074,7 @@ struct TwoOfMeScreens: View {
                                                 print("触控区2a双指手势结束")
                                                 print("最终画面比例：\(Int(originalScale * 100))%")
                                                 
-                                                // 只在缩小操作且图片超出边界时进行中心位置矫正
+                                                // 只在缩小操作且图片超出边界时行中心位置矫正
                                                 if scale < 1.0 && isImageOutOfBounds(
                                                     scale: currentScale,
                                                     offset: originalOffset,
@@ -948,9 +1213,37 @@ struct TwoOfMeScreens: View {
                                                 mirroredScale = currentMirroredScale
                                                 print("------------------------")
                                                 print("触控区3a双指手势结束")
-                                                print("最终面比例：\(Int(mirroredScale * 100))%")
+                                                print("最终画面比例：\(Int(mirroredScale * 100))%")
+                                                
+                                                // 添加缩小操作的边界检查和中心矫正
+                                                if scale < 1.0 && isImageOutOfBounds(
+                                                    scale: currentMirroredScale,
+                                                    offset: mirroredOffset,
+                                                    screenWidth: UIScreen.main.bounds.width,
+                                                    screenHeight: UIScreen.main.bounds.height
+                                                ) {
+                                                    print("图片超出边界，执行缩小后的中心位置矫正")
+                                                    centerMirroredImage(at: currentMirroredScale)
+                                                } else {
+                                                    print("图片在边界内，保持当前位置")
+                                                }
+                                                
                                                 print("------------------------")
                                             }
+                                        }
+                                )
+                                .simultaneousGesture(  // 添加拖动手势
+                                    DragGesture()
+                                        .onChanged { value in
+                                            handleMirroredDragGesture(
+                                                value: value,
+                                                screenWidth: screenWidth,
+                                                screenHeight: screenHeight,
+                                                centerY: centerY
+                                            )
+                                        }
+                                        .onEnded { _ in
+                                            handleMirroredDragEnd()
                                         }
                                 )
                         }
@@ -1007,7 +1300,7 @@ struct TwoOfMeScreens: View {
                                     }
                                 } else {
                                     print("------------------------")
-                                    print("触控区1已禁用")
+                                    print("触控区1禁用")
                                     print("------------------------")
                                 }
                             }
@@ -1021,7 +1314,7 @@ struct TwoOfMeScreens: View {
                 startOrientationObserving()
                 print("------------------------")
                 print("视图初始化")
-                print("触控区2永远对应Original幕（双击可定格/恢复画面）")
+                print("触控区2永���对应Original幕（双击可定格/恢复画面）")
                 print("触控区3：永远对应Mirrored屏幕（双击可定格/恢复画面）")
                 print("初始布局：\(layoutDescription)")
                 print("------------------------")
