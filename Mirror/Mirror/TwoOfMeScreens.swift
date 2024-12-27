@@ -394,7 +394,7 @@ struct TwoOfMeScreens: View {
     // 添加拖动会话控制相关的状态变量
     @State private var isDragging: Bool = false        // 是否正在拖动
     @State private var dragSessionStarted: Bool = false // 当前拖动会话是否已开始
-    @State private var initialDragLocation: CGPoint = .zero  // 录始击位置
+    @State private var initialDragLocation: CGPoint = .zero  // 录始置
     
     // 修改获取旋转后动偏移的方法
     private func getRotatedTranslation(_ translation: CGSize, for orientation: UIDeviceOrientation) -> CGSize {
@@ -492,7 +492,7 @@ struct TwoOfMeScreens: View {
                 print("Original画面拖动开始")
                 print("手指位置：x=\(Int(value.startLocation.x))pt, y=\(Int(value.startLocation.y))pt")
                 print("画面比例：\(Int(currentScale * 100))%")
-                print("设备方向���\(getOrientationDescription(deviceOrientation))")
+                print("设备方向：\(getOrientationDescription(deviceOrientation))")
                 print("------------------------")
             }
             
@@ -562,12 +562,12 @@ struct TwoOfMeScreens: View {
     
     // 添加拖拽结束处理方法
     private func handleDragEnd() {
-        // 重置拖动状态
+        // ���置拖动状态
         dragStarted = false
         
         print("------------------------")
         print("Original画面拖动结束")
-        print("最终偏移：x=\(Int(originalOffset.width))pt, y=\(Int(originalOffset.height))pt")
+        print("最终偏：x=\(Int(originalOffset.width))pt, y=\(Int(originalOffset.height))pt")
         print("画面比例：\(Int(currentScale * 100))%")
         print("------------------------")
     }
@@ -778,8 +778,8 @@ struct TwoOfMeScreens: View {
         
         if timeSinceLastTap > 0.3 {  // 如果距离上次点击超过300ms，认为是新的单击
             tapCount = 1
-            // 延迟处理单击，给双留出判断时间
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // 延迟处理单击，给长按和双击留出判断时间
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {  // 修改这里，从0.3改为0.6秒
                 if self.tapCount == 1 {  // 如果在延迟期间没有发生第二次点击
                     handleScreenTap(screenID: screenID)
                 }
@@ -1164,13 +1164,25 @@ struct TwoOfMeScreens: View {
                                             }
                                         }
                                 )
+                                .simultaneousGesture(  // 添加长按手势
+                                    LongPressGesture(minimumDuration: 0.8)
+                                        .onEnded { _ in
+                                            if isZone2Enabled {
+                                                print("------------------------")
+                                                print("触控区2被长按")
+                                                print("区域：Original屏幕")
+                                                print("位置：\(isScreensSwapped ? "下部" : "上部")")
+                                                print("------------------------")
+                                            }
+                                        }
+                                )
                         } else {
                             // 触控区2a（定格状态）
                             Color.clear
                                 .contentShape(Rectangle())
                                 .frame(height: (screenHeight - 20) / 2)
                                 .gesture(
-                                    TapGesture(count: 2)  // 双击退��
+                                    TapGesture(count: 2)  // 双击退出
                                         .onEnded {
                                             if isZone2Enabled {
                                                 print("------------------------")
@@ -1236,6 +1248,18 @@ struct TwoOfMeScreens: View {
                                             handleDragEnd()
                                         }
                                 )
+                                .simultaneousGesture(  // 添加长按手势
+                                    LongPressGesture(minimumDuration: 0.8)
+                                        .onEnded { _ in
+                                            if isZone2Enabled {
+                                                print("------------------------")
+                                                print("触控区2a被长按")
+                                                print("区域：Original屏幕（定格状态）")
+                                                print("位置：\(isScreensSwapped ? "下部" : "上部")")
+                                                print("------------------------")
+                                            }
+                                        }
+                                )
                         }
                         Spacer()
                     }
@@ -1293,6 +1317,18 @@ struct TwoOfMeScreens: View {
                                                     currentScale: currentMirroredScale,
                                                     baseScale: &mirroredScale
                                                 )
+                                            }
+                                        }
+                                )
+                                .simultaneousGesture(  // 添加长按手势
+                                    LongPressGesture(minimumDuration: 0.8)
+                                        .onEnded { _ in
+                                            if isZone3Enabled {
+                                                print("------------------------")
+                                                print("触控区3被长按")
+                                                print("区域：Mirrored屏幕")
+                                                print("位置：\(isScreensSwapped ? "上部" : "下部")")
+                                                print("------------------------")
                                             }
                                         }
                                 )
@@ -1368,6 +1404,18 @@ struct TwoOfMeScreens: View {
                                             handleMirroredDragEnd()
                                         }
                                 )
+                                .simultaneousGesture(  // 添加长按手势
+                                    LongPressGesture(minimumDuration: 0.8)
+                                        .onEnded { _ in
+                                            if isZone3Enabled {
+                                                print("------------------------")
+                                                print("触控区3a被长按")
+                                                print("区域：Mirrored屏幕（定格状态）")
+                                                print("位置：\(isScreensSwapped ? "上部" : "下部")")
+                                                print("------------------------")
+                                            }
+                                        }
+                                )
                         }
                         Spacer()
                     }
@@ -1403,7 +1451,7 @@ struct TwoOfMeScreens: View {
                                     handleContainerVisibility(showContainer: true)
                                 } else {
                                     print("------------------------")
-                                    print("触控区1禁用")
+                                    print("触控区1禁��")
                                     print("------------------------")
                                 }
                             }
@@ -1468,34 +1516,28 @@ struct TwoOfMeScreens: View {
                 // 退出定格状态
                 isOriginalPaused = false
                 pausedOriginalImage = nil
-                originalScale = 1.0
-                currentScale = 1.0
+                // 保持当前缩放比例，不重置为1.0
                 originalOffset = .zero
                 print("Original画面已恢复")
             } else {
                 // 进入定格状态
                 isOriginalPaused = true
                 
-                // 根��设备方向调整定格画面
+                // 根据设备方向调整定格画面
                 if let image = originalImage {
                     switch deviceOrientation {
                     case .landscapeLeft:
-                        // 向左横屏时，顺时针旋转90度
                         pausedOriginalImage = image.rotate(degrees: -90)
                     case .landscapeRight:
-                        // 向右横屏时，逆时针旋转90度
                         pausedOriginalImage = image.rotate(degrees: 90)
                     case .portraitUpsideDown:
-                        // 倒置竖屏时，旋转180度
                         pausedOriginalImage = image.rotate(degrees: 180)
                     default:
-                        // 正常竖屏时，不需要旋转
                         pausedOriginalImage = image
                     }
                 }
                 
-                originalScale = 1.0
-                currentScale = 1.0
+                // 保持当前缩放比例
                 originalOffset = .zero
                 print("Original画面已定格")
             }
@@ -1505,8 +1547,7 @@ struct TwoOfMeScreens: View {
                 // 退出定格状态
                 isMirroredPaused = false
                 pausedMirroredImage = nil
-                mirroredScale = 1.0
-                currentMirroredScale = 1.0
+                // 保持当前缩放比例，不重置为1.0
                 mirroredOffset = .zero
                 print("Mirrored画面已恢复")
             } else {
@@ -1517,22 +1558,17 @@ struct TwoOfMeScreens: View {
                 if let image = mirroredImage {
                     switch deviceOrientation {
                     case .landscapeLeft:
-                        // 向左横屏时，顺时针旋转90度
                         pausedMirroredImage = image.rotate(degrees: -90)
                     case .landscapeRight:
-                        // 向右横屏时，逆时针旋转90度
                         pausedMirroredImage = image.rotate(degrees: 90)
                     case .portraitUpsideDown:
-                        // 倒置竖屏时，旋转180度
                         pausedMirroredImage = image.rotate(degrees: 180)
                     default:
-                        // 正常竖屏时，不需要旋转
                         pausedMirroredImage = image
                     }
                 }
                 
-                mirroredScale = 1.0
-                currentMirroredScale = 1.0
+                // 保持当前缩放比例
                 mirroredOffset = .zero
                 print("Mirrored画面已定格")
             }
