@@ -191,7 +191,7 @@ struct TwoOfMeScreens: View {
         }
     }
     
-    // Original 屏幕的状态
+    // Original 屏幕的��态
     @State private var originalScale: CGFloat = 1.0
     @State private var currentScale: CGFloat = 1.0  // 保持原来的名字
     
@@ -394,7 +394,7 @@ struct TwoOfMeScreens: View {
     // 添加拖动会话控制相关的状态变量
     @State private var isDragging: Bool = false        // 是否正在拖动
     @State private var dragSessionStarted: Bool = false // 当前拖动会话是否已开始
-    @State private var initialDragLocation: CGPoint = .zero  // ��录始点击位置
+    @State private var initialDragLocation: CGPoint = .zero  // 录始击位置
     
     // 修改获取旋转后动偏移的方法
     private func getRotatedTranslation(_ translation: CGSize, for orientation: UIDeviceOrientation) -> CGSize {
@@ -492,7 +492,7 @@ struct TwoOfMeScreens: View {
                 print("Original画面拖动开始")
                 print("手指位置：x=\(Int(value.startLocation.x))pt, y=\(Int(value.startLocation.y))pt")
                 print("画面比例：\(Int(currentScale * 100))%")
-                print("设备方向：\(getOrientationDescription(deviceOrientation))")
+                print("设备方向���\(getOrientationDescription(deviceOrientation))")
                 print("------------------------")
             }
             
@@ -778,7 +778,7 @@ struct TwoOfMeScreens: View {
         
         if timeSinceLastTap > 0.3 {  // 如果距离上次点击超过300ms，认为是新的单击
             tapCount = 1
-            // 延迟处理单击，给双击留出判断时间
+            // 延迟处理单击，给双留出判断时间
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 if self.tapCount == 1 {  // 如果在延迟期间没有发生第二次点击
                     handleScreenTap(screenID: screenID)
@@ -819,7 +819,7 @@ struct TwoOfMeScreens: View {
                 
                 // 上下分屏布局
                 VStack(spacing: 0) {
-                    // 根据交换状态决定显示哪个屏幕
+                    // 根据交换状态决定显示个屏幕
                     if !isScreensSwapped {
                         // Original 屏幕在上
                         ScreenContainer(
@@ -832,7 +832,7 @@ struct TwoOfMeScreens: View {
                                             .aspectRatio(contentMode: .fill)
                                             .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,
                                                    height: centerY)
-                                            .scaleEffect(isOriginalPaused ? currentScale : 1.0)
+                                            .scaleEffect(isOriginalPaused ? currentScale : currentScale)
                                             .offset(isOriginalPaused ? originalOffset : .zero)
                                             .rotationEffect(isOriginalPaused ? getRotationAngle(deviceOrientation) : .zero)
                                             .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
@@ -894,7 +894,7 @@ struct TwoOfMeScreens: View {
                                             .aspectRatio(contentMode: .fill)
                                             .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,
                                                    height: centerY)
-                                            .scaleEffect(isMirroredPaused ? currentMirroredScale : 1.0)
+                                            .scaleEffect(isMirroredPaused ? currentMirroredScale : currentMirroredScale)
                                             .offset(isMirroredPaused ? mirroredOffset : .zero)
                                             .rotationEffect(isMirroredPaused ? getRotationAngle(deviceOrientation) : .zero)
                                             .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
@@ -914,7 +914,7 @@ struct TwoOfMeScreens: View {
                                                     }
                                                 : nil
                                             )
-                                            .simultaneousGesture(  // 双指缩放
+                                            .simultaneousGesture(  // 双指缩放手势
                                                 MagnificationGesture()
                                                     .onChanged { scale in
                                                         if isZone3Enabled {
@@ -974,7 +974,7 @@ struct TwoOfMeScreens: View {
                                             .aspectRatio(contentMode: .fill)
                                             .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,
                                                    height: centerY)
-                                            .scaleEffect(isMirroredPaused ? currentMirroredScale : 1.0)
+                                            .scaleEffect(isMirroredPaused ? currentMirroredScale : currentMirroredScale)
                                             .offset(isMirroredPaused ? mirroredOffset : .zero)
                                             .rotationEffect(isMirroredPaused ? getRotationAngle(deviceOrientation) : .zero)
                                             .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
@@ -994,7 +994,7 @@ struct TwoOfMeScreens: View {
                                                     }
                                                 : nil
                                             )
-                                            .simultaneousGesture(  // 双指缩放
+                                            .simultaneousGesture(  // 双指缩放手势
                                                 MagnificationGesture()
                                                     .onChanged { scale in
                                                         if isZone3Enabled {
@@ -1058,7 +1058,7 @@ struct TwoOfMeScreens: View {
                                             .aspectRatio(contentMode: .fill)
                                             .frame(width: deviceOrientation.isLandscape ? screenHeight / 2 : screenWidth,
                                                    height: centerY)
-                                            .scaleEffect(isOriginalPaused ? currentScale : 1.0)
+                                            .scaleEffect(isOriginalPaused ? currentScale : currentScale)
                                             .offset(isOriginalPaused ? originalOffset : .zero)
                                             .rotationEffect(isOriginalPaused ? getRotationAngle(deviceOrientation) : .zero)
                                             .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
@@ -1125,7 +1125,7 @@ struct TwoOfMeScreens: View {
                                             }
                                         }
                                 )
-                                .highPriorityGesture(  // 双击手势设置为高优先级
+                                .highPriorityGesture(  // 双击手势设置为优先级
                                     TapGesture(count: 2)
                                         .onEnded {
                                             if isZone2Enabled {
@@ -1142,13 +1142,35 @@ struct TwoOfMeScreens: View {
                                             }
                                         }
                                 )
+                                .simultaneousGesture(  // 添加双指缩放手势
+                                    MagnificationGesture()
+                                        .onChanged { scale in
+                                            if isZone2Enabled {
+                                                handlePinchGesture(
+                                                    scale: scale,
+                                                    screenID: .original,
+                                                    baseScale: originalScale,
+                                                    currentScale: &currentScale
+                                                )
+                                            }
+                                        }
+                                        .onEnded { scale in
+                                            if isZone2Enabled {
+                                                handlePinchEnd(
+                                                    screenID: .original,
+                                                    currentScale: currentScale,
+                                                    baseScale: &originalScale
+                                                )
+                                            }
+                                        }
+                                )
                         } else {
                             // 触控区2a（定格状态）
                             Color.clear
                                 .contentShape(Rectangle())
                                 .frame(height: (screenHeight - 20) / 2)
                                 .gesture(
-                                    TapGesture(count: 2)  // 双击退出
+                                    TapGesture(count: 2)  // 双击退��
                                         .onEnded {
                                             if isZone2Enabled {
                                                 print("------------------------")
@@ -1249,6 +1271,28 @@ struct TwoOfMeScreens: View {
                                                 
                                                 print("当前布局：\(layoutDescription)")
                                                 print("------------------------")
+                                            }
+                                        }
+                                )
+                                .simultaneousGesture(  // 添加双指缩放手势
+                                    MagnificationGesture()
+                                        .onChanged { scale in
+                                            if isZone3Enabled {
+                                                handlePinchGesture(
+                                                    scale: scale,
+                                                    screenID: .mirrored,
+                                                    baseScale: mirroredScale,
+                                                    currentScale: &currentMirroredScale
+                                                )
+                                            }
+                                        }
+                                        .onEnded { scale in
+                                            if isZone3Enabled {
+                                                handlePinchEnd(
+                                                    screenID: .mirrored,
+                                                    currentScale: currentMirroredScale,
+                                                    baseScale: &mirroredScale
+                                                )
                                             }
                                         }
                                 )
@@ -1432,7 +1476,7 @@ struct TwoOfMeScreens: View {
                 // 进入定格状态
                 isOriginalPaused = true
                 
-                // 根据设备方向调整定格画面
+                // 根��设备方向调整定格画面
                 if let image = originalImage {
                     switch deviceOrientation {
                     case .landscapeLeft:
@@ -1548,7 +1592,7 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 }
 
-// 添加 UIImage 扩展来处理图片旋转
+// 添 UIImage 扩展来处理图片旋转
 extension UIImage {
     func rotate(degrees: CGFloat) -> UIImage {
         let radians = degrees * .pi / 180.0
