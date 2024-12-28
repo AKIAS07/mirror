@@ -355,7 +355,7 @@ struct TwoOfMeScreens: View {
         centerY: CGFloat
     ) {
         if isZone2Enabled && currentScale > 1.0 {
-            // 在拖动开始时记录初始状态和打印日志
+            // 在拖动开始时记录初始状��和打印日志
             if !dragStarted {
                 dragStarted = true
                 
@@ -557,7 +557,7 @@ struct TwoOfMeScreens: View {
             screenHeight: UIScreen.main.bounds.height
         )
         
-        // 重置偏移值为0（使图片回到中心���
+        // 重置偏移值为0（使图片回到中心）
         mirroredOffset = .zero
         
         print("------------------------")
@@ -669,6 +669,33 @@ struct TwoOfMeScreens: View {
                 togglePauseState(for: .mirrored)
             }
         }
+    }
+    
+    private func handleSelectedImage(_ image: UIImage?) {
+        guard let image = image else { return }
+        
+        switch imageUploader.selectedScreenID {
+        case .original:
+            if isOriginalPaused {
+                pausedOriginalImage = image
+                print("------------------------")
+                print("已更新 Original 定格画面")
+                print("------------------------")
+            }
+        case .mirrored:
+            if isMirroredPaused {
+                pausedMirroredImage = image
+                print("------------------------")
+                print("已更新 Mirrored 定格画面")
+                print("------------------------")
+            }
+        case .none:
+            break
+        }
+        
+        // 重置选择器状态
+        imageUploader.selectedImage = nil
+        imageUploader.selectedScreenID = nil
     }
     
     var body: some View {
@@ -822,7 +849,7 @@ struct TwoOfMeScreens: View {
                                         }
                                     }
                                     
-                                    // 添加边框灯��果
+                                    // 添加边框灯效果
                                     if borderLightManager.showMirroredHighlight {
                                         BorderLightView(
                                             screenWidth: screenWidth,
@@ -1117,7 +1144,7 @@ struct TwoOfMeScreens: View {
                                                 if isZone2Enabled {
                                                     originalScale = currentScale
                                                     print("------------------------")
-                                                    print("触控区2a双指手势结束")
+                                                    print("���控区2a双指手势结束")
                                                     print("最终画面比例：\(Int(originalScale * 100))%")
                                                     
                                                     // 只在缩小操作且图片超出边界时行中心位置矫正
@@ -1384,6 +1411,9 @@ struct TwoOfMeScreens: View {
                 hideContainerTimer?.invalidate()
                 borderLightManager.turnOffAllLights()
             }
+            .onChange(of: imageUploader.selectedImage) { newImage in
+                handleSelectedImage(newImage)
+            }
         }
         .ignoresSafeArea(.all)
     }
@@ -1431,7 +1461,7 @@ struct TwoOfMeScreens: View {
                 // 进入定格状态
                 isOriginalPaused = true
                 
-                // 根据设备方向调整定格画面
+                // 根据设备方向调��定格画面
                 if let image = originalImage {
                     switch deviceOrientation {
                     case .landscapeLeft:
