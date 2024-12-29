@@ -104,7 +104,7 @@ struct CameraContainer: View {
         GeometryReader { geometry in
             ZStack {
                 if isActive {
-                    // ��画面
+                    // 画面
                     if let image = processedImage {
                         Image(uiImage: image)
                             .resizable()
@@ -280,7 +280,7 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
     }
 }
 
-// 修改统一启动提���视图
+// 修改统一启动提示视图
 struct RestartCameraView: View {
     let action: () -> Void
     
@@ -412,7 +412,7 @@ struct ContentView: View {
                                 print("安全区域：\(geometry.safeAreaInsets)")
                                 print("------------------------")
                                 isSelected = normalModeSelected
-                                // 如果是��中状态，设置最大亮度
+                                // 如果是选中状态，设置最大亮度
                                 if normalModeSelected {
                                     previousBrightness = UIScreen.main.brightness
                                     UIScreen.main.brightness = 1.0
@@ -524,22 +524,27 @@ struct ContentView: View {
                     .position(x: screenWidth/2, y: screenHeight - 150)
                 } else {
                     // 权限请求视图
-                    VStack {
-                        Image(systemName: "camera.fill")
-                            .foregroundColor(.red)
-                            .font(.largeTitle)
-                        Text("需要相机权限")
-                            .padding()
-                        Button(action: {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(url)
-                            }
-                        }) {
-                            Text("授权相机")
+                    ZStack {
+                        Color.black.edgesIgnoringSafeArea(.all)
+                        
+                        VStack {
+                            Image(systemName: "camera.fill")
+                                .foregroundColor(.red)
+                                .font(.largeTitle)
+                            Text("需要相机权限")
                                 .foregroundColor(.white)
                                 .padding()
-                                .background(Color.blue)
-                                .cornerRadius(8)
+                            Button(action: {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }) {
+                                Text("授权相机")
+                                    .foregroundColor(.white)
+                                    .padding()
+                                    .background(Color.blue)
+                                    .cornerRadius(8)
+                            }
                         }
                     }
                 }

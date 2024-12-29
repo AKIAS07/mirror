@@ -10,8 +10,16 @@ class ImageUploader: ObservableObject {
     @Published var showImagePicker = false
     @Published var selectedImage: UIImage?
     @Published var selectedScreenID: ScreenID?
+    @Published var showPermissionAlert = false  // 添加权限提示弹窗状态
+    @Published var permissionAlertType: PermissionAlertType = .initial  // 添加弹窗类型状态
     
     private var hideTimer: Timer?
+    
+    // 添加权限提示弹窗类型枚举
+    enum PermissionAlertType {
+        case initial     // 首次使用时的提示
+        case settings    // 引导去设置页面的提示
+    }
     
     var onUploadStateChanged: ((Bool) -> Void)?
     
@@ -92,23 +100,86 @@ class ImageUploader: ObservableObject {
         hideTimer?.invalidate()
         hideTimer = nil
         
-        // 检查相册权限
-        checkPhotoLibraryPermission { [weak self] granted in
-            guard let self = self else { return }
-            if granted {
-                self.showImagePicker = true
-                print("------------------------")
-                print("[图片选择器] 打开")
-                print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
-                print("------------------------")
-            } else {
-                // 如果没有权限，显示提示并隐藏上传控件
-                print("------------------------")
-                print("[相册权限] 无法访问相册")
-                print("------------------------")
-                self.hideRectangle()
+        // 检查相册权限状态
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        
+        switch status {
+        case .notDetermined:
+            // 首次使用，显示提示弹窗
+            print("------------------------")
+            print("[相册权限] 首次使用，显示提示弹窗")
+            print("------------------------")
+            permissionAlertType = .initial
+            showPermissionAlert = true
+            
+        case .denied:
+            // 之前拒绝过，显示设置页面提示弹窗
+            print("------------------------")
+            print("[相册权限] 之前拒绝，显示设置提示弹窗")
+            print("------------------------")
+            permissionAlertType = .settings
+            showPermissionAlert = true
+            
+        case .authorized, .limited:
+            // 已有权限，直接显示图片选择器
+            print("------------------------")
+            print("[图片选择器] 打开")
+            print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+            print("------------------------")
+            showImagePicker = true
+            
+        case .restricted:
+            // 受限制（比如家长控制），隐藏上传控件
+            print("------------------------")
+            print("[相册权限] 访问受限")
+            print("------------------------")
+            hideRectangle()
+            
+        @unknown default:
+            hideRectangle()
+        }
+    }
+    
+    // 添加处理权限申请的方法
+    func handlePermissionRequest() {
+        print("------------------------")
+        print("[相册权限] 用户确认提示，开始申请权限")
+        print("------------------------")
+        
+        PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] status in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                if status == .authorized || status == .limited {
+                    print("------------------------")
+                    print("[相册权限] 用户已授权")
+                    print("------------------------")
+                    self.showImagePicker = true
+                } else {
+                    print("------------------------")
+                    print("[相册权限] 用户已拒绝")
+                    print("------------------------")
+                    self.hideRectangle()
+                }
             }
         }
+    }
+    
+    // 添加处理设置页面跳转的方法
+    func handleSettingsNavigation() {
+        print("------------------------")
+        print("[相册权限] 用户确认提示，准备跳转设置页面")
+        print("------------------------")
+        
+        if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+            if UIApplication.shared.canOpenURL(settingsUrl) {
+                UIApplication.shared.open(settingsUrl)
+                print("------------------------")
+                print("[相册权限] 已打开设置页面")
+                print("------------------------")
+            }
+        }
+        hideRectangle()
     }
 }
 
@@ -124,71 +195,90 @@ struct OverlayView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            if imageUploader.isOverlayVisible {
-                ZStack {
-                    // 全屏遮罩
-                    Color.black.opacity(0.01)
-                        .edgesIgnoringSafeArea(.all)
-                    
-                    // 上传区域
-                    VStack(spacing: 0) {
-                        if screenID == .original {
-                            // Original屏幕（上半部分）
-                            ZStack {
-                                uploadArea
-                                    .frame(height: geometry.size.height / 2)
-                                    .background(
-                                        GeometryReader { rectGeo in
-                                            Color.clear
-                                                .onAppear {
-                                                    let screenCenter = CGPoint(x: geometry.size.width/2, y: geometry.size.height/4)
-                                                    let rectCenter = CGPoint(
-                                                        x: rectGeo.frame(in: .global).midX,
-                                                        y: rectGeo.frame(in: .global).midY
-                                                    )
-                                                    print("------------------------")
-                                                    print("[Original屏幕坐标]")
-                                                    print("分屏中心: x=\(screenCenter.x), y=\(screenCenter.y)")
-                                                    print("矩形中心: x=\(rectCenter.x), y=\(rectCenter.y)")
-                                                    print("------------------------")
-                                                }
-                                        }
-                                    )
-                            }
-                        } else {
-                            // Mirrored屏幕（下半部分）
-                            ZStack {
-                                uploadArea
-                                    .frame(height: geometry.size.height / 2)
-                                    .background(
-                                        GeometryReader { rectGeo in
-                                            Color.clear
-                                                .onAppear {
-                                                    let screenCenter = CGPoint(x: geometry.size.width/2, y: geometry.size.height * 3/4)
-                                                    let rectCenter = CGPoint(
-                                                        x: rectGeo.frame(in: .global).midX,
-                                                        y: rectGeo.frame(in: .global).midY
-                                                    )
-                                                    print("------------------------")
-                                                    print("[Mirrored屏幕坐标]")
-                                                    print("分屏中心: x=\(screenCenter.x), y=\(screenCenter.y)")
-                                                    print("矩形中心: x=\(rectCenter.x), y=\(rectCenter.y)")
-                                                    print("------------------------")
-                                                }
-                                        }
-                                    )
+            ZStack {
+                if imageUploader.isOverlayVisible {
+                    ZStack {
+                        // 全屏遮罩
+                        Color.black.opacity(0.01)
+                            .edgesIgnoringSafeArea(.all)
+                        
+                        // 上传区域
+                        VStack(spacing: 0) {
+                            if screenID == .original {
+                                // Original屏幕（上半部分）
+                                ZStack {
+                                    uploadArea
+                                        .frame(height: geometry.size.height / 2)
+                                        .background(
+                                            GeometryReader { rectGeo in
+                                                Color.clear
+                                                    .onAppear {
+                                                        let screenCenter = CGPoint(x: geometry.size.width/2, y: geometry.size.height/4)
+                                                        let rectCenter = CGPoint(
+                                                            x: rectGeo.frame(in: .global).midX,
+                                                            y: rectGeo.frame(in: .global).midY
+                                                        )
+                                                        print("------------------------")
+                                                        print("[Original屏幕坐标]")
+                                                        print("分屏中心: x=\(screenCenter.x), y=\(screenCenter.y)")
+                                                        print("矩形中心: x=\(rectCenter.x), y=\(rectCenter.y)")
+                                                        print("------------------------")
+                                                    }
+                                            }
+                                        )
+                                }
+                            } else {
+                                // Mirrored屏幕（下半部分）
+                                ZStack {
+                                    uploadArea
+                                        .frame(height: geometry.size.height / 2)
+                                        .background(
+                                            GeometryReader { rectGeo in
+                                                Color.clear
+                                                    .onAppear {
+                                                        let screenCenter = CGPoint(x: geometry.size.width/2, y: geometry.size.height * 3/4)
+                                                        let rectCenter = CGPoint(
+                                                            x: rectGeo.frame(in: .global).midX,
+                                                            y: rectGeo.frame(in: .global).midY
+                                                        )
+                                                        print("------------------------")
+                                                        print("[Mirrored屏幕坐标]")
+                                                        print("分屏中心: x=\(screenCenter.x), y=\(screenCenter.y)")
+                                                        print("矩形中心: x=\(rectCenter.x), y=\(rectCenter.y)")
+                                                        print("------------------------")
+                                                    }
+                                            }
+                                        )
+                                }
                             }
                         }
                     }
-                }
-                .sheet(isPresented: $imageUploader.showImagePicker) {
-                    ImagePicker(
-                        selectedImage: $imageUploader.selectedImage,
-                        screenID: screenID
-                    )
-                    .onDisappear {
-                        imageUploader.hideRectangle()
+                    .alert(isPresented: $imageUploader.showPermissionAlert) {
+                        Alert(
+                            title: Text("提示"),
+                            message: Text("此功能需要您开启相册权限！"),
+                            primaryButton: .default(Text(imageUploader.permissionAlertType == .initial ? "确定" : "去设置")) {
+                                if imageUploader.permissionAlertType == .initial {
+                                    imageUploader.handlePermissionRequest()
+                                } else {
+                                    imageUploader.handleSettingsNavigation()
+                                }
+                            },
+                            secondaryButton: .cancel(Text("取消")) {
+                                imageUploader.hideRectangle()
+                            }
+                        )
                     }
+                }
+            }
+            .sheet(isPresented: $imageUploader.showImagePicker) {
+                ImagePicker(
+                    selectedImage: $imageUploader.selectedImage,
+                    screenID: screenID,
+                    imageUploader: imageUploader
+                )
+                .onDisappear {
+                    imageUploader.hideRectangle()
                 }
             }
         }
@@ -213,7 +303,7 @@ struct OverlayView: View {
             } else {
                 Rectangle()
                     .fill(Color.white)
-                    .frame(height: centerY)  // 使用相同的高度设置
+                    .frame(height: centerY)
                     .allowsHitTesting(false)
                     .onAppear {
                         print("------------------------")
@@ -249,6 +339,7 @@ struct ImagePicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
     @Environment(\.presentationMode) private var presentationMode
     let screenID: ScreenID
+    let imageUploader: ImageUploader?
     
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
@@ -272,15 +363,19 @@ struct ImagePicker: UIViewControllerRepresentable {
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
-                parent.selectedImage = image
+                self.parent.selectedImage = image
                 
                 print("------------------------")
                 print("[图片选择器] 已选择图片")
                 print("图片尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
-                print("目标区域：\(parent.screenID == .original ? "Original" : "Mirrored")屏幕")
+                print("目标区域：\(self.parent.screenID == .original ? "Original" : "Mirrored")屏幕")
                 print("------------------------")
+                
+                // 延迟关闭图片选择器
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.parent.presentationMode.wrappedValue.dismiss()
+                }
             }
-            parent.presentationMode.wrappedValue.dismiss()
         }
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {

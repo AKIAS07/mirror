@@ -355,7 +355,7 @@ struct TwoOfMeScreens: View {
         centerY: CGFloat
     ) {
         if isZone2Enabled && currentScale > 1.0 {
-            // 在拖动开始时记录初始状��和打印日志
+            // 在拖动开始时记录初始状态和打印日志
             if !dragStarted {
                 dragStarted = true
                 
@@ -676,26 +676,62 @@ struct TwoOfMeScreens: View {
         
         switch imageUploader.selectedScreenID {
         case .original:
-            if isOriginalPaused {
+            // 自动进入定格状态
+            if !isOriginalPaused {
+                isOriginalPaused = true
+                print("------------------------")
+                print("Original画面已自动定格")
+                print("------------------------")
+            }
+            
+            // 根据设备方向调整定格画面
+            switch deviceOrientation {
+            case .landscapeLeft:
+                pausedOriginalImage = image.rotate(degrees: -90)
+            case .landscapeRight:
+                pausedOriginalImage = image.rotate(degrees: 90)
+            case .portraitUpsideDown:
+                pausedOriginalImage = image.rotate(degrees: 180)
+            default:
                 pausedOriginalImage = image
-                print("------------------------")
-                print("已更新 Original 定格画面")
-                print("------------------------")
             }
+            
+            // 重置缩放和偏移
+            originalScale = 1.0
+            currentScale = 1.0
+            originalOffset = .zero
+            originalEdgeDetector.resetBorders()
+            
         case .mirrored:
-            if isMirroredPaused {
-                pausedMirroredImage = image
+            // 自动进入定格状态
+            if !isMirroredPaused {
+                isMirroredPaused = true
                 print("------------------------")
-                print("已更新 Mirrored 定格画面")
+                print("Mirrored画面已自动定格")
                 print("------------------------")
             }
+            
+            // 根据设备方向调整定格画面
+            switch deviceOrientation {
+            case .landscapeLeft:
+                pausedMirroredImage = image.rotate(degrees: -90)
+            case .landscapeRight:
+                pausedMirroredImage = image.rotate(degrees: 90)
+            case .portraitUpsideDown:
+                pausedMirroredImage = image.rotate(degrees: 180)
+            default:
+                pausedMirroredImage = image
+            }
+            
+            // 重置缩放和偏移
+            mirroredScale = 1.0
+            currentMirroredScale = 1.0
+            mirroredOffset = .zero
+            mirroredEdgeDetector.resetBorders()
+            
         case .none:
             break
         }
-        
-        // 重置选择器状态
-        imageUploader.selectedImage = nil
-        imageUploader.selectedScreenID = nil
     }
     
     var body: some View {
@@ -1144,7 +1180,7 @@ struct TwoOfMeScreens: View {
                                                 if isZone2Enabled {
                                                     originalScale = currentScale
                                                     print("------------------------")
-                                                    print("���控区2a双指手势结束")
+                                                    print("触控区2a双指手势结束")
                                                     print("最终画面比例：\(Int(originalScale * 100))%")
                                                     
                                                     // 只在缩小操作且图片超出边界时行中心位置矫正
@@ -1461,7 +1497,7 @@ struct TwoOfMeScreens: View {
                 // 进入定格状态
                 isOriginalPaused = true
                 
-                // 根据设备方向调��定格画面
+                // 根据设备方向调整定格画面
                 if let image = originalImage {
                     switch deviceOrientation {
                     case .landscapeLeft:
