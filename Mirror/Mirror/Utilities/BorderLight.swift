@@ -97,9 +97,6 @@ struct BorderLightView: View {
         let isHighlighted = showOriginalHighlight || showMirroredHighlight
         
         GeometryReader { geometry in
-            let orientation = UIDevice.current.orientation
-            let isLandscape = orientation.isLandscape
-            
             // 计算实际的边框尺寸
             let frameWidth = screenWidth
             let frameHeight = centerY

@@ -53,28 +53,27 @@ struct ButtonContainer: View {
             // 背景
             Rectangle()
                 .fill(Color.black)
-                .frame(width: width, height: 60)
+                .frame(width: width, height: 120)
+                .opacity(0.0)
             
             // 交换图标按钮（扩大点击区域）
-            Image(systemName: "arrow.up.arrow.down")
-                .font(.system(size: 24, weight: .bold))  // 加大图标
+            Image(systemName: "arrow.up.and.down.square.fill")
+                .font(.system(size: 120, weight: .bold))  // 加大图标
                 .foregroundColor(.white)
-                .frame(width: 60, height: 60)  // 扩大框架
+                .background(
+                    Image(systemName: "square.fill")
+                        .font(.system(size: 120, weight: .bold))
+                        .foregroundColor(.black)
+                )
+                .frame(width: 120, height: 120)  // 扩大框架
                 .contentShape(Rectangle())  // 扩大点击区域
                 .onTapGesture {
                     print("------------------------")
                     print("交换按钮被点击")
-                    print("点击区域：60x60pt")
+                    print("点击区域：120x120pt")
                     print("------------------------")
                     onSwapTapped()
                 }
-                .background(
-                    // 可选：添加一个微弱的发光效果
-                    Circle()
-                        .fill(Color.white.opacity(0.1))
-                        .frame(width: 40, height: 40)
-                        .blur(radius: 5)
-                )
         }
     }
 }

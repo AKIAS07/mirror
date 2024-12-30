@@ -416,24 +416,33 @@ struct OverlayView: View {
             }
             
             // 上传按钮
-            Circle()
-                .fill(Color.clear)
-                .frame(width: 160, height: 160)
-                .overlay(
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(screenID == .original ? Color.white : Color.black)
-                        .rotationEffect(getRotationAngle(deviceOrientation))
-                )
-                .contentShape(Circle())
-                .onTapGesture {
-                    print("------------------------")
-                    print("[上传按钮] 点击")
-                    print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
-                    print("当前设备方向：\(getOrientationDescription(deviceOrientation))")
-                    print("------------------------")   
-                    imageUploader.uploadImage(for: screenID)
-                }
+            Button(action: {
+                print("------------------------")
+                print("[上传按钮] 点击")
+                print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                print("当前设备方向：\(getOrientationDescription(deviceOrientation))")
+                print("------------------------")   
+                imageUploader.uploadImage(for: screenID)
+            }) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 80))
+                    .rotationEffect(getRotationAngle(deviceOrientation))
+                    .frame(width: 80, height: 80)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
+        }
+    }
+    
+    // 修改按钮样式
+    struct PressableButtonStyle: ButtonStyle {
+        let normalColor: Color
+        
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .foregroundColor(configuration.isPressed ? Color(red: 0.2, green: 0.2, blue: 0.9) : normalColor)
+               // .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+               // .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
         }
     }
     
