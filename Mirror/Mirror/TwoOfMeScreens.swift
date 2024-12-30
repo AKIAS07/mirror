@@ -164,7 +164,7 @@ struct TwoOfMeScreens: View {
                 print("已放大至最大尺寸")
                 print("------------------------")
                 showScaleLimitMessage = true
-                scaleLimitMessage = "已放大至最大尺寸"
+                scaleLimitMessage = "已放大至最小尺寸"
             }
         } else if newScale <= minScale && scale < 1.0 {
             currentScale = minScale
@@ -179,14 +179,17 @@ struct TwoOfMeScreens: View {
             currentScale = min(max(newScale, minScale), maxScale)
             showScaleLimitMessage = false
             
-            let now = Date()
-            if now.timeIntervalSince(lastOutputTime) >= outputInterval {
-                print("------------------------")
-                print("触控区\(screenID == .original ? "2" : "3")双指手势\(scale > 1.0 ? "拉开" : "靠近")")
-                print("画面比例：\(Int(currentScale * 100))%")
-                print("------------------------")
-                lastOutputTime = now
-            }
+            // 更新缩放提示
+            currentIndicatorScale = currentScale
+            activeScalingScreen = screenID
+            showScaleIndicator = true
+            
+            // 打印日志
+            let currentPercentage = Int(currentScale * 100)
+            print("------------------------")
+            print("触控区\(screenID == .original ? "2" : "3")双指缩放")
+            print("当前比例：\(currentPercentage)%")
+            print("------------------------")
         }
     }
     
@@ -198,6 +201,13 @@ struct TwoOfMeScreens: View {
     ) {
         baseScale = currentScale
         showScaleLimitMessage = false
+        
+        // 延迟隐藏缩放提示
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            showScaleIndicator = false
+            activeScalingScreen = nil
+        }
+        
         print("------------------------")
         print("触控区\(screenID == .original ? "2" : "3")双指手势结束")
         print("最终画面比例：\(Int(baseScale * 100))%")
@@ -740,6 +750,12 @@ struct TwoOfMeScreens: View {
         }
     }
     
+    @State private var showScaleIndicator = false
+    @State private var currentIndicatorScale: CGFloat = 1.0
+    
+    // 添加状态变量来跟踪当前缩放的屏幕
+    @State private var activeScalingScreen: ScreenID?
+    
     var body: some View {
         GeometryReader { geometry in
             let screenBounds = UIScreen.main.bounds
@@ -799,13 +815,13 @@ struct TwoOfMeScreens: View {
                                     }
                                     
                                     // 添加边框灯效果
-                                    if borderLightManager.showOriginalHighlight {
-                                        BorderLightView(
-                                            screenWidth: screenWidth,
-                                            centerY: centerY
-                                        )
-                                        .zIndex(2)
-                                    }
+                                    BorderLightView(
+                                        screenWidth: screenWidth,
+                                        centerY: centerY,
+                                        showOriginalHighlight: borderLightManager.showOriginalHighlight,
+                                        showMirroredHighlight: false
+                                    )
+                                    .zIndex(2)
                                     
                                     // 在 ZStack 中添加覆盖层视图（在 Original 屏幕的内容中）
                                     if imageUploader.showOriginalOverlay {
@@ -892,13 +908,13 @@ struct TwoOfMeScreens: View {
                                     }
                                     
                                     // 添加边框灯效果
-                                    if borderLightManager.showMirroredHighlight {
-                                        BorderLightView(
-                                            screenWidth: screenWidth,
-                                            centerY: centerY
-                                        )
-                                        .zIndex(2)
-                                    }
+                                    BorderLightView(
+                                        screenWidth: screenWidth,
+                                        centerY: centerY,
+                                        showOriginalHighlight: false,
+                                        showMirroredHighlight: borderLightManager.showMirroredHighlight
+                                    )
+                                    .zIndex(2)
                                     
                                     // 在 ZStack 中添加覆盖层视图（在 Mirrored 屏幕的内容中）
                                     if imageUploader.showMirroredOverlay {
@@ -981,13 +997,13 @@ struct TwoOfMeScreens: View {
                                     }
                                     
                                     // 添加边框灯效果
-                                    if borderLightManager.showMirroredHighlight {
-                                        BorderLightView(
-                                            screenWidth: screenWidth,
-                                            centerY: centerY
-                                        )
-                                        .zIndex(2)
-                                    }
+                                    BorderLightView(
+                                        screenWidth: screenWidth,
+                                        centerY: centerY,
+                                        showOriginalHighlight: false,
+                                        showMirroredHighlight: borderLightManager.showMirroredHighlight
+                                    )
+                                    .zIndex(2)
                                     
                                     // 在 ZStack 中添加覆盖层视图（在 Mirrored 屏幕的内容中）
                                     if imageUploader.showMirroredOverlay {
@@ -1052,13 +1068,13 @@ struct TwoOfMeScreens: View {
                                     }
                                     
                                     // 添加边框灯效果
-                                    if borderLightManager.showOriginalHighlight {
-                                        BorderLightView(
-                                            screenWidth: screenWidth,
-                                            centerY: centerY
-                                        )
-                                        .zIndex(2)
-                                    }
+                                    BorderLightView(
+                                        screenWidth: screenWidth,
+                                        centerY: centerY,
+                                        showOriginalHighlight: borderLightManager.showOriginalHighlight,
+                                        showMirroredHighlight: false
+                                    )
+                                    .zIndex(2)
                                     
                                     // 在 ZStack 中添加覆盖层视图（在 Original 屏幕的内容中）
                                     if imageUploader.showOriginalOverlay {
@@ -1176,6 +1192,12 @@ struct TwoOfMeScreens: View {
                                                 if isZone2Enabled {
                                                     let newScale = originalScale * scale
                                                     currentScale = min(max(newScale, minScale), maxScale)
+                                                    
+                                                    // 添加缩放提示
+                                                    currentIndicatorScale = currentScale
+                                                    activeScalingScreen = .original
+                                                    showScaleIndicator = true
+                                                    
                                                     print("------------------------")
                                                     print("触控区2a双指手势：\(scale > 1.0 ? "拉开" : "靠近")")
                                                     print("画面比例：\(Int(currentScale * 100))%")
@@ -1185,6 +1207,13 @@ struct TwoOfMeScreens: View {
                                             .onEnded { scale in
                                                 if isZone2Enabled {
                                                     originalScale = currentScale
+                                                    
+                                                    // 延迟隐藏缩放提示
+                                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                                        showScaleIndicator = false
+                                                        activeScalingScreen = nil
+                                                    }
+                                                    
                                                     print("------------------------")
                                                     print("触控区2a双指手势结束")
                                                     print("最终画面比例：\(Int(originalScale * 100))%")
@@ -1334,6 +1363,12 @@ struct TwoOfMeScreens: View {
                                                 if isZone3Enabled {
                                                     let newScale = mirroredScale * scale
                                                     currentMirroredScale = min(max(newScale, minScale), maxScale)
+                                                    
+                                                    // 添加缩放提示
+                                                    currentIndicatorScale = currentMirroredScale
+                                                    activeScalingScreen = .mirrored
+                                                    showScaleIndicator = true
+                                                    
                                                     print("------------------------")
                                                     print("触控区3a双指手势：\(scale > 1.0 ? "拉开" : "靠近")")
                                                     print("画面比例：\(Int(currentMirroredScale * 100))%")
@@ -1343,6 +1378,13 @@ struct TwoOfMeScreens: View {
                                             .onEnded { scale in
                                                 if isZone3Enabled {
                                                     mirroredScale = currentMirroredScale
+                                                    
+                                                    // 延迟隐藏缩放提示
+                                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                                        showScaleIndicator = false
+                                                        activeScalingScreen = nil
+                                                    }
+                                                    
                                                     print("------------------------")
                                                     print("触控区3a双指手势结束")
                                                     print("最终画面比例：\(Int(mirroredScale * 100))%")
@@ -1432,6 +1474,18 @@ struct TwoOfMeScreens: View {
                                 }
                         )
                     }
+                }
+                
+                // 修改缩放提示动画
+                if showScaleIndicator, let activeScreen = activeScalingScreen {
+                    ScaleIndicatorView(scale: currentIndicatorScale)
+                        .position(
+                            x: screenWidth/2,
+                            y: activeScreen == .original 
+                                ? (isScreensSwapped ? screenHeight * 3/4 : screenHeight/4)  // Original屏幕中心
+                                : (isScreensSwapped ? screenHeight/4 : screenHeight * 3/4)  // Mirrored屏幕中心
+                        )
+                        .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
                 }
             }
             .onAppear {

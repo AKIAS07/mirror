@@ -12,24 +12,30 @@ class BorderLightManager: ObservableObject {
     
     // 切换边框灯状态
     func toggleBorderLight(for screenID: ScreenID) {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            switch screenID {
-            case .original:
-                showOriginalHighlight.toggle()
-                handleBrightnessChange(isOn: showOriginalHighlight)
-                print("------------------------")
-                print("Original屏幕被点击")
-                print(showOriginalHighlight ? "边框灯已开启" : "边框灯已关闭")
-                print("------------------------")
-                
-            case .mirrored:
-                showMirroredHighlight.toggle()
-                handleBrightnessChange(isOn: showMirroredHighlight)
-                print("------------------------")
-                print("Mirrored屏幕被点击")
-                print(showMirroredHighlight ? "边框灯已开启" : "边框灯已关闭")
-                print("------------------------")
-            }
+        switch screenID {
+        case .original:
+            showOriginalHighlight.toggle()
+            handleBrightnessChange(isOn: showOriginalHighlight)
+            // 添加震动反馈（开启和关闭时都触发）
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.prepare()
+            generator.impactOccurred()
+            print("------------------------")
+            print("Original屏幕被点击")
+            print(showOriginalHighlight ? "边框灯已开启" : "边框灯已关闭")
+            print("------------------------")
+            
+        case .mirrored:
+            showMirroredHighlight.toggle()
+            handleBrightnessChange(isOn: showMirroredHighlight)
+            // 添加震动反馈（开启和关闭时都触发）
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.prepare()
+            generator.impactOccurred()
+            print("------------------------")
+            print("Mirrored屏幕被点击")
+            print(showMirroredHighlight ? "边框灯已开启" : "边框灯已关闭")
+            print("------------------------")
         }
     }
     
@@ -53,16 +59,19 @@ class BorderLightManager: ObservableObject {
     
     // 关闭所有边框灯
     func turnOffAllLights() {
-        withAnimation(.easeOut(duration: 0.3)) {
-            showOriginalHighlight = false
-            showMirroredHighlight = false
-            
-            // 恢复原始亮度
-            if isControllingBrightness {
-                UIScreen.main.brightness = originalBrightness
-                isControllingBrightness = false
-                print("设备亮度已恢复")
-            }
+        showOriginalHighlight = false
+        showMirroredHighlight = false
+        
+        // 添加震动反馈
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.prepare()
+        generator.impactOccurred()
+        
+        // 恢复原始亮度
+        if isControllingBrightness {
+            UIScreen.main.brightness = originalBrightness
+            isControllingBrightness = false
+            print("设备亮度已恢复")
         }
     }
     
@@ -76,34 +85,46 @@ class BorderLightManager: ObservableObject {
 struct BorderLightView: View {
     let screenWidth: CGFloat
     let centerY: CGFloat
-    private let borderWidth: CGFloat = 50  // 修改边框宽度为50
+    let showOriginalHighlight: Bool
+    let showMirroredHighlight: Bool
+    
+    private let normalWidth: CGFloat = 1
+    private let selectedWidth: CGFloat = 50
+    private let normalColor = Color.green
+    private let selectedColor = Color.white
     
     var body: some View {
-        ZStack {
-            // 上边框
-            Rectangle()
-                .fill(Color.white)
-                .frame(width: screenWidth, height: borderWidth)  // 使用新的宽度
-                .position(x: screenWidth/2, y: borderWidth/2)  // 调整位置
+        let isHighlighted = showOriginalHighlight || showMirroredHighlight
+        
+        GeometryReader { geometry in
+            let orientation = UIDevice.current.orientation
+            let isLandscape = orientation.isLandscape
             
-            // 下边框
-            Rectangle()
-                .fill(Color.white)
-                .frame(width: screenWidth, height: borderWidth)  // 使用新的宽度
-                .position(x: screenWidth/2, y: centerY - borderWidth/2)  // 调整位置
+            // 计算实际的边框尺寸
+            let frameWidth = screenWidth
+            let frameHeight = centerY
             
-            // 左边框
             Rectangle()
-                .fill(Color.white)
-                .frame(width: borderWidth, height: centerY)  // 使用新的宽度
-                .position(x: borderWidth/2, y: centerY/2)  // 调整位置
-            
-            // 右边框
-            Rectangle()
-                .fill(Color.white)
-                .frame(width: borderWidth, height: centerY)  // 使用新的宽度
-                .position(x: screenWidth - borderWidth/2, y: centerY/2)  // 调整位置
+                .stroke(
+                    isHighlighted ? selectedColor : normalColor,
+                    lineWidth: isHighlighted ? selectedWidth : normalWidth
+                )
+                .frame(width: frameWidth, height: frameHeight)
+                .position(
+                    x: frameWidth/2,
+                    y: frameHeight/2
+                )
+                .overlay(
+                    Rectangle()
+                        .stroke(normalColor.opacity(isHighlighted ? 0.3 : 1), lineWidth: normalWidth)
+                        .frame(width: frameWidth, height: frameHeight)
+                        .position(
+                            x: frameWidth/2,
+                            y: frameHeight/2
+                        )
+                )
+                .animation(.easeInOut(duration: 0.2), value: isHighlighted)
+                .clipped()
         }
-        .transition(.opacity)
     }
 } 
