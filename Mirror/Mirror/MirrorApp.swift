@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AVFoundation
 
 @main
 struct MirrorApp: App {
@@ -27,6 +28,54 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        print("------------------------")
+        print("应用启动")
+        print("------------------------")
+        // 检查相机权限状态
+        checkCameraPermission()
+        return true
+    }
+    
+    private func checkCameraPermission() {
+        print("------------------------")
+        print("检查相机权限")
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            print("相机权限状态：已授权")
+            print("------------------------")
+            // 已经有权限，直接开始监测设备方向
+            startOrientationMonitoring()
+        case .notDetermined:
+            print("相机权限状态：未确定")
+            print("------------------------")
+            // 请求权限
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                if granted {
+                    print("------------------------")
+                    print("用户首次授予相机权限")
+                    print("------------------------")
+                    DispatchQueue.main.async {
+                        self?.startOrientationMonitoring()
+                    }
+                } else {
+                    print("------------------------")
+                    print("用户首次拒绝相机权限")
+                    print("------------------------")
+                }
+            }
+        case .denied:
+            print("相机权限状态：已拒绝")
+            print("------------------------")
+        case .restricted:
+            print("相机权限状态：受限制")
+            print("------------------------")
+        @unknown default:
+            print("相机权限状态：未知")
+            print("------------------------")
+        }
+    }
+    
+    private func startOrientationMonitoring() {
         // 添加设备方向变化通知监听
         NotificationCenter.default.addObserver(
             self,
@@ -38,7 +87,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // 开启设备方向监测
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         
-        return true
+        // 立即获取一次当前方向
+        orientationDidChange()
     }
     
     @objc func orientationDidChange() {

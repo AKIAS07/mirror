@@ -291,7 +291,7 @@ struct RestartCameraView: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: 20) {
-                    Text("请点击屏幕重新开启摄像头")
+                    Text("摄像头已关闭")
                         .foregroundColor(.white)
                         .font(.title2)
                     
@@ -529,9 +529,9 @@ struct ContentView: View {
                         
                         VStack {
                             Image(systemName: "camera.fill")
-                                .foregroundColor(.red)
+                                .foregroundColor(.white)
                                 .font(.largeTitle)
-                            Text("需要相机权限")
+                            Text("使用此APP需要您开启相机权限")
                                 .foregroundColor(.white)
                                 .padding()
                             Button(action: {
@@ -542,7 +542,7 @@ struct ContentView: View {
                                 Text("授权相机")
                                     .foregroundColor(.white)
                                     .padding()
-                                    .background(Color.blue)
+                                    .background(Color.yellow)
                                     .cornerRadius(8)
                             }
                         }
@@ -633,35 +633,54 @@ struct ContentView: View {
     
     // 处理应用进入后台
     private func handleAppBackground() {
-        cameraManager.session.stopRunning()
-        isCameraActive = false  // 立即设置为 false
-        print("相机会话已停止")
+        if cameraManager.permissionGranted {
+            cameraManager.safelyStopSession()
+            isCameraActive = false
+            print("相机会话已停止")
+        }
     }
     
     // 处理应用回到前台
     private func handleAppForeground() {
-        print("显示重启相机提示")
-        showRestartHint = true
-        // 不自动重启相机等待用户点击
+        // 不需要在这里重新检查权限，因为CameraManager会自动处理
+        if !isCameraActive && cameraManager.permissionGranted {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.restartCamera()
+            }
+        } else if !cameraManager.permissionGranted {
+            print("相机权限未授权，显示权限请求界面")
+            isCameraActive = false
+            showRestartHint = false
+        } else {
+            print("显示重启相机提示")
+            showRestartHint = true
+        }
     }
     
     private func handleTwoOfMeDismiss() {
-        cameraManager.session.stopRunning()
-        cameraManager.isMirrored = false
-        isCameraActive = false
-        showRestartHint = true
+        if cameraManager.permissionGranted {
+            cameraManager.safelyStopSession()
+            cameraManager.isMirrored = false
+            isCameraActive = false
+            showRestartHint = true
+        }
     }
     
     private func restartCamera() {
+        if !cameraManager.permissionGranted {
+            print("无相机权限，无法重启相机")
+            return
+        }
+        
         print("重启相机会话")
         DispatchQueue.global(qos: .userInitiated).async {
-            cameraManager.session.startRunning()
+            self.cameraManager.session.startRunning()
             DispatchQueue.main.async {
-                isCameraActive = true
-                showRestartHint = false
+                self.isCameraActive = true
+                self.showRestartHint = false
                 // 重置焦距为1x
-                currentZoomLevel = 1
-                cameraManager.setZoom(level: CGFloat(1))
+                self.currentZoomLevel = 1
+                self.cameraManager.setZoom(level: CGFloat(1))
                 print("相机会话已重启")
                 print("焦距已重置为1x")
             }

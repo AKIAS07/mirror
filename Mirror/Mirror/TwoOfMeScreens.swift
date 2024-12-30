@@ -684,6 +684,9 @@ struct TwoOfMeScreens: View {
                 print("------------------------")
             }
             
+            // 关闭边框灯
+            borderLightManager.turnOffAllLights()
+            
             // 根据设备方向调整定格画面
             switch deviceOrientation {
             case .landscapeLeft:
@@ -710,6 +713,9 @@ struct TwoOfMeScreens: View {
                 print("Mirrored画面已自动定格")
                 print("------------------------")
             }
+            
+            // 关闭边框灯
+            borderLightManager.turnOffAllLights()
             
             // 根据设备方向调整定格画面
             switch deviceOrientation {
@@ -1431,15 +1437,27 @@ struct TwoOfMeScreens: View {
             .onAppear {
                 // 确保开启设备方向监听
                 UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+                
+                // 设置图片选择器和相机状态变化的回调
+                imageUploader.onCameraStateChanged = { [weak cameraManager] in
+                    print("------------------------")
+                    print("[相机状态] 准备更新")
+                    print("------------------------")
+                    
+                    // 重启相机
+                    cameraManager?.restartCamera()
+                }
+                
+                // 初始化视频处理
                 setupVideoProcessing()
                 startOrientationObserving()
+                
                 print("------------------------")
                 print("视图初始化")
                 print("触控区2永远对应Original幕（双击可定格/恢复画面）")
                 print("触控区3：永远对应Mirrored屏幕（双击可定格/恢复画面）")
                 print("初始布局：\(layoutDescription)")
                 print("------------------------")
-                
             }
             .onDisappear {
                 UIDevice.current.endGeneratingDeviceOrientationNotifications()
@@ -1455,6 +1473,10 @@ struct TwoOfMeScreens: View {
     }
     
     private func setupVideoProcessing() {
+        print("------------------------")
+        print("[视频处理] 初始化开始")
+        print("------------------------")
+        
         let processor = VideoProcessor()
         
         // 设置原始画面处理器
@@ -1472,7 +1494,15 @@ struct TwoOfMeScreens: View {
         }
         
         cameraManager.videoOutputDelegate = processor
-        cameraManager.checkPermission()
+        
+        // 在后台线程检查和启动相机
+        DispatchQueue.global(qos: .userInitiated).async { [weak cameraManager] in
+            cameraManager?.checkPermission()
+        }
+        
+        print("------------------------")
+        print("[视频处理] 初始化完成")
+        print("------------------------")
     }
     
     // 添加布局变化监
@@ -1496,6 +1526,9 @@ struct TwoOfMeScreens: View {
             } else {
                 // 进入定格状态
                 isOriginalPaused = true
+                
+                // 关闭边框灯
+                borderLightManager.turnOffAllLights()
                 
                 // 根据设备方向调整定格画面
                 if let image = originalImage {
@@ -1528,6 +1561,9 @@ struct TwoOfMeScreens: View {
             } else {
                 // 进入定格状态
                 isMirroredPaused = true
+                
+                // 关闭边框灯
+                borderLightManager.turnOffAllLights()
                 
                 // 根据设备方向调整定格画面
                 if let image = mirroredImage {

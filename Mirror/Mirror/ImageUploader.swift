@@ -7,7 +7,20 @@ class ImageUploader: ObservableObject {
     @Published var showOriginalOverlay = false
     @Published var showMirroredOverlay = false
     @Published var isOverlayVisible: Bool = false
-    @Published var showImagePicker = false
+    @Published var showImagePicker = false {
+        didSet {
+            if showImagePicker {
+                print("------------------------")
+                print("[图片选择器] 开启")
+                print("目标区域：\(selectedScreenID == .original ? "Original" : "Mirrored")屏幕")
+                print("------------------------")
+            } else {
+                print("------------------------")
+                print("[图片选择器] 关闭")
+                print("------------------------")
+            }
+        }
+    }
     @Published var selectedImage: UIImage?
     @Published var selectedScreenID: ScreenID?
     @Published var showPermissionAlert = false  // 添加权限提示弹窗状态
@@ -22,6 +35,30 @@ class ImageUploader: ObservableObject {
     }
     
     var onUploadStateChanged: ((Bool) -> Void)?
+    var onCameraStateChanged: (() -> Void)?
+    
+    // 添加一个标志来防止重复操作
+    private var isProcessingImage = false
+    
+    // 修改图片处理状态控制方法
+    func startImageProcessing() {
+        isProcessingImage = true
+        print("------------------------")
+        print("[图片处理] 开始")
+        print("------------------------")
+    }
+    
+    func endImageProcessing() {
+        print("------------------------")
+        print("[图片处理] 结束")
+        print("------------------------")
+        isProcessingImage = false
+        
+        // 在处理完成后恢复相机状态
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.onCameraStateChanged?()
+        }
+    }
     
     // 显示上传控件
     func showRectangle(for screenID: ScreenID) {
@@ -49,6 +86,11 @@ class ImageUploader: ObservableObject {
     
     // 隐藏上传控件
     func hideRectangle() {
+        // 如果正在处理图片，不执行隐藏操作
+        if isProcessingImage {
+            return
+        }
+        
         // 取消计时器
         hideTimer?.invalidate()
         hideTimer = nil
@@ -57,6 +99,12 @@ class ImageUploader: ObservableObject {
             showOriginalOverlay = false
             showMirroredOverlay = false
             isOverlayVisible = false
+            showImagePicker = false
+        }
+        
+        // 确保在隐藏控件时恢复相机状态
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            self?.onCameraStateChanged?()
         }
         
         onUploadStateChanged?(false)
@@ -67,33 +115,62 @@ class ImageUploader: ObservableObject {
         print("------------------------")
     }
     
-    // 添加权限检查方法
+    // 修改权限检查方法
     func checkPhotoLibraryPermission(completion: @escaping (Bool) -> Void) {
         let status = PHPhotoLibrary.authorizationStatus()
         switch status {
-        case .authorized, .limited:
+        case .authorized:
+            print("------------------------")
+            print("[相册权限] 已授权（完全访问）")
+            print("------------------------")
+            completion(true)
+        case .limited:
+            print("------------------------")
+            print("[相册权限] 已授权（受限访问）")
+            print("------------------------")
             completion(true)
         case .denied, .restricted:
             print("------------------------")
             print("[相册权限] 已被拒绝")
             print("------------------------")
             completion(false)
+            // 确保在权限被拒绝时恢复相机状态
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.onCameraStateChanged?()
+            }
         case .notDetermined:
-            PHPhotoLibrary.requestAuthorization { status in
+            print("------------------------")
+            print("[相册权限] 开始申请")
+            print("------------------------")
+            PHPhotoLibrary.requestAuthorization { [weak self] status in
                 DispatchQueue.main.async {
                     print("------------------------")
-                    print("[相册权限] 申请结果：\(status == .authorized ? "已授权" : "已拒绝")")
+                    print("[相册权限] 申请结果：\(status == .authorized ? "完全访问" : status == .limited ? "受限访问" : "已拒绝")")
                     print("------------------------")
-                    completion(status == .authorized)
+                    completion(status == .authorized || status == .limited)
+                    
+                    // 确保在权限申请完成后恢复相机状态
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        self?.onCameraStateChanged?()
+                    }
                 }
             }
         @unknown default:
             completion(false)
+            // 确保在未知状态时恢复相机状态
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.onCameraStateChanged?()
+            }
         }
     }
     
     // 修改上传图片方法
     func uploadImage(for screenID: ScreenID) {
+        // 如果正在处理图片，不执行上传操作
+        if isProcessingImage {
+            return
+        }
+        
         selectedScreenID = screenID
         
         // 取消现有的隐藏计时器
@@ -123,9 +200,11 @@ class ImageUploader: ObservableObject {
         case .authorized, .limited:
             // 已有权限，直接显示图片选择器
             print("------------------------")
-            print("[图片选择器] 打开")
+            print("[图片选择器] 准备打开")
             print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
             print("------------------------")
+            
+            startImageProcessing()
             showImagePicker = true
             
         case .restricted:
@@ -140,7 +219,7 @@ class ImageUploader: ObservableObject {
         }
     }
     
-    // 添加处理权限申请的方法
+    // 修改处理权限申请的方法
     func handlePermissionRequest() {
         print("------------------------")
         print("[相册权限] 用户确认提示，开始申请权限")
@@ -154,7 +233,31 @@ class ImageUploader: ObservableObject {
                     print("------------------------")
                     print("[相册权限] 用户已授权")
                     print("------------------------")
-                    self.showImagePicker = true
+                    
+                    // 如果是受限访问，等待系统的照片选择界面关闭后再显示我们的图片选择器
+                    if status == .limited {
+                        print("------------------------")
+                        print("[相册权限] 受限访问模式")
+                        print("------------------------")
+                        // 延迟显示我们的图片选择器，等待系统界面消失
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            // 在显示图片选择器之前先暂停相机会话
+                            DispatchQueue.global(qos: .userInitiated).async {
+                                self.onCameraStateChanged?()
+                                DispatchQueue.main.async {
+                                    self.showImagePicker = true
+                                }
+                            }
+                        }
+                    } else {
+                        // 完全访问权限，直接显示图片选择器
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            self.onCameraStateChanged?()
+                            DispatchQueue.main.async {
+                                self.showImagePicker = true
+                            }
+                        }
+                    }
                 } else {
                     print("------------------------")
                     print("[相册权限] 用户已拒绝")
@@ -191,7 +294,6 @@ struct OverlayView: View {
     let centerY: CGFloat
     let screenHeight: CGFloat
     @ObservedObject var imageUploader: ImageUploader
-    @State private var showingImagePicker = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -316,20 +418,52 @@ struct OverlayView: View {
             // 上传按钮
             Circle()
                 .fill(Color.clear)
-                .frame(width: 100, height: 100)
+                .frame(width: 160, height: 160)
                 .overlay(
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 40))
+                        .font(.system(size: 80))
                         .foregroundColor(screenID == .original ? Color.white : Color.black)
+                        .rotationEffect(getRotationAngle(deviceOrientation))
                 )
                 .contentShape(Circle())
                 .onTapGesture {
                     print("------------------------")
                     print("[上传按钮] 点击")
                     print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                    print("当前设备方向：\(getOrientationDescription(deviceOrientation))")
                     print("------------------------")   
                     imageUploader.uploadImage(for: screenID)
                 }
+        }
+    }
+    
+    // 添加获取旋转角度的方法
+    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        case .portraitUpsideDown:
+            return .degrees(180)
+        default:
+            return .degrees(0)
+        }
+    }
+    
+    // 添加获取方向描述的方法
+    private func getOrientationDescription(_ orientation: UIDeviceOrientation) -> String {
+        switch orientation {
+        case .portrait:
+            return "竖直"
+        case .portraitUpsideDown:
+            return "倒置竖屏"
+        case .landscapeLeft:
+            return "向左横屏"
+        case .landscapeRight:
+            return "向右横屏"
+        default:
+            return "其他"
         }
     }
 }
@@ -371,9 +505,12 @@ struct ImagePicker: UIViewControllerRepresentable {
                 print("目标区域：\(self.parent.screenID == .original ? "Original" : "Mirrored")屏幕")
                 print("------------------------")
                 
-                // 延迟关闭图片选择器
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    self.parent.presentationMode.wrappedValue.dismiss()
+                // 关闭图片选择器
+                self.parent.presentationMode.wrappedValue.dismiss()
+                
+                // 延迟结束处理状态
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.parent.imageUploader?.endImageProcessing()
                 }
             }
         }
@@ -382,7 +519,17 @@ struct ImagePicker: UIViewControllerRepresentable {
             print("------------------------")
             print("[图片选择器] 已取消选择")
             print("------------------------")
+            
+            // 关闭图片选择器
             parent.presentationMode.wrappedValue.dismiss()
+            
+            // 执行清理工作并结束处理状态
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                if let imageUploader = self.parent.imageUploader {
+                    imageUploader.hideRectangle()
+                    imageUploader.endImageProcessing()
+                }
+            }
         }
     }
 } 
