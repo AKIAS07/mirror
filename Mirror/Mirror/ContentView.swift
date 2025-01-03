@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVFoundation
+import UIKit
 
 struct BorderStyle {
     static let normalColor = Color.green
@@ -91,6 +92,20 @@ class CameraObserver: NSObject {
     }
 }
 
+// 添加共享布局常量
+struct CameraLayoutConfig {
+    static let horizontalPadding: CGFloat = 20  // 左右边距
+    static let verticalPadding: CGFloat = 100   // 上下边距
+    static let cornerRadius: CGFloat = 20       // 圆角半径
+    static let bottomOffset: CGFloat = 300      // 底部偏移
+    static let verticalOffset: CGFloat = -50    // 垂直偏移
+}
+
+// 添加一个结构体来存储容器位置信息
+struct CameraContainerFrame {
+    static var frame: CGRect = .zero
+}
+
 struct CameraContainer: View {
     let session: AVCaptureSession
     let isMirrored: Bool
@@ -143,17 +158,36 @@ struct CameraContainer: View {
     var body: some View {
         GeometryReader { geometry in
             let availableHeight = geometry.size.height
+            let containerFrame = CGRect(
+                x: CameraLayoutConfig.horizontalPadding,
+                y: CameraLayoutConfig.verticalOffset,
+                width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2),
+                height: availableHeight - CameraLayoutConfig.bottomOffset
+            )
             
             ZStack {
                 if isActive {
+                    // 打印 CameraContainer 的位置信息
+                    Color.clear.onAppear {
+                        let x = CameraLayoutConfig.horizontalPadding
+                        let y = CameraLayoutConfig.verticalOffset
+                        print("========================")
+                        print("CameraContainer 位置信息：")
+                        print("左上角坐标：(\(x), \(y))")
+                        print("尺寸：\(geometry.size.width) x \(geometry.size.height)")
+                        print("========================")
+                    }
+                    
                     // 画面
                     if let image = processedImage {
                         Image(uiImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: geometry.size.width - 40, height: availableHeight - 200)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .frame(width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2), 
+                                   height: availableHeight - CameraLayoutConfig.bottomOffset)
+                            .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
                             .scaleEffect(currentScale)
+                            .offset(y: CameraLayoutConfig.verticalOffset)
                             .simultaneousGesture(
                                 MagnificationGesture()
                                     .onChanged { scale in
@@ -165,13 +199,15 @@ struct CameraContainer: View {
                             )
                     }
                     
-                    // 修改边框视图布局
+                    // 边框视图布局 - 不应用缩放效果
                     GeometryReader { borderGeometry in
                         Rectangle()
                             .stroke(containerSelected ? BorderStyle.selectedColor : BorderStyle.normalColor,
                                    lineWidth: containerSelected ? BorderStyle.selectedWidth : BorderStyle.normalWidth)
-                            .frame(width: geometry.size.width - 40, height: availableHeight - 200)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .frame(width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2), 
+                                   height: availableHeight - CameraLayoutConfig.bottomOffset)
+                            .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
+                            .offset(y: CameraLayoutConfig.verticalOffset)
                             .position(x: geometry.size.width/2, y: geometry.size.height/2)
                     }
                     
@@ -187,6 +223,12 @@ struct CameraContainer: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
+                CameraContainerFrame.frame = containerFrame
+                print("相机容器 - 设置 Frame:", containerFrame)
+            }
+            .onChange(of: geometry.size) { _ in
+                CameraContainerFrame.frame = containerFrame
+                print("相机容器 - 更新 Frame:", containerFrame)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -369,6 +411,91 @@ struct RestartCameraView: View {
     }
 }
 
+// 修改背景遮罩视图
+struct BackgroundMaskView: View {
+    var body: some View {
+        GeometryReader { geometry in
+            let availableHeight = geometry.size.height
+            
+            ZStack {
+                // 黑色背景
+                Color.black.opacity(0.5)
+                    .edgesIgnoringSafeArea(.all)
+                
+                Path { path in
+                    // 添加整个屏幕大小的矩形
+                    path.addRect(CGRect(x: 0, y: 0, width: geometry.size.width, height: geometry.size.height))
+                    
+                    // 计算镂空区域的尺寸和位置（与 CameraContainer 保持一致）
+                    let holeWidth = geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2)
+                    let holeHeight = availableHeight - CameraLayoutConfig.bottomOffset
+                    
+                    // 计算居中位置
+                    let holeX = CameraLayoutConfig.horizontalPadding
+                    let holeY = (availableHeight - holeHeight) / 2 + CameraLayoutConfig.verticalOffset
+                    
+                    // 使用 UIBezierPath 创建圆角矩形
+                    let bezierPath = UIBezierPath(roundedRect: CGRect(x: holeX,
+                                                                     y: holeY,
+                                                                     width: holeWidth,
+                                                                     height: holeHeight),
+                                                cornerRadius: CameraLayoutConfig.cornerRadius)
+                    path.addPath(Path(bezierPath.cgPath))
+                    
+                    // 打印镂空区域信息
+                    print("------------------------")
+                    print("黑色遮罩镂空区域信息：")
+                    print("尺寸：")
+                    print("- 宽度：\(holeWidth)pt")
+                    print("- 高度：\(holeHeight)pt")
+                    print("\n位置：")
+                    print("- 左上角X：\(holeX)pt")
+                    print("- 左上角Y：\(holeY)pt")
+                    print("\n中心点坐标：")
+                    print("- 中心X：\(holeX + holeWidth/2)pt")
+                    print("- 中心Y：\(holeY + holeHeight/2)pt")
+                    print("------------------------")
+                }
+                .fill(style: FillStyle(eoFill: true))
+                .foregroundColor(.black)
+                
+                // 黄色矩形区域（用于调试）
+                Rectangle()
+                    .fill(.yellow.opacity(0.5))
+                    .frame(width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2),
+                           height: availableHeight - CameraLayoutConfig.bottomOffset)
+                    .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
+                    .offset(y: CameraLayoutConfig.verticalOffset)  // 使用 offset 而不是绝对位置
+                    .onAppear {
+                        let yellowRectWidth = geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2)
+                        let yellowRectHeight = availableHeight - CameraLayoutConfig.bottomOffset
+                        let yellowRectX = CameraLayoutConfig.horizontalPadding
+                        let yellowRectY = CameraLayoutConfig.verticalOffset
+                        let centerX = yellowRectX + (yellowRectWidth / 2)
+                        let centerY = (yellowRectHeight / 2) + yellowRectY
+                        
+                        print("------------------------")
+                        print("遮罩视图布局信息：")
+                        print("黑色背景尺寸：")
+                        print("- 宽度：\(geometry.size.width)pt")
+                        print("- 高度：\(geometry.size.height)pt")
+                        print("\n黄色矩形区域：")
+                        print("- 宽度：\(yellowRectWidth)pt")
+                        print("- 高度：\(yellowRectHeight)pt")
+                        print("- X轴位置：\(yellowRectX)pt")
+                        print("- Y轴偏移：\(yellowRectY)pt")
+                        print("- 圆角半径：\(CameraLayoutConfig.cornerRadius)pt")
+                        print("\n黄色矩形中心点位置：")
+                        print("- X坐标：\(centerX)pt")
+                        print("- Y坐标：\(centerY)pt")
+                        print("------------------------")
+                    }
+            }
+        }
+        .edgesIgnoringSafeArea(.all)
+    }
+}
+
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @State private var showingTwoOfMe = false
@@ -419,37 +546,6 @@ struct ContentView: View {
                                 onPinchChanged: handlePinchGesture,
                                 onPinchEnded: handlePinchEnd
                             )
-                            .onAppear {
-                                // 打印模式A下的区域信息
-                                print("------------------------")
-                                print("模式A视图已加载")
-                                print("显示区域信息：")
-                                print("宽度：\(geometry.size.width - 40)pt")
-                                print("高度：\(geometry.size.height - 200)pt")
-                                print("左边距：20pt")
-                                print("右边距：20pt")
-                                print("上边距：100pt")
-                                print("下边距：100pt")
-                                print("圆角：20pt")
-                                print("当前缩放比例：\(Int(currentScale * 100))%")
-                                print("------------------------")
-                                print("容器信息：")
-                                print("容器尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
-                                print("------------------------")
-                                
-                                if isSelected {
-                                    previousBrightness = UIScreen.main.brightness
-                                    UIScreen.main.brightness = 1.0
-                                    print("模式A恢复 - 提高亮度至最大")
-                                }
-                            }
-                            .onDisappear {
-                                if isSelected {
-                                    UIScreen.main.brightness = previousBrightness
-                                    print("模式A切换到模式B - 恢复原始亮度：\(previousBrightness)")
-                                }
-                                isSelected = false
-                            }
                         }
                     } else {
                         // 模式B视图
@@ -468,40 +564,12 @@ struct ContentView: View {
                                 onPinchChanged: handlePinchGesture,
                                 onPinchEnded: handlePinchEnd
                             )
-                            .onAppear {
-                                // 打印模式B下的区域信息
-                                print("------------------------")
-                                print("模式B视图已加载")
-                                print("显示区域信息：")
-                                print("宽度：\(geometry.size.width - 40)pt")
-                                print("高度：\(geometry.size.height - 200)pt")
-                                print("左边距：20pt")
-                                print("右边距：20pt")
-                                print("上边距：100pt")
-                                print("下边距：100pt")
-                                print("圆角：20pt")
-                                print("当前缩放比例：\(Int(currentScale * 100))%")
-                                print("------------------------")
-                                print("容器信息：")
-                                print("容器尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
-                                print("------------------------")
-                                
-                                isSelected = normalModeSelected
-                                if normalModeSelected {
-                                    previousBrightness = UIScreen.main.brightness
-                                    UIScreen.main.brightness = 1.0
-                                    print("模式B恢复 - 提高亮度至最大")
-                                }
-                            }
-                            .onDisappear {
-                                if normalModeSelected {
-                                    UIScreen.main.brightness = previousBrightness
-                                    print("模式B切换到模式A - 恢复原始亮度：\(previousBrightness)")
-                                }
-                                normalModeSelected = false
-                            }
                         }
                     }
+                    
+                    // 背景遮罩视图
+                    BackgroundMaskView()
+                        .allowsHitTesting(false)
                     
                     // 菱形按钮布局
                     ZStack {
@@ -624,6 +692,7 @@ struct ContentView: View {
                             )
                     }
                     .position(x: screenWidth/2, y: screenHeight - 100)  // 调整位置到屏幕底部
+                    .zIndex(2) // 确保按钮在最上层
                 } else {
                     // 权限请求视图
                     ZStack {
@@ -651,6 +720,7 @@ struct ContentView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
                 NotificationCenter.default.addObserver(
                     forName: UIDevice.orientationDidChangeNotification,
