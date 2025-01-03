@@ -24,12 +24,6 @@ class CameraManager: ObservableObject {
         if session.canSetSessionPreset(.high) {
             session.sessionPreset = .high
         }
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAuthorizationChange),
-            name: UIApplication.didBecomeActiveNotification,
-            object: nil
-        )
     }
     
     deinit {
@@ -37,7 +31,6 @@ class CameraManager: ObservableObject {
     }
     
     private func cleanupResources() {
-        NotificationCenter.default.removeObserver(self)
         videoOutputDelegate = nil
         safelyStopSession()
         session.inputs.forEach { session.removeInput($0) }
@@ -54,12 +47,6 @@ class CameraManager: ObservableObject {
         }
     }
     
-    @objc private func handleAuthorizationChange() {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.checkPermission()
-        }
-    }
-    
     func checkPermission() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
@@ -70,6 +57,7 @@ class CameraManager: ObservableObject {
                 self?.permissionGranted = true
             }
             setupCamera()
+            
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 if granted {
@@ -113,19 +101,42 @@ class CameraManager: ObservableObject {
     }
     
     func restartCamera() {
+        if session.isRunning {
+            print("------------------------")
+            print("[相机] 会话正在运行，跳过重启")
+            print("------------------------")
+            return
+        }
+        
+        if isSettingUpCamera {
+            print("------------------------")
+            print("[相机] 正在设置中，跳过重启")
+            print("------------------------")
+            return
+        }
+        
         print("------------------------")
         print("[相机] 准备重启")
         print("------------------------")
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            // 先停止当前会话
-            self?.stopSession()
+            guard let self = self else { return }
             
-            // 等待一小段时间确保会话完全停止
+            self.stopSession()
+            
             Thread.sleep(forTimeInterval: 0.1)
             
-            // 重新设置并启动相机
-            self?.setupCamera()
+            print("------------------------")
+            print("[相机] 重启中...")
+            print("------------------------")
+            
+            self.setupCamera()
+            
+            DispatchQueue.main.async {
+                print("------------------------")
+                print("[相机] 重启完成")
+                print("------------------------")
+            }
         }
     }
     

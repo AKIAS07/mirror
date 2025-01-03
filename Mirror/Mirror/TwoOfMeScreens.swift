@@ -755,6 +755,10 @@ struct TwoOfMeScreens: View {
     // 添加状态变量来跟踪当前缩放的屏幕
     @State private var activeScalingScreen: ScreenID?
     
+    // 添加状态变量跟踪是否是首次显示
+    @State private var isFirstAppear: Bool = true
+    @State private var isRestoringFromBackground: Bool = false  // 添加状态跟踪变量
+    
     var body: some View {
         GeometryReader { geometry in
             let screenBounds = UIScreen.main.bounds
@@ -1491,18 +1495,13 @@ struct TwoOfMeScreens: View {
                 // 确保开启设备方向监听
                 UIDevice.current.beginGeneratingDeviceOrientationNotifications()
                 
-                // 设置图片选择器和相机状态变化的回调
-                imageUploader.onCameraStateChanged = { [weak cameraManager] in
-                    print("------------------------")
-                    print("[相机状态] 准备更新")
-                    print("------------------------")
-                    
-                    // 重启相机
-                    cameraManager?.restartCamera()
+                if isFirstAppear {
+                    // 首次显示时初始化视频处理
+                    isFirstAppear = false
+                    setupVideoProcessing()
+                    print("首次显示时初始化视频处理")
                 }
                 
-                // 初始化视频处理
-                setupVideoProcessing()
                 startOrientationObserving()
                 
                 print("------------------------")
@@ -1520,6 +1519,26 @@ struct TwoOfMeScreens: View {
             }
             .onChange(of: imageUploader.selectedImage) { newImage in
                 handleSelectedImage(newImage)
+            }
+            // 添加前后台切换监听
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                print("------------------------")
+                print("[Two of Me] 即将进入后台")
+                print("------------------------")
+                cameraManager.stopSession()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                print("------------------------")
+                print("[Two of Me] 已回到前台")
+                print("------------------------")
+                // 延迟2秒后重启相机
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak cameraManager] in
+                    guard let cameraManager = cameraManager else { return }
+                    print("------------------------")
+                    print("[Two of Me] 执行相机重启")
+                    print("------------------------")
+                    cameraManager.restartCamera()
+                }
             }
         }
         .ignoresSafeArea(.all)
@@ -1548,9 +1567,11 @@ struct TwoOfMeScreens: View {
         
         cameraManager.videoOutputDelegate = processor
         
-        // 在后台线程检查和启动相机
-        DispatchQueue.global(qos: .userInitiated).async { [weak cameraManager] in
-            cameraManager?.checkPermission()
+        // 延迟1秒后在后台线程检查和启动相机
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak cameraManager] in
+            DispatchQueue.global(qos: .userInitiated).async {
+                cameraManager?.checkPermission()
+            }
         }
         
         print("------------------------")
