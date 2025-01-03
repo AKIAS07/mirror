@@ -16,6 +16,9 @@ struct CameraView: UIViewRepresentable {
         if let connection = previewLayer.connection {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = isMirrored
+            
+            // 添加日志输出
+            print("CameraView - 设置镜像状态：\(isMirrored)")
         }
         
         view.layer.addSublayer(previewLayer)
@@ -28,6 +31,9 @@ struct CameraView: UIViewRepresentable {
             // 同样确保在更新时也先关闭自动调整
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = isMirrored
+            
+            // 添加日志输出
+            print("CameraView - 更新镜像状态：\(isMirrored)")
         }
     }
 } 

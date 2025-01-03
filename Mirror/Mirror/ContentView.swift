@@ -19,13 +19,14 @@ struct CircleButton: View {
     let systemName: String
     let title: String
     let action: () -> Void
+    let deviceOrientation: UIDeviceOrientation
     
     var body: some View {
         Button(action: action) {
             if systemName.isEmpty {
                 // 只显示文字，用于焦距按钮
                 Text(title)
-                    .font(.system(size: 20, weight: .bold))  // 调整文字大小和粗细
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 60, height: 60)
                     .background(Color.black.opacity(0.5))
@@ -35,10 +36,23 @@ struct CircleButton: View {
                 Image(systemName: systemName)
                     .font(.system(size: 24))
                     .foregroundColor(.white)
+                    .rotationEffect(getIconRotationAngle(deviceOrientation))
                     .frame(width: 60, height: 60)
                     .background(Color.black.opacity(0.5))
                     .clipShape(Circle())
             }
+        }
+    }
+    
+    // 获取图标旋转角度
+    private func getIconRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        default:
+            return .degrees(0)
         }
     }
 }
@@ -48,7 +62,7 @@ class CameraObserver: NSObject {
     let processor: MainVideoProcessor
     private var lastLogTime: Date = Date()
     private let logInterval: TimeInterval = 1.0
-    private var previousMirrorState: Bool = false  // 添加踪
+    private var previousMirrorState: Bool = false
     
     init(processor: MainVideoProcessor) {
         self.processor = processor
@@ -66,9 +80,12 @@ class CameraObserver: NSObject {
                 print("镜像状态更新：\(connection.isVideoMirrored)")
                 lastLogTime = currentTime
                 previousMirrorState = connection.isVideoMirrored
+                
+                // 更新处理器的模式
+                processor.setMode(connection.isVideoMirrored ? .modeA : .modeB)
             }
             
-            // 更新处理器状态，但不输出日志
+            // 更新处理器状态
             processor.isMirrored = connection.isVideoMirrored
         }
     }
@@ -83,25 +100,50 @@ struct CameraContainer: View {
     @State private var processedImage: UIImage?
     @State private var observer: CameraObserver?
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
-    @State private var containerSelected: Bool  // 重命名为 containerSelected
+    @State private var containerSelected: Bool
     
     let cameraManager: CameraManager
+    
+    // 添加放缩相关的绑定
+    @Binding var currentScale: CGFloat
+    @Binding var showScaleIndicator: Bool
+    @Binding var currentIndicatorScale: CGFloat
+    let onPinchChanged: (CGFloat) -> Void
+    let onPinchEnded: (CGFloat) -> Void
     
     // 添加震动反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
-    init(session: AVCaptureSession, isMirrored: Bool, isActive: Bool, deviceOrientation: UIDeviceOrientation, restartAction: @escaping () -> Void, cameraManager: CameraManager, isSelected: Bool) {
+    init(session: AVCaptureSession, 
+         isMirrored: Bool, 
+         isActive: Bool, 
+         deviceOrientation: UIDeviceOrientation, 
+         restartAction: @escaping () -> Void, 
+         cameraManager: CameraManager, 
+         isSelected: Bool,
+         currentScale: Binding<CGFloat>,
+         showScaleIndicator: Binding<Bool>,
+         currentIndicatorScale: Binding<CGFloat>,
+         onPinchChanged: @escaping (CGFloat) -> Void,
+         onPinchEnded: @escaping (CGFloat) -> Void) {
         self.session = session
         self.isMirrored = isMirrored
         self.isActive = isActive
         self.deviceOrientation = deviceOrientation
         self.restartAction = restartAction
         self.cameraManager = cameraManager
-        _containerSelected = State(initialValue: isSelected)  // 使用重命名后的属性
+        _containerSelected = State(initialValue: isSelected)
+        _currentScale = currentScale
+        _showScaleIndicator = showScaleIndicator
+        _currentIndicatorScale = currentIndicatorScale
+        self.onPinchChanged = onPinchChanged
+        self.onPinchEnded = onPinchEnded
     }
     
     var body: some View {
         GeometryReader { geometry in
+            let availableHeight = geometry.size.height
+            
             ZStack {
                 if isActive {
                     // 画面
@@ -109,8 +151,18 @@ struct CameraContainer: View {
                         Image(uiImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .ignoresSafeArea()
+                            .frame(width: geometry.size.width - 40, height: availableHeight - 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .scaleEffect(currentScale)
+                            .simultaneousGesture(
+                                MagnificationGesture()
+                                    .onChanged { scale in
+                                        onPinchChanged(scale)
+                                    }
+                                    .onEnded { scale in
+                                        onPinchEnded(scale)
+                                    }
+                            )
                     }
                     
                     // 修改边框视图布局
@@ -118,43 +170,23 @@ struct CameraContainer: View {
                         Rectangle()
                             .stroke(containerSelected ? BorderStyle.selectedColor : BorderStyle.normalColor,
                                    lineWidth: containerSelected ? BorderStyle.selectedWidth : BorderStyle.normalWidth)
-                            .frame(
-                                width: UIScreen.main.bounds.width,
-                                height: UIScreen.main.bounds.height
-                            )
-                            .position(
-                                x: UIScreen.main.bounds.width/2,
-                                y: UIScreen.main.bounds.height/2
-                            )
-                            .ignoresSafeArea()
-                            .onAppear {
-                                print("------------------------")
-                                print("边框容器信息：")
-                                print("边框尺寸：width=\(UIScreen.main.bounds.width), height=\(UIScreen.main.bounds.height)")
-                                print("边框坐标：x=\(borderGeometry.frame(in: .global).origin.x), y=\(borderGeometry.frame(in: .global).origin.y)")
-                                print("屏幕尺寸：width=\(UIScreen.main.bounds.width), height=\(UIScreen.main.bounds.height)")
-                                print("------------------------")
-                            }
+                            .frame(width: geometry.size.width - 40, height: availableHeight - 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .position(x: geometry.size.width/2, y: geometry.size.height/2)
+                    }
+                    
+                    // 添加缩放提示
+                    if showScaleIndicator {
+                        ScaleIndicatorView(scale: currentIndicatorScale)
+                            .position(x: geometry.size.width/2, y: geometry.size.height/2)
+                            .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
                     }
                 } else {
                     RestartCameraView(action: restartAction)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                GeometryReader { proxy in
-                    Color.clear
-                        .onAppear {
-                            print("------------------------")
-                            print("ZStack 容器信息：")
-                            print("ZStack 尺寸：width=\(proxy.size.width), height=\(proxy.size.height)")
-                            print("ZStack 坐标：x=\(proxy.frame(in: .global).origin.x), y=\(proxy.frame(in: .global).origin.y)")
-                            print("------------------------")
-                        }
-                }
-            )
             .onAppear {
-                print("容器尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -193,16 +225,10 @@ struct CameraContainer: View {
         }
     }
     
-    private func getRotationAngle() -> Angle {
-        if !isMirrored && deviceOrientation == .landscapeLeft {
-            return .degrees(180)
-        }
-        return .degrees(0)
-    }
-    
-    // 修改视频处理设置
     private func setupVideoProcessing() {
         let processor = MainVideoProcessor()
+        // 根据isMirrored设置初始模式
+        processor.setMode(isMirrored ? .modeA : .modeB)
         processor.isMirrored = isMirrored
         processor.imageHandler = { image in
             DispatchQueue.main.async {
@@ -230,45 +256,80 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
     var isMirrored: Bool = false
     private var previousOrientation: UIDeviceOrientation = .unknown
     private var previousMirrorState: Bool = false
-    private var lastLogTime: Date = Date()  // 添加时间控制
-    private let logInterval: TimeInterval = 1.0  // 日志输出最小间隔（秒）
+    private var lastLogTime: Date = Date()
+    private let logInterval: TimeInterval = 1.0
+    private var currentMode: CameraMode = .modeB
+    
+    enum CameraMode {
+        case modeA
+        case modeB
+    }
+    
+    // 添加设置模式的方法
+    func setMode(_ mode: CameraMode) {
+        let previousMode = currentMode
+        currentMode = mode
+        
+        // 记录模式变化
+        if previousMode != currentMode {
+            let currentTime = Date()
+            if currentTime.timeIntervalSince(lastLogTime) >= logInterval {
+                print("------------------------")
+                print("模式切换")
+                print("当前模式：\(currentMode == .modeA ? "模式A" : "模式B")")
+                print("------------------------")
+                lastLogTime = currentTime
+            }
+        }
+    }
     
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
         connection.videoOrientation = .portrait
-        connection.isVideoMirrored = false
+        connection.isVideoMirrored = false  // 确保连接不自动镜像
         
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
         var processedImage = ciImage
         let deviceOrientation = UIDevice.current.orientation
         let currentTime = Date()
         
-        // 只在状态变化且超过最小间隔输出日志
-        if isMirrored != previousMirrorState && 
+        // 设备方向变化日志
+        if deviceOrientation != previousOrientation && 
            currentTime.timeIntervalSince(lastLogTime) >= logInterval {
-            print("镜像状态：\(isMirrored ? "开启" : "关闭")")
-            previousMirrorState = isMirrored
+            print("------------------------")
+            print("设备方向变化")
+            print("当前模式：\(currentMode == .modeA ? "模式A" : "模式B")")
+            switch deviceOrientation {
+            case .portrait:
+                print("方向：竖屏(1)")
+            case .portraitUpsideDown:
+                print("方向：倒置竖屏(2)")
+            case .landscapeRight:
+                print("方向：向右横屏(3)")
+            case .landscapeLeft:
+                print("方向：向左横屏(4)")
+            default:
+                print("方向：其他")
+            }
+            print("------------------------")
+            previousOrientation = deviceOrientation
             lastLogTime = currentTime
         }
         
-        if isMirrored {
+        // 根据当前模式处理图像
+        switch currentMode {
+        case .modeA:
+            // 模式A：应用水平翻转（镜像效果）
             processedImage = processedImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
-        }
-        
-        // 只在设备向改变且为横屏时输出日志
-        if !isMirrored && (deviceOrientation == .landscapeLeft || deviceOrientation == .landscapeRight) {
-            if deviceOrientation != previousOrientation && 
-               currentTime.timeIntervalSince(lastLogTime) >= logInterval {
-                print("设备方向\(deviceOrientation == .landscapeLeft ? "向左横屏" : "向右横屏")")
-                print("摄像头画面旋转180度")
-                previousOrientation = deviceOrientation
-                lastLogTime = currentTime
-            }
             
-            let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
-                .rotated(by: .pi)
-            processedImage = processedImage.transformed(by: rotationTransform)
+        case .modeB:
+            // 模式B：在设备方向为3或4时进行180度旋转
+            if deviceOrientation == .landscapeLeft || deviceOrientation == .landscapeRight {
+                let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
+                    .rotated(by: .pi)
+                processedImage = processedImage.transformed(by: rotationTransform)
+            }
         }
         
         if let cgImage = context.createCGImage(processedImage, from: processedImage.extent) {
@@ -314,13 +375,21 @@ struct ContentView: View {
     @State private var isCameraActive = true
     @State private var showRestartHint = false
     @State private var deviceOrientation = UIDevice.current.orientation
-    @State private var currentZoomLevel = 1
     @State private var isSelected = false
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
     @State private var normalModeSelected = false
     
-    // 焦距选项
-    private let zoomLevels = [1, 2, 4]
+    // 添加放缩相关的状态变量
+    @State private var currentScale: CGFloat = 1.0
+    @State private var baseScale: CGFloat = 1.0
+    @State private var showScaleLimitMessage = false
+    @State private var scaleLimitMessage = ""
+    @State private var showScaleIndicator = false
+    @State private var currentIndicatorScale: CGFloat = 1.0
+    
+    // 添加放缩限制常量
+    private let minScale: CGFloat = 1.0     // 最小100%
+    private let maxScale: CGFloat = 10.0    // 最大1000%
     
     // 添加震动反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
@@ -329,70 +398,12 @@ struct ContentView: View {
         GeometryReader { geometry in
             let screenWidth = geometry.size.width
             let screenHeight = geometry.size.height
-            let buttonSpacing: CGFloat = 80
+            let buttonSpacing: CGFloat = 40
             
             ZStack {
                 if cameraManager.permissionGranted {
                     if cameraManager.isMirrored {
-                        // 镜像模式图
-                        GeometryReader { geometry in
-                            if isCameraActive {  // 添加条件判断
-                                ZStack {
-                                    CameraView(session: $cameraManager.session, isMirrored: $cameraManager.isMirrored)
-                                        .ignoresSafeArea()
-                                        .onAppear {
-                                            print("------------------------")
-                                            print("镜像模式容器信息：")
-                                            print("容器尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
-                                            print("容器坐标：x=\(geometry.frame(in: .global).origin.x), y=\(geometry.frame(in: .global).origin.y)")
-                                            print("屏幕尺寸：width=\(UIScreen.main.bounds.width), height=\(UIScreen.main.bounds.height)")
-                                            print("安全区域：\(geometry.safeAreaInsets)")
-                                            print("------------------------")
-                                        }
-                                    
-                                    Rectangle()
-                                        .stroke(isSelected ? BorderStyle.selectedColor : BorderStyle.normalColor, 
-                                               lineWidth: isSelected ? BorderStyle.selectedWidth : BorderStyle.normalWidth)
-                                        .ignoresSafeArea()
-                                }
-                                .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        isSelected.toggle()
-                                        
-                                        if isSelected {
-                                            previousBrightness = UIScreen.main.brightness
-                                            UIScreen.main.brightness = 1.0
-                                            print("镜像模式选中 - 提高亮度至最大")
-                                            print("原始亮度：\(previousBrightness)")
-                                            feedbackGenerator.impactOccurred(intensity: 1.0)
-                                        } else {
-                                            UIScreen.main.brightness = previousBrightness
-                                            print("镜像模式取消选中 - 恢复原始亮度：\(previousBrightness)")
-                                        }
-                                    }
-                                    print("镜像模式选中状态：\(isSelected)")
-                                }
-                                .onDisappear {
-                                    // 在切换模式前恢复原始亮度
-                                    if isSelected {
-                                        UIScreen.main.brightness = previousBrightness
-                                        print("镜像模式切换到正常模式 - 恢复原始亮度：\(previousBrightness)")
-                                    }
-                                    isSelected = false  // 重置选中状态
-                                }
-                                .onAppear {
-                                    // 如果是选中状态，恢复最大亮度
-                                    if isSelected {
-                                        UIScreen.main.brightness = 1.0
-                                        print("镜像模式恢复 - 提高亮度至最大")
-                                    }
-                                }
-                            } else {
-                                RestartCameraView(action: restartCamera)
-                            }
-                        }
-                    } else {
-                        // 正常模式视图
+                        // 模式A视图
                         GeometryReader { geometry in
                             CameraContainer(
                                 session: cameraManager.session,
@@ -401,36 +412,93 @@ struct ContentView: View {
                                 deviceOrientation: deviceOrientation,
                                 restartAction: restartCamera,
                                 cameraManager: cameraManager,
-                                isSelected: normalModeSelected
+                                isSelected: isSelected,
+                                currentScale: $currentScale,
+                                showScaleIndicator: $showScaleIndicator,
+                                currentIndicatorScale: $currentIndicatorScale,
+                                onPinchChanged: handlePinchGesture,
+                                onPinchEnded: handlePinchEnd
                             )
                             .onAppear {
+                                // 打印模式A下的区域信息
                                 print("------------------------")
-                                print("正常模式容器信息：")
+                                print("模式A视图已加载")
+                                print("显示区域信息：")
+                                print("宽度：\(geometry.size.width - 40)pt")
+                                print("高度：\(geometry.size.height - 200)pt")
+                                print("左边距：20pt")
+                                print("右边距：20pt")
+                                print("上边距：100pt")
+                                print("下边距：100pt")
+                                print("圆角：20pt")
+                                print("当前缩放比例：\(Int(currentScale * 100))%")
+                                print("------------------------")
+                                print("容器信息：")
                                 print("容器尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
-                                print("器坐标：x=\(geometry.frame(in: .global).origin.x), y=\(geometry.frame(in: .global).origin.y)")
-                                print("屏幕尺寸：width=\(UIScreen.main.bounds.width), height=\(UIScreen.main.bounds.height)")
-                                print("安全区域：\(geometry.safeAreaInsets)")
                                 print("------------------------")
-                                isSelected = normalModeSelected
-                                // 如果是选中状态，设置最大亮度
-                                if normalModeSelected {
+                                
+                                if isSelected {
                                     previousBrightness = UIScreen.main.brightness
                                     UIScreen.main.brightness = 1.0
-                                    print("正常模式恢复 - 提高亮度至最大")
-                                }
-                                // 如果是选中状态，恢复最大亮度
-                                if normalModeSelected {
-                                    UIScreen.main.brightness = 1.0
-                                    print("正常模式恢复 - 提高亮度至最大")
+                                    print("模式A恢复 - 提高亮度至最大")
                                 }
                             }
                             .onDisappear {
-                                // 在切换模式前恢复原始亮度
+                                if isSelected {
+                                    UIScreen.main.brightness = previousBrightness
+                                    print("模式A切换到模式B - 恢复原始亮度：\(previousBrightness)")
+                                }
+                                isSelected = false
+                            }
+                        }
+                    } else {
+                        // 模式B视图
+                        GeometryReader { geometry in
+                            CameraContainer(
+                                session: cameraManager.session,
+                                isMirrored: cameraManager.isMirrored,
+                                isActive: isCameraActive,
+                                deviceOrientation: deviceOrientation,
+                                restartAction: restartCamera,
+                                cameraManager: cameraManager,
+                                isSelected: normalModeSelected,
+                                currentScale: $currentScale,
+                                showScaleIndicator: $showScaleIndicator,
+                                currentIndicatorScale: $currentIndicatorScale,
+                                onPinchChanged: handlePinchGesture,
+                                onPinchEnded: handlePinchEnd
+                            )
+                            .onAppear {
+                                // 打印模式B下的区域信息
+                                print("------------------------")
+                                print("模式B视图已加载")
+                                print("显示区域信息：")
+                                print("宽度：\(geometry.size.width - 40)pt")
+                                print("高度：\(geometry.size.height - 200)pt")
+                                print("左边距：20pt")
+                                print("右边距：20pt")
+                                print("上边距：100pt")
+                                print("下边距：100pt")
+                                print("圆角：20pt")
+                                print("当前缩放比例：\(Int(currentScale * 100))%")
+                                print("------------------------")
+                                print("容器信息：")
+                                print("容器尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
+                                print("------------------------")
+                                
+                                isSelected = normalModeSelected
+                                if normalModeSelected {
+                                    previousBrightness = UIScreen.main.brightness
+                                    UIScreen.main.brightness = 1.0
+                                    print("模式B恢复 - 提高亮度至最大")
+                                }
+                            }
+                            .onDisappear {
                                 if normalModeSelected {
                                     UIScreen.main.brightness = previousBrightness
-                                    print("正常模式切换到像模式 - 恢复原始亮度：\(previousBrightness)")
+                                    print("模式B切换到模式A - 恢复原始亮度：\(previousBrightness)")
                                 }
-                                normalModeSelected = false  // 重置选中状态
+                                normalModeSelected = false
                             }
                         }
                     }
@@ -440,55 +508,50 @@ struct ContentView: View {
                         // 添加透明容器
                         Rectangle()
                             .fill(Color.clear)  // 完全透明
-                            .frame(width: buttonSpacing * 2, height: buttonSpacing * 2)  // 使用按钮间距创建正方形区域
+                            .frame(width: buttonSpacing * 3, height: 60)  // 修改容器尺寸以适应三个按钮
                             .overlay(
-                                ZStack {
-                                    // 上按钮（焦距调整）
+                                HStack(spacing: buttonSpacing) {  // 使用 HStack 水平排列按钮
+                                    // 左按钮 - 模式A
                                     CircleButton(
-                                        systemName: "",
-                                        title: "\(currentZoomLevel)x",
+                                        systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
+                                        title: "",
                                         action: {
-                                            adjustZoom()
-                                            print("调整焦距：\(currentZoomLevel)x")
-                                        }
+                                            // 切换到模式A前确保恢复亮度
+                                            if normalModeSelected {
+                                                UIScreen.main.brightness = previousBrightness
+                                                print("切换到模式A - 恢复原始亮度：\(previousBrightness)")
+                                                normalModeSelected = false
+                                            }
+                                            
+                                            // 设置为模式A
+                                            if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
+                                                processor.setMode(.modeA)
+                                            }
+                                            cameraManager.isMirrored = true
+                                            
+                                            // 打印区域信息
+                                            print("------------------------")
+                                            print("切换到模式A")
+                                            print("显示区域信息：")
+                                            let mirrorWidth = geometry.size.width - 40
+                                            let mirrorHeight = geometry.size.height - 200
+                                            print("宽度：\(mirrorWidth)pt")
+                                            print("高度：\(mirrorHeight)pt")
+                                            print("左边距：20pt")
+                                            print("右边距：20pt")
+                                            print("上边距：100pt")
+                                            print("下边距：100pt")
+                                            print("圆角：20pt")
+                                            print("当前缩放比例：\(Int(currentScale * 100))%")
+                                            print("------------------------")
+                                            print("容器信息：")
+                                            print("容器尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
+                                            print("------------------------")
+                                        },
+                                        deviceOrientation: deviceOrientation
                                     )
-                                    .offset(y: -buttonSpacing)
                                     
-                                    HStack(spacing: buttonSpacing) {
-                                        // 左按钮 - 镜模式
-                                        CircleButton(
-                                            systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
-                                            title: "",
-                                            action: {
-                                                // 切换到镜像模式前确保恢复亮度
-                                                if normalModeSelected {
-                                                    UIScreen.main.brightness = previousBrightness
-                                                    print("切换到镜像模式 - 恢复原始亮度：\(previousBrightness)")
-                                                    normalModeSelected = false
-                                                }
-                                                print("切换到镜像模式")
-                                                cameraManager.isMirrored = true
-                                            }
-                                        )
-                                        
-                                        // 右按钮 - 正常模式
-                                        CircleButton(
-                                            systemName: "camera",
-                                            title: "",
-                                            action: {
-                                                // 切换到正常模式前确保恢复亮度
-                                                if isSelected {
-                                                    UIScreen.main.brightness = previousBrightness
-                                                    print("切换到正常模式 - 恢复原始亮度：\(previousBrightness)")
-                                                    isSelected = false
-                                                }
-                                                print("切换到正常模式")
-                                                cameraManager.isMirrored = false
-                                            }
-                                        )
-                                    }
-                                    
-                                    // 中间钮
+                                    // 中间按钮 - Two of Me
                                     CircleButton(
                                         systemName: "rectangle.split.2x1",
                                         title: "",
@@ -497,13 +560,13 @@ struct ContentView: View {
                                             if cameraManager.isMirrored {
                                                 if isSelected {
                                                     UIScreen.main.brightness = previousBrightness
-                                                    print("进入 Two of Me 前 - 镜像模式恢复原始亮度：\(previousBrightness)")
+                                                    print("进入 Two of Me 前 - 模式A恢复原始亮度：\(previousBrightness)")
                                                     isSelected = false
                                                 }
                                             } else {
                                                 if normalModeSelected {
                                                     UIScreen.main.brightness = previousBrightness
-                                                    print("进入 Two of Me 前 - 正常模式恢复原始亮度：\(previousBrightness)")
+                                                    print("进入 Two of Me 前 - 模式B恢复原始亮度：\(previousBrightness)")
                                                     normalModeSelected = false
                                                 }
                                             }
@@ -514,14 +577,53 @@ struct ContentView: View {
                                             
                                             print("进入 Two of Me 模式")
                                             showingTwoOfMe = true
-                                        }
+                                        },
+                                        deviceOrientation: deviceOrientation
                                     )
-                                    .offset(y: buttonSpacing)
+                                    
+                                    // 右按钮 - 模式B
+                                    CircleButton(
+                                        systemName: "camera",
+                                        title: "",
+                                        action: {
+                                            // 切换到模式B前确保恢复亮度
+                                            if isSelected {
+                                                UIScreen.main.brightness = previousBrightness
+                                                print("切换到模式B - 恢复原始亮度：\(previousBrightness)")
+                                                isSelected = false
+                                            }
+                                            
+                                            // 设置为模式B
+                                            if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
+                                                processor.setMode(.modeB)
+                                            }
+                                            cameraManager.isMirrored = false
+                                            
+                                            // 打印区域信息
+                                            print("------------------------")
+                                            print("切换到模式B")
+                                            print("显示区域信息：")
+                                            let normalWidth = geometry.size.width - 40
+                                            let normalHeight = geometry.size.height - 200
+                                            print("宽度：\(normalWidth)pt")
+                                            print("高度：\(normalHeight)pt")
+                                            print("左边距：20pt")
+                                            print("右边距：20pt")
+                                            print("上边距：100pt")
+                                            print("下边距：100pt")
+                                            print("圆角：20pt")
+                                            print("当前缩放比例：\(Int(currentScale * 100))%")
+                                            print("------------------------")
+                                            print("容器信息：")
+                                            print("容器尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
+                                            print("------------------------")
+                                        },
+                                        deviceOrientation: deviceOrientation
+                                    )
                                 }
                             )
-                            .rotationEffect(getButtonsRotationAngle())  // 添加旋转效果
                     }
-                    .position(x: screenWidth/2, y: screenHeight - 150)
+                    .position(x: screenWidth/2, y: screenHeight - 100)  // 调整位置到屏幕底部
                 } else {
                     // 权限请求视图
                     ZStack {
@@ -678,38 +780,63 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 self.isCameraActive = true
                 self.showRestartHint = false
-                // 重置焦距为1x
-                self.currentZoomLevel = 1
-                self.cameraManager.setZoom(level: CGFloat(1))
                 print("相机会话已重启")
-                print("焦距已重置为1x")
             }
         }
     }
     
-    // 调整焦距的函数
-    private func adjustZoom() {
-        // 获取当前焦距在数组中的索引
-        if let currentIndex = zoomLevels.firstIndex(of: currentZoomLevel) {
-            // 计算下一个焦距的索引（循环）
-            let nextIndex = (currentIndex + 1) % zoomLevels.count
-            // 更新焦距
-            currentZoomLevel = zoomLevels[nextIndex]
-            // 设置相机焦距（转换为 CGFloat）
-            cameraManager.setZoom(level: CGFloat(currentZoomLevel))
+    // 添加放缩处理函数
+    private func handlePinchGesture(scale: CGFloat) {
+        let newScale = baseScale * scale
+        
+        if newScale >= maxScale && scale > 1.0 {
+            currentScale = maxScale
+            if !showScaleLimitMessage {
+                print("------------------------")
+                print("已放大至最大尺寸")
+                print("------------------------")
+                showScaleLimitMessage = true
+                scaleLimitMessage = "已放大至最大尺寸"
+            }
+        } else if newScale <= minScale && scale < 1.0 {
+            currentScale = minScale
+            if !showScaleLimitMessage {
+                print("------------------------")
+                print("已缩小至最小尺寸")
+                print("------------------------")
+                showScaleLimitMessage = true
+                scaleLimitMessage = "已缩小至最小尺寸"
+            }
+        } else {
+            currentScale = min(max(newScale, minScale), maxScale)
+            showScaleLimitMessage = false
+            
+            // 更新缩放提示
+            currentIndicatorScale = currentScale
+            showScaleIndicator = true
+            
+            // 打印日志
+            let currentPercentage = Int(currentScale * 100)
+            print("------------------------")
+            print("双指缩放")
+            print("当前比例：\(currentPercentage)%")
+            print("------------------------")
         }
     }
     
-    // 添加获取按钮旋转角度的函数
-    private func getButtonsRotationAngle() -> Angle {
-        switch deviceOrientation {
-        case .landscapeLeft:
-            return .degrees(90)
-        case .landscapeRight:
-            return .degrees(-90)
-        default:
-            return .degrees(0)
+    private func handlePinchEnd(scale: CGFloat) {
+        baseScale = currentScale
+        showScaleLimitMessage = false
+        
+        // 延迟隐藏缩放提示
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            showScaleIndicator = false
         }
+        
+        print("------------------------")
+        print("双指手势结束")
+        print("最终画面比例：\(Int(baseScale * 100))%")
+        print("------------------------")
     }
 }
 
