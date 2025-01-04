@@ -94,8 +94,8 @@ class CameraObserver: NSObject {
 
 // 添加共享布局常量
 struct CameraLayoutConfig {
-    static let horizontalPadding: CGFloat = 20  // 左右边距
-    static let verticalPadding: CGFloat = 100   // 上下边距
+    static let horizontalPadding: CGFloat = 10  // 左右边距
+    static let verticalPadding: CGFloat = 50   // 上下边距
     static let cornerRadius: CGFloat = 20       // 圆角半径
     static let bottomOffset: CGFloat = 300      // 底部偏移
     static let verticalOffset: CGFloat = -50    // 垂直偏移
@@ -116,6 +116,7 @@ struct CameraContainer: View {
     @State private var observer: CameraObserver?
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
     @State private var containerSelected: Bool
+    @Binding var isLighted: Bool
     
     let cameraManager: CameraManager
     
@@ -136,6 +137,7 @@ struct CameraContainer: View {
          restartAction: @escaping () -> Void, 
          cameraManager: CameraManager, 
          isSelected: Bool,
+         isLighted: Binding<Bool>,
          currentScale: Binding<CGFloat>,
          showScaleIndicator: Binding<Bool>,
          currentIndicatorScale: Binding<CGFloat>,
@@ -148,6 +150,7 @@ struct CameraContainer: View {
         self.restartAction = restartAction
         self.cameraManager = cameraManager
         _containerSelected = State(initialValue: isSelected)
+        _isLighted = isLighted
         _currentScale = currentScale
         _showScaleIndicator = showScaleIndicator
         _currentIndicatorScale = currentIndicatorScale
@@ -235,9 +238,9 @@ struct CameraContainer: View {
         .ignoresSafeArea()
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.2)) {
-                containerSelected.toggle()  // 使用 containerSelected
+                containerSelected.toggle()
                 
-                if containerSelected {  // 使用 containerSelected
+                if containerSelected {
                     // 保存当前亮度并设置为最大
                     previousBrightness = UIScreen.main.brightness
                     UIScreen.main.brightness = 1.0
@@ -245,13 +248,16 @@ struct CameraContainer: View {
                     print("原始亮度：\(previousBrightness)")
                     // 触发震动反馈
                     feedbackGenerator.impactOccurred(intensity: 1.0)
+                    isLighted = true
                 } else {
                     // 恢复原始亮度
                     UIScreen.main.brightness = previousBrightness
                     print("主页面取消选中 - 恢复原始亮度：\(previousBrightness)")
+                    isLighted = false
                 }
             }
-            print("主页面选中状态：\(containerSelected)")  // 使用 containerSelected
+            print("主页面选中状态：\(containerSelected)")
+            print("屏幕点亮状态：\(isLighted)")
         }
         .onAppear {
             setupVideoProcessing()
@@ -413,83 +419,44 @@ struct RestartCameraView: View {
 
 // 修改背景遮罩视图
 struct BackgroundMaskView: View {
+    let isSelected: Bool
+    let isLighted: Bool
+    
     var body: some View {
         GeometryReader { geometry in
             let availableHeight = geometry.size.height
             
             ZStack {
-                // 黑色背景
-                Color.black.opacity(0.5)
+                // 修改背景遮罩颜色逻辑
+                Color.white.opacity(0.0)
                     .edgesIgnoringSafeArea(.all)
                 
                 Path { path in
-                    // 添加整个屏幕大小的矩形
                     path.addRect(CGRect(x: 0, y: 0, width: geometry.size.width, height: geometry.size.height))
                     
-                    // 计算镂空区域的尺寸和位置（与 CameraContainer 保持一致）
                     let holeWidth = geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2)
                     let holeHeight = availableHeight - CameraLayoutConfig.bottomOffset
-                    
-                    // 计算居中位置
                     let holeX = CameraLayoutConfig.horizontalPadding
                     let holeY = (availableHeight - holeHeight) / 2 + CameraLayoutConfig.verticalOffset
                     
-                    // 使用 UIBezierPath 创建圆角矩形
                     let bezierPath = UIBezierPath(roundedRect: CGRect(x: holeX,
                                                                      y: holeY,
                                                                      width: holeWidth,
                                                                      height: holeHeight),
                                                 cornerRadius: CameraLayoutConfig.cornerRadius)
                     path.addPath(Path(bezierPath.cgPath))
-                    
-                    // 打印镂空区域信息
-                    print("------------------------")
-                    print("黑色遮罩镂空区域信息：")
-                    print("尺寸：")
-                    print("- 宽度：\(holeWidth)pt")
-                    print("- 高度：\(holeHeight)pt")
-                    print("\n位置：")
-                    print("- 左上角X：\(holeX)pt")
-                    print("- 左上角Y：\(holeY)pt")
-                    print("\n中心点坐标：")
-                    print("- 中心X：\(holeX + holeWidth/2)pt")
-                    print("- 中心Y：\(holeY + holeHeight/2)pt")
-                    print("------------------------")
                 }
                 .fill(style: FillStyle(eoFill: true))
-                .foregroundColor(.black)
+                // 修改遮罩颜色：根据 isLighted 状态改变
+                .foregroundColor(isLighted ? Color.white.opacity(1.0) : Color.black.opacity(1.0))
                 
-                // 黄色矩形区域（用于调试）
+                // 保留黄色矩形但设置为隐藏
                 Rectangle()
-                    .fill(.yellow.opacity(0.5))
+                    .fill(.yellow.opacity(0.0)) // 将透明度设置为0来隐藏
                     .frame(width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2),
                            height: availableHeight - CameraLayoutConfig.bottomOffset)
                     .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
-                    .offset(y: CameraLayoutConfig.verticalOffset)  // 使用 offset 而不是绝对位置
-                    .onAppear {
-                        let yellowRectWidth = geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2)
-                        let yellowRectHeight = availableHeight - CameraLayoutConfig.bottomOffset
-                        let yellowRectX = CameraLayoutConfig.horizontalPadding
-                        let yellowRectY = CameraLayoutConfig.verticalOffset
-                        let centerX = yellowRectX + (yellowRectWidth / 2)
-                        let centerY = (yellowRectHeight / 2) + yellowRectY
-                        
-                        print("------------------------")
-                        print("遮罩视图布局信息：")
-                        print("黑色背景尺寸：")
-                        print("- 宽度：\(geometry.size.width)pt")
-                        print("- 高度：\(geometry.size.height)pt")
-                        print("\n黄色矩形区域：")
-                        print("- 宽度：\(yellowRectWidth)pt")
-                        print("- 高度：\(yellowRectHeight)pt")
-                        print("- X轴位置：\(yellowRectX)pt")
-                        print("- Y轴偏移：\(yellowRectY)pt")
-                        print("- 圆角半径：\(CameraLayoutConfig.cornerRadius)pt")
-                        print("\n黄色矩形中心点位置：")
-                        print("- X坐标：\(centerX)pt")
-                        print("- Y坐标：\(centerY)pt")
-                        print("------------------------")
-                    }
+                    .offset(y: CameraLayoutConfig.verticalOffset)
             }
         }
         .edgesIgnoringSafeArea(.all)
@@ -502,9 +469,10 @@ struct ContentView: View {
     @State private var isCameraActive = true
     @State private var showRestartHint = false
     @State private var deviceOrientation = UIDevice.current.orientation
-    @State private var isSelected = false
+    @State private var ModeASelected = false
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
-    @State private var normalModeSelected = false
+    @State private var ModeBSelected = false
+    @State private var isLighted = false
     
     // 添加放缩相关的状态变量
     @State private var currentScale: CGFloat = 1.0
@@ -539,7 +507,8 @@ struct ContentView: View {
                                 deviceOrientation: deviceOrientation,
                                 restartAction: restartCamera,
                                 cameraManager: cameraManager,
-                                isSelected: isSelected,
+                                isSelected: ModeASelected,
+                                isLighted: $isLighted,
                                 currentScale: $currentScale,
                                 showScaleIndicator: $showScaleIndicator,
                                 currentIndicatorScale: $currentIndicatorScale,
@@ -557,7 +526,8 @@ struct ContentView: View {
                                 deviceOrientation: deviceOrientation,
                                 restartAction: restartCamera,
                                 cameraManager: cameraManager,
-                                isSelected: normalModeSelected,
+                                isSelected: ModeBSelected,
+                                isLighted: $isLighted,
                                 currentScale: $currentScale,
                                 showScaleIndicator: $showScaleIndicator,
                                 currentIndicatorScale: $currentIndicatorScale,
@@ -567,9 +537,17 @@ struct ContentView: View {
                         }
                     }
                     
-                    // 背景遮罩视图
-                    BackgroundMaskView()
+                    // 更新背景遮罩视图，确保正确传递选中状态
+                    BackgroundMaskView(isSelected: cameraManager.isMirrored ? ModeASelected : ModeBSelected, isLighted: isLighted)
                         .allowsHitTesting(false)
+                        .onChange(of: ModeASelected) { _ in
+                            // 添加调试日志
+                            print("遮罩状态更新 - 模式A选中状态：\(ModeASelected)")
+                        }
+                        .onChange(of: ModeBSelected) { _ in
+                            // 添加调试日志
+                            print("遮罩状态更新 - 模式B选中状态：\(ModeBSelected)")
+                        }
                     
                     // 菱形按钮布局
                     ZStack {
@@ -585,10 +563,10 @@ struct ContentView: View {
                                         title: "",
                                         action: {
                                             // 切换到模式A前确保恢复亮度
-                                            if normalModeSelected {
+                                            if ModeBSelected {
                                                 UIScreen.main.brightness = previousBrightness
                                                 print("切换到模式A - 恢复原始亮度：\(previousBrightness)")
-                                                normalModeSelected = false
+                                                ModeBSelected = false
                                             }
                                             
                                             // 设置为模式A
@@ -626,16 +604,16 @@ struct ContentView: View {
                                         action: {
                                             // 在进入 Two of Me 模式前，确保恢复原始亮度
                                             if cameraManager.isMirrored {
-                                                if isSelected {
+                                                if ModeASelected {
                                                     UIScreen.main.brightness = previousBrightness
                                                     print("进入 Two of Me 前 - 模式A恢复原始亮度：\(previousBrightness)")
-                                                    isSelected = false
+                                                    ModeASelected = false
                                                 }
                                             } else {
-                                                if normalModeSelected {
+                                                if ModeBSelected {
                                                     UIScreen.main.brightness = previousBrightness
                                                     print("进入 Two of Me 前 - 模式B恢复原始亮度：\(previousBrightness)")
-                                                    normalModeSelected = false
+                                                    ModeBSelected = false
                                                 }
                                             }
                                             
@@ -655,10 +633,10 @@ struct ContentView: View {
                                         title: "",
                                         action: {
                                             // 切换到模式B前确保恢复亮度
-                                            if isSelected {
+                                            if ModeASelected {
                                                 UIScreen.main.brightness = previousBrightness
                                                 print("切换到模式B - 恢复原始亮度：\(previousBrightness)")
-                                                isSelected = false
+                                                ModeASelected = false
                                             }
                                             
                                             // 设置为模式B
@@ -782,12 +760,12 @@ struct ContentView: View {
                 if newState == .active {
                     // 应用回到前台时，检查是否需要恢复最大亮度
                     if cameraManager.isMirrored {
-                        if isSelected {
+                        if ModeASelected {
                             UIScreen.main.brightness = 1.0
                             print("应用回到前台 - 镜像模式恢复最大亮度")
                         }
                     } else {
-                        if normalModeSelected {
+                        if ModeBSelected {
                             UIScreen.main.brightness = 1.0
                             print("应用回到前台 - 正常模式恢复最大亮度")
                         }
