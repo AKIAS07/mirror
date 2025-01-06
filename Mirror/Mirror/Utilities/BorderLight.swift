@@ -89,7 +89,7 @@ struct BorderLightView: View {
     let showMirroredHighlight: Bool
     
     private let normalWidth: CGFloat = 1
-    private let selectedWidth: CGFloat = 50
+    private let selectedWidth: CGFloat = 20
     private let normalColor = Color.green
     private let selectedColor = Color.white
     
