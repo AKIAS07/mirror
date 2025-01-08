@@ -474,25 +474,27 @@ struct BackgroundMaskView: View {
 }
 
 struct DraggableArrow: View {
-    let isUp: Bool
+    let isExpanded: Bool  // 改为表示是否展开
     let isLighted: Bool
     
     var body: some View {
         GeometryReader { geometry in
-            HStack {
-                Spacer()
-                Image(systemName: isUp ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 30, weight: .bold))
+            ZStack(alignment: .leading) {  // 改为 .leading 对齐
+                // 黄色半透明背景
+                Color.yellow.opacity(0.5)
+                    .frame(width: geometry.size.width, height: 35)
+                
+                // 箭头图标
+                Image(systemName: isExpanded ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
-                    .frame(width: 60, height: 50)
-                    .contentShape(Rectangle())  // 扩大点击区域
-                    // .background(Color.black.opacity(0.5))
-                    .background(Color.clear)
+                    .frame(width: 35, height: 35)
+                    .padding(.leading, 5)  // 将箭头固定在右侧
             }
-            .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width)
-            .contentShape(Rectangle())  // 使整个 HStack 都可以响应手势
+            .frame(width: geometry.size.width)
+            .contentShape(Rectangle())
         }
-        .frame(height: 50)
+        .frame(height: 35)
     }
 }
 
@@ -688,37 +690,8 @@ struct ContentView: View {
                     
                     // 控制面板
                     ZStack {
+                        // 黑色半透明容器
                         VStack(spacing: 0) {
-                            // 可拖动的箭头
-                            DraggableArrow(isUp: !isControlPanelVisible, isLighted: isLighted)
-                                .gesture(
-                                    DragGesture(minimumDistance: 5)
-                                        .onChanged { value in
-                                            // 计算基础偏移量
-                                            let baseOffset: CGFloat = isControlPanelVisible ? 0 : 100.0
-                                            // 限制拖动范围
-                                            let newOffset = baseOffset + value.translation.height
-                                            dragOffset = min(max(newOffset, 0), 100.0)
-                                        }
-                                        .onEnded { value in
-                                            withAnimation(.easeInOut(duration: 0.3)) {
-                                                if value.translation.height > 50.0 {
-                                                    // 向下拖动超过阈值，隐藏面板
-                                                    isControlPanelVisible = false
-                                                    dragOffset = 100.0
-                                                } else if value.translation.height < -50.0 {
-                                                    // 向上拖动超过阈值，显示面板
-                                                    isControlPanelVisible = true
-                                                    dragOffset = 0
-                                                } else {
-                                                    // 恢复原位
-                                                    dragOffset = isControlPanelVisible ? 0 : 100.0
-                                                }
-                                            }
-                                        }
-                                )
-                            
-                            // 黑色半透明容器
                             Rectangle()
                                 .fill(Color.black.opacity(0.5))
                                 .frame(width: isLighted ? screenWidth - 20 : screenWidth, height: 120)
@@ -823,8 +796,44 @@ struct ContentView: View {
                                     }
                                 )
                         }
-                        .offset(y: dragOffset)
-                        .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .offset(x: dragOffset * 1.2) // 黑色容器移动速度更快，确保完全离开屏幕
+                        
+                        // 箭头放置在黑色容器上方
+                        VStack {
+                            Spacer()
+                            DraggableArrow(isExpanded: !isControlPanelVisible, isLighted: isLighted)
+                                .gesture(
+                                    DragGesture(minimumDistance: 0)  // 降低最小拖动距离
+                                        .onChanged { value in
+                                            // 计算基础偏移量
+                                            let baseOffset: CGFloat = isControlPanelVisible ? 0 : screenWidth - 40
+                                            // 限制拖动范围
+                                            let newOffset = baseOffset + value.translation.width
+                                            withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.1)) {  // 使用交互式弹簧动画
+                                                dragOffset = min(max(newOffset, 0), screenWidth - 40)
+                                            }
+                                        }
+                                        .onEnded { value in
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {  // 使用弹簧动画
+                                                if value.translation.width > 50.0 {
+                                                    // 向右拖动超过阈值，隐藏面板
+                                                    isControlPanelVisible = false
+                                                    dragOffset = screenWidth - 40
+                                                } else if value.translation.width < -50.0 {
+                                                    // 向左拖动超过阈值，显示面板
+                                                    isControlPanelVisible = true
+                                                    dragOffset = 0
+                                                } else {
+                                                    // 恢复原位
+                                                    dragOffset = isControlPanelVisible ? 0 : screenWidth - 40
+                                                }
+                                            }
+                                        }
+                                )
+                                .padding(.bottom, 120) // 添加底部间距，让箭头位于黑色容器上方
+                        }
+                        .offset(x: dragOffset) // 箭头和拖动距离保持1:1的比例，确保贴边
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .ignoresSafeArea(.all, edges: .bottom)
