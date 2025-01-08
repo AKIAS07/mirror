@@ -13,7 +13,7 @@ struct BorderStyle {
     static let normalColor = Color.green
     static let selectedColor = Color.white
     static let normalWidth: CGFloat = 1
-    static let selectedWidth: CGFloat = 20
+    static let selectedWidth: CGFloat = 40
 }
 
 struct CircleButton: View {
@@ -110,7 +110,18 @@ class CameraObserver: NSObject {
 struct CameraLayoutConfig {
     static let horizontalPadding: CGFloat = 0  // 左右边距
     static let verticalPadding: CGFloat = 0   // 上下边距
-    static let cornerRadius: CGFloat = 20       // 圆角半径
+    
+    // 动态计算圆角半径
+    static var cornerRadius: CGFloat {
+        // 直接使用设备的物理圆角值
+        return UIDevice.getCornerRadius()
+    }
+    
+    // 所有视图使用相同的圆角值
+    static var borderCornerRadius: CGFloat {
+        return cornerRadius
+    }
+    
     static let bottomOffset: CGFloat = 0      // 底部偏移
     static let verticalOffset: CGFloat = 0    // 垂直偏移
 }
@@ -216,18 +227,6 @@ struct CameraContainer: View {
                                         onPinchEnded(scale)
                                     }
                             )
-                    }
-                    
-                    // 边框视图布局 - 不应用缩放效果
-                    GeometryReader { borderGeometry in
-                        Rectangle()
-                            .stroke(containerSelected ? BorderStyle.selectedColor : BorderStyle.normalColor,
-                                   lineWidth: containerSelected ? BorderStyle.selectedWidth : BorderStyle.normalWidth)
-                            .frame(width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2), 
-                                   height: availableHeight - CameraLayoutConfig.bottomOffset)
-                            .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
-                            .offset(y: CameraLayoutConfig.verticalOffset)
-                            .position(x: geometry.size.width/2, y: geometry.size.height/2)
                     }
                     
                     // 添加缩放提示
@@ -497,6 +496,102 @@ struct DraggableArrow: View {
     }
 }
 
+// 添加独立的边框视图组件
+struct CameraBorderView: View {
+    let isSelected: Bool
+    let isLighted: Bool
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let availableHeight = geometry.size.height
+            let containerFrame = CGRect(
+                x: CameraLayoutConfig.horizontalPadding,
+                y: CameraLayoutConfig.verticalOffset,
+                width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2),
+                height: availableHeight - CameraLayoutConfig.bottomOffset
+            )
+            
+            RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius)
+                .trim(from: 0, to: 1)
+                .stroke(
+                    isSelected ? BorderStyle.selectedColor : BorderStyle.normalColor,
+                    style: StrokeStyle(
+                        lineWidth: isSelected ? BorderStyle.selectedWidth : BorderStyle.normalWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+                .frame(width: containerFrame.width, height: containerFrame.height)
+                .position(x: geometry.size.width/2, y: geometry.size.height/2)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+    }
+}
+
+// 添加UIDevice扩展，用于获取设备型号
+extension UIDevice {
+    static let modelName: String = {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let machineMirror = Mirror(reflecting: systemInfo.machine)
+        let identifier = machineMirror.children.reduce("") { identifier, element in
+            guard let value = element.value as? Int8, value != 0 else { return identifier }
+            return identifier + String(UnicodeScalar(UInt8(value)))
+        }
+        
+        // 返回设备标识符
+        return identifier
+    }()
+    
+    // 获取设备圆角值
+    static func getCornerRadius() -> CGFloat {
+        let model = modelName
+        let screenWidth = UIScreen.main.bounds.width
+        let screenHeight = UIScreen.main.bounds.height
+        let minDimension = min(screenWidth, screenHeight)
+        
+        // 获取设备原始圆角值
+        let originalCornerRadius: CGFloat
+        switch model {
+        // iPhone 14 Pro Max, 14 Pro
+        case "iPhone15,3", "iPhone15,2":
+            originalCornerRadius = 55
+        // iPhone 14 Plus, 14
+        case "iPhone14,8", "iPhone14,7":
+            originalCornerRadius = 47.33
+        // iPhone 13 Pro Max, 12 Pro Max
+        case "iPhone14,3", "iPhone13,4":
+            originalCornerRadius = 53.33
+        // iPhone 13 Pro, 12 Pro
+        case "iPhone14,2", "iPhone13,3":
+            originalCornerRadius = 47.33
+        // iPhone 13, 12
+        case "iPhone14,5", "iPhone13,2":
+            originalCornerRadius = 47.33
+        // iPhone 13 mini, 12 mini
+        case "iPhone14,4", "iPhone13,1":
+            originalCornerRadius = 44.0
+        // iPhone 11 Pro Max
+        case "iPhone12,5":
+            originalCornerRadius = 39.0
+        // iPhone 11 Pro
+        case "iPhone12,3":
+            originalCornerRadius = 39.0
+        // iPhone 11
+        case "iPhone12,1":
+            originalCornerRadius = 41.5
+        default:
+            originalCornerRadius = 39.0
+        }
+        
+        // 直接返回原始圆角值，不进行倍数计算
+        return originalCornerRadius
+    }
+}
+
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @State private var showingTwoOfMe = false
@@ -561,6 +656,10 @@ struct ContentView: View {
                                 onPinchEnded: handlePinchEnd
                             )
                         }
+                        
+                        // 添加独立的边框视图
+                        CameraBorderView(isSelected: ModeASelected, isLighted: isLighted)
+                            .zIndex(3)
                     } else {
                         // 模式B视图
                         GeometryReader { geometry in
@@ -581,19 +680,11 @@ struct ContentView: View {
                                 onPinchEnded: handlePinchEnd
                             )
                         }
+                        
+                        // 添加独立的边框视图
+                        CameraBorderView(isSelected: ModeBSelected, isLighted: isLighted)
+                            .zIndex(3)
                     }
-                    
-                    // 更新背景遮罩视图，确保正确传递选中状态
-                    BackgroundMaskView(isSelected: cameraManager.isMirrored ? ModeASelected : ModeBSelected, isLighted: isLighted)
-                        .allowsHitTesting(false)
-                        .onChange(of: ModeASelected) { _ in
-                            // 添加调试日志
-                            print("遮罩状态更新 - 模式A选中状态：\(ModeASelected)")
-                        }
-                        .onChange(of: ModeBSelected) { _ in
-                            // 添加调试日志
-                            print("遮罩状态更新 - 模式B选中状态：\(ModeBSelected)")
-                        }
                     
                     // 控制面板
                     ZStack {
@@ -736,8 +827,19 @@ struct ContentView: View {
                         .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.8), value: dragOffset)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .ignoresSafeArea(.all, edges: .bottom)  // 添加这行来忽略底部安全区域
-                    .zIndex(2)
+                    .ignoresSafeArea(.all, edges: .bottom)
+                    .zIndex(1)
+                    
+                    // 更新背景遮罩视图，确保正确传递选中状态
+                    BackgroundMaskView(isSelected: cameraManager.isMirrored ? ModeASelected : ModeBSelected, isLighted: isLighted)
+                        .allowsHitTesting(false)
+                        .onChange(of: ModeASelected) { _ in
+                            print("遮罩状态更新 - 模式A选中状态：\(ModeASelected)")
+                        }
+                        .onChange(of: ModeBSelected) { _ in
+                            print("遮罩状态更新 - 模式B选中状态：\(ModeBSelected)")
+                        }
+                        .zIndex(2)
                 } else {
                     // 权限请求视图
                     ZStack {
