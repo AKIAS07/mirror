@@ -473,26 +473,271 @@ struct BackgroundMaskView: View {
     }
 }
 
+// 添加提示状态枚举
+enum DragHintState {
+    case upAndRight  // 显示上箭头和右箭头
+    case rightOnly   // 只显示右箭头
+    case leftOnly    // 只显示左箭头
+    case upOnly      // 只显示上箭头
+    case downOnly    // 只显示下箭头
+}
+
+// 修改交互提示视图组件
+struct DragHintView: View {
+    let hintState: DragHintState
+    
+    var body: some View {
+        HStack(spacing: 40) {
+            switch hintState {
+            case .upAndRight:
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+            case .rightOnly:
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+            case .leftOnly:
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+            case .upOnly:
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+            case .downOnly:
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+        .padding(.horizontal, 30)
+        .padding(.vertical, 15)
+        .background(Color.black.opacity(0.7))
+        .cornerRadius(15)
+    }
+}
+
 struct DraggableArrow: View {
-    let isExpanded: Bool  // 改为表示是否展开
+    let isExpanded: Bool
     let isLighted: Bool
+    let screenWidth: CGFloat
+    let maxVerticalDrag: CGFloat
+    @Binding var isControlPanelVisible: Bool
+    @Binding var showDragHint: Bool
+    @Binding var dragHintState: DragHintState
+    @Binding var dragOffset: CGFloat
+    @Binding var dragVerticalOffset: CGFloat
+    @Binding var containerOffset: CGFloat  // 添加容器偏移值绑定
+    
+    // 添加状态变量来跟踪拖拽方向
+    @State private var dragDirection: DragDirection = .none
+    // 添加状态变量来锁定方向判定
+    @State private var isDirectionLocked = false
+    
+    // 添加拖拽方向枚举
+    private enum DragDirection {
+        case none
+        case vertical
+        case horizontal
+    }
     
     var body: some View {
         GeometryReader { geometry in
-            ZStack(alignment: .leading) {  // 改为 .leading 对齐
+            ZStack {
                 // 黄色半透明背景
-                Color.yellow.opacity(0.5)
+                Rectangle()
+                    .fill(isExpanded ? Color.clear : Color.white.opacity(0.2))
                     .frame(width: geometry.size.width, height: 35)
+                    .allowsHitTesting(false)
                 
-                // 箭头图标
-                Image(systemName: isExpanded ? "chevron.left" : "chevron.right")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 35, height: 35)
-                    .padding(.leading, 5)  // 将箭头固定在右侧
+                // 箭头图标容器
+                HStack {
+                    // 箭头图标
+                    Image(systemName: isExpanded ? "suit.diamond" : "suit.diamond.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 35, height: 35)
+                        .contentShape(Rectangle())
+                        .padding(.leading, isControlPanelVisible ? geometry.size.width/2 - 17.5 : 5)
+                        .onTapGesture {
+                            dragHintState = isControlPanelVisible ? .upAndRight : .leftOnly
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showDragHint = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showDragHint = false
+                                }
+                            }
+                        }
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    if !isDirectionLocked {
+                                        let horizontalAmount = abs(value.translation.width)
+                                        let verticalAmount = abs(value.translation.height)
+                                        
+                                        if horizontalAmount > 10 || verticalAmount > 10 {
+                                            dragDirection = horizontalAmount > verticalAmount ? .horizontal : .vertical
+                                            isDirectionLocked = true
+                                            print("锁定方向: \(dragDirection)")
+                                        }
+                                    }
+                                    
+                                    if isDirectionLocked {
+                                        switch dragDirection {
+                                        case .horizontal:
+                                            withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.05)) {
+                                                if isControlPanelVisible {
+                                                    // 容器可见时，跟随手指向右拖动
+                                                    dragOffset = max(0, min(value.translation.width, screenWidth - 60))
+                                                    // 容器向右移动直至左边框与屏幕右侧重合
+                                                    containerOffset = max(0, min(value.translation.width, screenWidth))
+                                                    dragHintState = value.translation.width > 0 ? .rightOnly : .leftOnly
+                                                    print("容器可见 - 当前偏移: \(dragOffset)")
+                                                } else {
+                                                    // 容器隐藏时，跟随手指向左拖动
+                                                    dragOffset = max(0, min(screenWidth - 60 + value.translation.width, screenWidth - 60))
+                                                    containerOffset = max(0, min(screenWidth + value.translation.width, screenWidth))
+                                                    dragHintState = value.translation.width < 0 ? .leftOnly : .rightOnly
+                                                    print("容器隐藏 - 当前偏移: \(dragOffset), 移动距离: \(value.translation.width)")
+                                                }
+                                            }
+                                            
+                                            // 显示拖动提示
+                                            if !showDragHint {
+                                                withAnimation {
+                                                    showDragHint = true
+                                                }
+                                            }
+                                        case .vertical:
+                                            if isControlPanelVisible {
+                                                withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.05)) {
+                                                    dragVerticalOffset = max(-maxVerticalDrag, min(0, value.translation.height))
+                                                }
+                                                
+                                                // 只在开始拖动时更新提示方向
+                                                if value.translation.height < 0 {
+                                                    dragHintState = .upOnly
+                                                } else if dragVerticalOffset < 0 {
+                                                    dragHintState = .downOnly
+                                                }
+                                                
+                                                // 显示拖动提示
+                                                if !showDragHint {
+                                                    withAnimation {
+                                                        showDragHint = true
+                                                    }
+                                                }
+                                            }
+                                        case .none:
+                                            break
+                                        }
+                                    }
+                                }
+                                .onEnded { value in
+                                    print("------------------------")
+                                    print("手势结束")
+                                    print("最终移动 - 垂直: \(value.translation.height), 水平: \(value.translation.width)")
+                                    print("当前方向: \(dragDirection)")
+                                    
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        showDragHint = false
+                                    }
+                                    
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        if isControlPanelVisible {
+                                            switch dragDirection {
+                                            case .vertical:
+                                                let velocity = value.velocity.height
+                                                print("垂直速度: \(velocity)")
+                                                
+                                                if abs(velocity) > 500 {  // 快速滑动
+                                                    dragVerticalOffset = velocity < 0 ? -maxVerticalDrag : 0
+                                                    print("快速滑动 - \(dragVerticalOffset == 0 ? "恢复原位" : "固定在上方")")
+                                                } else {  // 缓慢滑动
+                                                    dragVerticalOffset = dragVerticalOffset < -maxVerticalDrag * 0.3 ? -maxVerticalDrag : 0
+                                                    print("缓慢滑动 - \(dragVerticalOffset == 0 ? "恢复原位" : "固定在上方")")
+                                                }
+                                            case .horizontal:
+                                                let velocity = value.velocity.width
+                                                print("水平速度: \(velocity)")
+                                                print("当前dragOffset: \(dragOffset)")
+                                                
+                                                if velocity > 500 {  // 快速滑动
+                                                    if dragOffset > screenWidth * 0.3 {  // 超过30%触发
+                                                        dragOffset = screenWidth - 60
+                                                        containerOffset = screenWidth
+                                                        isControlPanelVisible = false
+                                                        print("快速滑动 - 隐藏控制面板")
+                                                    } else {
+                                                        dragOffset = 0
+                                                        containerOffset = 0
+                                                        print("快速滑动 - 保持控制面板可见")
+                                                    }
+                                                } else {  // 缓慢滑动
+                                                    if value.translation.width > screenWidth * 0.2 {  // 拖动超过屏幕宽度30%就触发
+                                                        dragOffset = screenWidth - 60
+                                                        containerOffset = screenWidth
+                                                        isControlPanelVisible = false
+                                                        print("缓慢滑动 - 根据位置隐藏控制面板")
+                                                    } else {
+                                                        dragOffset = 0
+                                                        containerOffset = 0
+                                                        print("缓慢滑动 - 根据位置保持控制面板可见")
+                                                    }
+                                                }
+                                            case .none:
+                                                break
+                                            }
+                                        } else {
+                                            let velocity = -value.velocity.width
+                                            print("水平速度(隐藏状态): \(velocity)")
+                                            print("当前dragOffset: \(dragOffset)")
+                                            
+                                            if velocity > 500 {  // 快速滑动
+                                                if dragOffset < screenWidth * 0.7 {  // 小于70%触发
+                                                    dragOffset = 0
+                                                    containerOffset = 0
+                                                    isControlPanelVisible = true
+                                                    print("快速滑动 - 显示控制面板")
+                                                } else {
+                                                    dragOffset = screenWidth - 60
+                                                    containerOffset = screenWidth
+                                                    print("快速滑动 - 保持控制面板隐藏")
+                                                }
+                                            } else {  // 缓慢滑动
+                                                if value.translation.width < -screenWidth * 0.2 {  // 向左拖动超过屏幕宽度30%就触发
+                                                    dragOffset = 0
+                                                    containerOffset = 0
+                                                    isControlPanelVisible = true
+                                                    print("缓慢滑动 - 根据位置显示控制面板")
+                                                } else {
+                                                    dragOffset = screenWidth - 60
+                                                    containerOffset = screenWidth
+                                                    print("缓慢滑动 - 根据位置保持控制面板隐藏")
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    print("重置拖拽方向")
+                                    dragDirection = .none
+                                    isDirectionLocked = false
+                                }
+                        )
+                    
+                    Spacer()
+                        .allowsHitTesting(false)
+                }
             }
-            .frame(width: geometry.size.width)
-            .contentShape(Rectangle())
+            .onChange(of: isControlPanelVisible) { _ in
+                showDragHint = false
+            }
         }
         .frame(height: 35)
     }
@@ -553,7 +798,6 @@ extension UIDevice {
         let model = modelName
         let screenWidth = UIScreen.main.bounds.width
         let screenHeight = UIScreen.main.bounds.height
-        let minDimension = min(screenWidth, screenHeight)
         
         // 获取设备原始圆角值
         let originalCornerRadius: CGFloat
@@ -622,19 +866,27 @@ struct ContentView: View {
     @State private var currentIndicatorScale: CGFloat = 1.0
     @State private var isControlPanelVisible: Bool = true
     @State private var dragOffset: CGFloat = 0
+    @State private var dragVerticalOffset: CGFloat = 0  // 添加垂直偏移量
     
     // 添加放缩限制常量
     private let minScale: CGFloat = 1.0     // 最小100%
     private let maxScale: CGFloat = 10.0    // 最大1000%
+    private let maxVerticalDrag: CGFloat = 100.0  // 最大垂直拖拽距离
     
     // 添加震动反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
+    // 添加新的状态变量
+    @State private var showArrowHint = false
+    @State private var dragHintState: DragHintState = .upAndRight
+    
+    // 添加黑色容器的独立偏移值
+    @State private var containerOffset: CGFloat = 0
+    
     var body: some View {
         GeometryReader { geometry in
-            let screenWidth = geometry.size.width
-            let screenHeight = geometry.size.height
-            let buttonSpacing: CGFloat = 40
+            let _ = geometry.size.width
+            let _ = geometry.size.height
             
             ZStack {
                 if cameraManager.permissionGranted {
@@ -690,14 +942,14 @@ struct ContentView: View {
                     
                     // 控制面板
                     ZStack {
-                        // 黑色半透明容器
+                        // 黑色容器
                         VStack(spacing: 0) {
                             Rectangle()
                                 .fill(Color.black.opacity(0.5))
-                                .frame(width: isLighted ? screenWidth - 20 : screenWidth, height: 120)
+                                .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
                                 .animation(.easeInOut(duration: 0.3), value: isLighted)
                                 .overlay(
-                                    HStack(spacing: buttonSpacing) {
+                                    HStack(spacing: 40) {
                                         // 左按钮 - 模式A
                                         CircleButton(
                                             systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
@@ -797,43 +1049,24 @@ struct ContentView: View {
                                 )
                         }
                         .frame(maxHeight: .infinity, alignment: .bottom)
-                        .offset(x: dragOffset * 1.2) // 黑色容器移动速度更快，确保完全离开屏幕
+                        .offset(x: containerOffset, y: dragVerticalOffset)
                         
                         // 箭头放置在黑色容器上方
                         VStack {
                             Spacer()
-                            DraggableArrow(isExpanded: !isControlPanelVisible, isLighted: isLighted)
-                                .gesture(
-                                    DragGesture(minimumDistance: 0)  // 降低最小拖动距离
-                                        .onChanged { value in
-                                            // 计算基础偏移量
-                                            let baseOffset: CGFloat = isControlPanelVisible ? 0 : screenWidth - 40
-                                            // 限制拖动范围
-                                            let newOffset = baseOffset + value.translation.width
-                                            withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.1)) {  // 使用交互式弹簧动画
-                                                dragOffset = min(max(newOffset, 0), screenWidth - 40)
-                                            }
-                                        }
-                                        .onEnded { value in
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {  // 使用弹簧动画
-                                                if value.translation.width > 50.0 {
-                                                    // 向右拖动超过阈值，隐藏面板
-                                                    isControlPanelVisible = false
-                                                    dragOffset = screenWidth - 40
-                                                } else if value.translation.width < -50.0 {
-                                                    // 向左拖动超过阈值，显示面板
-                                                    isControlPanelVisible = true
-                                                    dragOffset = 0
-                                                } else {
-                                                    // 恢复原位
-                                                    dragOffset = isControlPanelVisible ? 0 : screenWidth - 40
-                                                }
-                                            }
-                                        }
-                                )
-                                .padding(.bottom, 120) // 添加底部间距，让箭头位于黑色容器上方
+                            DraggableArrow(isExpanded: !isControlPanelVisible, 
+                                         isLighted: isLighted,
+                                         screenWidth: geometry.size.width,
+                                         maxVerticalDrag: maxVerticalDrag,
+                                         isControlPanelVisible: $isControlPanelVisible,
+                                         showDragHint: $showArrowHint,
+                                         dragHintState: $dragHintState,
+                                         dragOffset: $dragOffset,
+                                         dragVerticalOffset: $dragVerticalOffset,
+                                         containerOffset: $containerOffset)
+                                .padding(.bottom, 120)
                         }
-                        .offset(x: dragOffset) // 箭头和拖动距离保持1:1的比例，确保贴边
+                        .offset(x: dragOffset, y: dragVerticalOffset)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .ignoresSafeArea(.all, edges: .bottom)
@@ -875,6 +1108,14 @@ struct ContentView: View {
                         }
                     }
                 }
+                
+                // 添加提示视图到最顶层
+                if showArrowHint {
+                    DragHintView(hintState: dragHintState)
+                        .position(x: geometry.size.width/2, y: geometry.size.height/2)
+                        .transition(.opacity)
+                        .zIndex(4)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
@@ -908,7 +1149,7 @@ struct ContentView: View {
                 UIDevice.current.beginGeneratingDeviceOrientationNotifications()
                 
                 print("主页面加载")
-                print("屏幕尺寸：width=\(screenWidth), height=\(screenHeight)")
+                print("屏幕尺寸：width=\(geometry.size.width), height=\(geometry.size.height)")
                 print("------------------------")
                 cameraManager.checkPermission()
                 
