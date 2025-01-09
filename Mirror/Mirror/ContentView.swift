@@ -525,7 +525,6 @@ struct DraggableArrow: View {
     let isExpanded: Bool
     let isLighted: Bool
     let screenWidth: CGFloat
-    let maxVerticalDrag: CGFloat
     @Binding var isControlPanelVisible: Bool
     @Binding var showDragHint: Bool
     @Binding var dragHintState: DragHintState
@@ -538,12 +537,18 @@ struct DraggableArrow: View {
     // 添加状态变量来锁定方向判定
     @State private var isDirectionLocked = false
     
+    // 添加拖拽相关常量
+    private let verticalDestination: CGFloat = 100.0  // 向上拖拽的目标位置
+    private let verticalDragThreshold: CGFloat = 20.0  // 垂直拖拽的触发阈值
+    
     // 添加拖拽方向枚举
     private enum DragDirection {
         case none
         case vertical
         case horizontal
     }
+    
+    @State private var lastDragTranslation: CGFloat = 0  // 添加状态变量记录上一次的translation
     
     var body: some View {
         GeometryReader { geometry in
@@ -617,14 +622,23 @@ struct DraggableArrow: View {
                                         case .vertical:
                                             if isControlPanelVisible {
                                                 withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.05)) {
-                                                    dragVerticalOffset = max(-maxVerticalDrag, min(0, value.translation.height))
-                                                }
-                                                
-                                                // 只在开始拖动时更新提示方向
-                                                if value.translation.height < 0 {
-                                                    dragHintState = .upOnly
-                                                } else if dragVerticalOffset < 0 {
-                                                    dragHintState = .downOnly
+                                                    // 计算translation的增量
+                                                    let translationDelta = value.translation.height - lastDragTranslation
+                                                    
+                                                    // 更新位置 = 当前位置 + 增量
+                                                    dragVerticalOffset = min(0, max(-verticalDestination, dragVerticalOffset + translationDelta))
+                                                    
+                                                    print("垂直拖拽 - 当前位置: \(dragVerticalOffset), 相对位置: \(value.translation.height)")
+                                                    
+                                                    // 更新提示方向
+                                                    if translationDelta < 0 {
+                                                        dragHintState = .upOnly
+                                                    } else {
+                                                        dragHintState = .downOnly
+                                                    }
+                                                    
+                                                    // 更新上一次的translation
+                                                    lastDragTranslation = value.translation.height
                                                 }
                                                 
                                                 // 显示拖动提示
@@ -653,15 +667,39 @@ struct DraggableArrow: View {
                                         if isControlPanelVisible {
                                             switch dragDirection {
                                             case .vertical:
-                                                let velocity = value.velocity.height
-                                                print("垂直速度: \(velocity)")
+                                                // 使用与拖拽过程中相同的计算方式
+                                                let translation = value.translation.height  // 向下为正，向上为负
+                                                let currentPosition = dragVerticalOffset
+                                                let moveDistance = abs(translation)
                                                 
-                                                if abs(velocity) > 500 {  // 快速滑动
-                                                    dragVerticalOffset = velocity < 0 ? -maxVerticalDrag : 0
-                                                    print("快速滑动 - \(dragVerticalOffset == 0 ? "恢复原位" : "固定在上方")")
-                                                } else {  // 缓慢滑动
-                                                    dragVerticalOffset = dragVerticalOffset < -maxVerticalDrag * 0.3 ? -maxVerticalDrag : 0
-                                                    print("缓慢滑动 - \(dragVerticalOffset == 0 ? "恢复原位" : "固定在上方")")
+                                                print("移动距离: \(moveDistance)")
+                                                print("当前垂直位置: \(currentPosition)")
+                                                print("垂直移动方向: \(translation < 0 ? "向上" : "向下")")
+                                                
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                    if moveDistance > verticalDragThreshold {
+                                                        // 移动距离超过阈值，根据移动方向决定最终位置
+                                                        if translation < 0 {
+                                                            // 向上移动到顶部位置
+                                                            dragVerticalOffset = -verticalDestination
+                                                            print("向上移动到顶部位置")
+                                                        } else {
+                                                            // 向下移动到底部位置
+                                                            dragVerticalOffset = 0
+                                                            print("向下移动到底部位置")
+                                                        }
+                                                    } else {
+                                                        // 移动距离不足，回到最近的位置
+                                                        if currentPosition < -verticalDestination / 2 {
+                                                            // 如果当前位置更接近顶部，则移动到顶部
+                                                            dragVerticalOffset = -verticalDestination
+                                                            print("回到顶部位置")
+                                                        } else {
+                                                            // 如果当前位置更接近底部，则移动到底部
+                                                            dragVerticalOffset = 0
+                                                            print("回到底部位置")
+                                                        }
+                                                    }
                                                 }
                                             case .horizontal:
                                                 let velocity = value.velocity.width
@@ -728,6 +766,7 @@ struct DraggableArrow: View {
                                     print("重置拖拽方向")
                                     dragDirection = .none
                                     isDirectionLocked = false
+                                    lastDragTranslation = 0  // 重置上一次的translation
                                 }
                         )
                     
@@ -871,7 +910,8 @@ struct ContentView: View {
     // 添加放缩限制常量
     private let minScale: CGFloat = 1.0     // 最小100%
     private let maxScale: CGFloat = 10.0    // 最大1000%
-    private let maxVerticalDrag: CGFloat = 100.0  // 最大垂直拖拽距离
+    private let verticalDestination: CGFloat = 100.0  // 向上拖拽的目标位置
+    private let verticalDragThreshold: CGFloat = 20.0  // 垂直拖拽的触发阈值
     
     // 添加震动反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
@@ -885,8 +925,7 @@ struct ContentView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            let _ = geometry.size.width
-            let _ = geometry.size.height
+            let screenWidth = geometry.size.width
             
             ZStack {
                 if cameraManager.permissionGranted {
@@ -1057,7 +1096,6 @@ struct ContentView: View {
                             DraggableArrow(isExpanded: !isControlPanelVisible, 
                                          isLighted: isLighted,
                                          screenWidth: geometry.size.width,
-                                         maxVerticalDrag: maxVerticalDrag,
                                          isControlPanelVisible: $isControlPanelVisible,
                                          showDragHint: $showArrowHint,
                                          dragHintState: $dragHintState,
