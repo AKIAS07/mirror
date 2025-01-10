@@ -36,6 +36,14 @@ struct DragAnimationConfig {
     static let dragThreshold: CGFloat = 20.0
 }
 
+// 添加箭头布局常量
+struct ArrowLayoutConfig {
+    static let arrowWidth: CGFloat = 50
+    static let arrowHeight: CGFloat = 50
+    static let arrowHalfWidth: CGFloat = arrowWidth / 2
+    static let arrowPadding: CGFloat = 5  // 箭头到边缘的距离
+}
+
 struct CircleButton: View {
     let systemName: String
     let title: String
@@ -580,7 +588,7 @@ struct DraggableArrow: View {
     }
     
     // 添加垂直拖动相关常量
-    private let verticalDestination: CGFloat = 100.0  // 向上拖拽的目标位置
+    private let verticalDestination: CGFloat = 120.0  // 向上拖拽的目标位置
     private let verticalDragThreshold: CGFloat = 20.0  // 垂直拖拽的触发阈值
     
     // 处理垂直拖动
@@ -753,30 +761,30 @@ struct DraggableArrow: View {
                 // 黄色半透明背景
                 Rectangle()
                     .fill(isExpanded ? Color.clear : Color.white.opacity(0.2))
-                    .frame(width: geometry.size.width, height: 35)
+                    .frame(width: geometry.size.width, height: 50)
                     .allowsHitTesting(false)
                 
                 // 箭头图标容器
                 HStack {
                     // 箭头图标
                     Image(systemName: isExpanded ? "suit.diamond" : "suit.diamond.fill")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 30, weight: .bold))
                         .foregroundColor(.white)
-                        .frame(width: 35, height: 35)
+                        .frame(width: ArrowLayoutConfig.arrowWidth, height: ArrowLayoutConfig.arrowHeight)
                         .contentShape(Rectangle())
                         .padding(.leading, isControlPanelVisible ? 
-                             geometry.size.width/2 - 17.5 : 
-                             (containerOffset < 0 ? geometry.size.width - 35 - 5 : 5))
+                             geometry.size.width/2 - ArrowLayoutConfig.arrowHalfWidth : 
+                             (containerOffset < 0 ? geometry.size.width - ArrowLayoutConfig.arrowWidth - ArrowLayoutConfig.arrowPadding : ArrowLayoutConfig.arrowPadding))
                         .onAppear {
-                            let arrowWidth: CGFloat = 35
-                            let arrowHeight: CGFloat = 35
+                            let arrowWidth: CGFloat = ArrowLayoutConfig.arrowWidth
+                            let arrowHeight: CGFloat = ArrowLayoutConfig.arrowHeight
                             let screenHeight = UIScreen.main.bounds.height
                             let containerHeight: CGFloat = 120
                             
                             // 计算箭头的中心坐标
                             let centerX = isControlPanelVisible ? 
                                 geometry.size.width/2 : 
-                                (containerOffset < 0 ? geometry.size.width - arrowWidth/2 - 5 : arrowWidth/2 + 5)
+                                (containerOffset < 0 ? geometry.size.width - ArrowLayoutConfig.arrowHalfWidth - ArrowLayoutConfig.arrowPadding : ArrowLayoutConfig.arrowHalfWidth + ArrowLayoutConfig.arrowPadding)
                             let centerY = screenHeight - containerHeight - arrowHeight/2
                             
                             print("------------------------")
@@ -877,7 +885,7 @@ struct DraggableArrow: View {
                 showDragHint = false
             }
         }
-        .frame(height: 35)
+        .frame(height: 50)
     }
 }
 
@@ -1007,7 +1015,7 @@ struct ContentView: View {
     // 添加放缩限制常量
     private let minScale: CGFloat = 1.0     // 最小100%
     private let maxScale: CGFloat = 10.0    // 最大1000%
-    private let verticalDestination: CGFloat = 100.0  // 向上拖拽的目标位置
+    private let verticalDestination: CGFloat = 120.0  // 向上拖拽的目标位置
     private let verticalDragThreshold: CGFloat = 20.0  // 垂直拖拽的触发阈值
     
     // 添加震动反馈生成器
@@ -1186,27 +1194,47 @@ struct ContentView: View {
                         .frame(maxHeight: .infinity, alignment: .bottom)
                         .offset(x: containerOffset, y: dragVerticalOffset)
                         .ignoresSafeArea(.all)
-                        .onAppear {
-                            // 计算容器中心坐标（使用完整屏幕高度）
-                            let containerWidth = geometry.size.width
-                            let containerHeight: CGFloat = 120
-                            let screenHeight = UIScreen.main.bounds.height
-                            let centerX = containerWidth / 2
-                            let centerY = screenHeight - (containerHeight / 2)
-                            
-                            // 获取安全区域信息
-                            let window = UIApplication.shared.windows.first
-                            _ = window?.safeAreaInsets
-                            
-                            print("------------------------")
-                            print("黑色半透明容器初始位置")
-                            print("设备物理屏幕尺寸：\(UIScreen.main.bounds.size.width) x \(UIScreen.main.bounds.size.height)")
-                            print("GeometryReader尺寸：\(geometry.size.width) x \(geometry.size.height)")
-                            print("容器尺寸：\(containerWidth) x \(containerHeight)")
-                            print("黑色容器中心坐标：(\(centerX), \(centerY))")
-                            print("------------------------")
+                        .zIndex(1)  // 确保黑色容器在上层
+
+                        // 黄色容器
+                        VStack(spacing: 0) {
+                            Rectangle()
+                                .fill(Color.yellow.opacity(0.5))
+                                .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
+                                .overlay(
+                                    HStack(spacing: 40) {
+                                        Spacer()
+                                        
+                                        // 设置按钮
+                                        CircleButton(
+                                            systemName: "gearshape.fill",
+                                            title: "",
+                                            action: {
+                                                print("点击设置按钮")
+                                            },
+                                            deviceOrientation: deviceOrientation
+                                        )
+                                        
+                                        // 帮助按钮
+                                        CircleButton(
+                                            systemName: "questionmark.circle.fill",
+                                            title: "",
+                                            action: {
+                                                print("点击帮助按钮")
+                                            },
+                                            deviceOrientation: deviceOrientation
+                                        )
+                                        
+                                        Spacer()
+                                    }
+                                )
                         }
-                        
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .offset(x: containerOffset, y: dragVerticalOffset + 120)  // 保持在黑色容器下方
+                        .animation(.easeInOut(duration: 0.3), value: isLighted)
+                        .ignoresSafeArea(.all)
+                        .zIndex(0)  // 确保黄色容器在下层
+
                         // 箭头放置在黑色容器上方
                         VStack {
                             Spacer()
