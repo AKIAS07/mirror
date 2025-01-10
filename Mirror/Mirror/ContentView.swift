@@ -567,7 +567,8 @@ struct DraggableArrow: View {
                         .foregroundColor(.white)
                         .frame(width: 35, height: 35)
                         .contentShape(Rectangle())
-                        .padding(.leading, isControlPanelVisible ? geometry.size.width/2 - 17.5 : 5)
+                        .padding(.leading, isControlPanelVisible ? 
+                             geometry.size.width/2 - 17.5 : (containerOffset < 0 ? geometry.size.width - 5 : 5))
                         .onTapGesture {
                             dragHintState = isControlPanelVisible ? .upAndRight : .leftOnly
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -596,21 +597,33 @@ struct DraggableArrow: View {
                                     if isDirectionLocked {
                                         switch dragDirection {
                                         case .horizontal:
-                                            withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.05)) {
-                                                if isControlPanelVisible {
-                                                    // 容器可见时，跟随手指向右拖动
-                                                    dragOffset = max(0, min(value.translation.width, screenWidth - 60))
-                                                    // 容器向右移动直至左边框与屏幕右侧重合
-                                                    containerOffset = max(0, min(value.translation.width, screenWidth))
-                                                    dragHintState = value.translation.width > 0 ? .rightOnly : .leftOnly
-                                                    print("容器可见 - 当前偏移: \(dragOffset)")
-                                                } else {
-                                                    // 容器隐藏时，跟随手指向左拖动
-                                                    dragOffset = max(0, min(screenWidth - 60 + value.translation.width, screenWidth - 60))
-                                                    containerOffset = max(0, min(screenWidth + value.translation.width, screenWidth))
-                                                    dragHintState = value.translation.width < 0 ? .leftOnly : .rightOnly
-                                                    print("容器隐藏 - 当前偏移: \(dragOffset), 移动距离: \(value.translation.width)")
+                                            if isControlPanelVisible {
+                                                // 容器可见时，允许双向拖动
+                                                let translationWidth = value.translation.width
+                                                withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.05)) {
+                                                    dragOffset = translationWidth
+                                                    containerOffset = translationWidth
                                                 }
+                                                dragHintState = translationWidth > 0 ? .rightOnly : .leftOnly
+                                                print("容器可见 - 当前偏移: \(dragOffset), 移动距离: \(translationWidth), 容器偏移: \(containerOffset)")
+                                            } else {
+                                                // 容器隐藏时，根据当前位置决定拖动逻辑
+                                                let translationWidth = value.translation.width
+                                                withAnimation(.interactiveSpring(response: 0.2, dampingFraction: 0.8, blendDuration: 0.05)) {
+                                                    if containerOffset < 0 {
+                                                        // 容器在左侧，向右拖动时从负值开始
+                                                        let targetOffset = -screenWidth + translationWidth
+                                                        dragOffset = max(-(screenWidth - 60), min(0, targetOffset + 60))
+                                                        containerOffset = max(-screenWidth, min(0, targetOffset))
+                                                    } else {
+                                                        // 容器在右侧，向左拖动时从正值开始
+                                                        let targetOffset = screenWidth + translationWidth
+                                                        dragOffset = max(0, min(screenWidth - 60, targetOffset - 60))
+                                                        containerOffset = max(0, min(screenWidth, targetOffset))
+                                                    }
+                                                }
+                                                dragHintState = translationWidth < 0 ? .leftOnly : .rightOnly
+                                                print("容器隐藏 - 当前偏移: \(dragOffset), 移动距离: \(translationWidth), 容器位置: \(containerOffset < 0 ? "左侧" : "右侧")")
                                             }
                                             
                                             // 显示拖动提示
@@ -706,27 +719,64 @@ struct DraggableArrow: View {
                                                 print("水平速度: \(velocity)")
                                                 print("当前dragOffset: \(dragOffset)")
                                                 
-                                                if velocity > 500 {  // 快速滑动
-                                                    if dragOffset > screenWidth * 0.3 {  // 超过30%触发
+                                                if isControlPanelVisible {
+                                                    if velocity < -500 {  // 快速向左滑动
+                                                        dragOffset = -(screenWidth - 60)
+                                                        containerOffset = -screenWidth
+                                                        isControlPanelVisible = false
+                                                        print("快速向左滑动 - 隐藏控制面板")
+                                                    } else if velocity > 500 {  // 快速向右滑动
                                                         dragOffset = screenWidth - 60
                                                         containerOffset = screenWidth
                                                         isControlPanelVisible = false
-                                                        print("快速滑动 - 隐藏控制面板")
-                                                    } else {
-                                                        dragOffset = 0
-                                                        containerOffset = 0
-                                                        print("快速滑动 - 保持控制面板可见")
+                                                        print("快速向右滑动 - 隐藏控制面板")
+                                                    } else {  // 缓慢滑动
+                                                        let translation = value.translation.width
+                                                        if abs(translation) > screenWidth * 0.2 {  // 超过20%触发
+                                                            if translation < 0 {
+                                                                dragOffset = -(screenWidth - 60)
+                                                                containerOffset = -screenWidth
+                                                            } else {
+                                                                dragOffset = screenWidth - 60
+                                                                containerOffset = screenWidth
+                                                            }
+                                                            isControlPanelVisible = false
+                                                            print("缓慢滑动 - 根据位置隐藏控制面板")
+                                                        } else {
+                                                            dragOffset = 0
+                                                            containerOffset = 0
+                                                            print("缓慢滑动 - 回到中间位置")
+                                                        }
                                                     }
-                                                } else {  // 缓慢滑动
-                                                    if value.translation.width > screenWidth * 0.2 {  // 拖动超过屏幕宽度30%就触发
-                                                        dragOffset = screenWidth - 60
-                                                        containerOffset = screenWidth
-                                                        isControlPanelVisible = false
-                                                        print("缓慢滑动 - 根据位置隐藏控制面板")
+                                                } else {
+                                                    // 容器隐藏状态下的处理
+                                                    let velocity = value.velocity.width
+                                                    print("水平速度(隐藏状态): \(velocity)")
+                                                    
+                                                    if containerOffset < 0 {
+                                                        // 容器在左侧
+                                                        if velocity > 500 || value.translation.width > screenWidth * 0.2 {  // 快速向右滑动或足够距离
+                                                            dragOffset = 0
+                                                            containerOffset = 0
+                                                            isControlPanelVisible = true
+                                                            print("向右滑动 - 显示控制面板")
+                                                        } else {
+                                                            dragOffset = -(screenWidth - 60)
+                                                            containerOffset = -screenWidth
+                                                            print("向右滑动 - 保持在左侧隐藏")
+                                                        }
                                                     } else {
-                                                        dragOffset = 0
-                                                        containerOffset = 0
-                                                        print("缓慢滑动 - 根据位置保持控制面板可见")
+                                                        // 容器在右侧
+                                                        if velocity < -500 || value.translation.width < -screenWidth * 0.2 {  // 快速向左滑动或足够距离
+                                                            dragOffset = 0
+                                                            containerOffset = 0
+                                                            isControlPanelVisible = true
+                                                            print("向左滑动 - 显示控制面板")
+                                                        } else {
+                                                            dragOffset = screenWidth - 60
+                                                            containerOffset = screenWidth
+                                                            print("向左滑动 - 保持在右侧隐藏")
+                                                        }
                                                     }
                                                 }
                                             case .none:
