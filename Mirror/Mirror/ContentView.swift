@@ -1028,6 +1028,12 @@ struct ContentView: View {
     // 添加黑色容器的独立偏移值
     @State private var containerOffset: CGFloat = 0
     
+    // 添加设置面板状态
+    @State private var showSettings = false
+    
+    // 添加帮助面板状态
+    @State private var showHelp = false
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -1210,7 +1216,9 @@ struct ContentView: View {
                                             systemName: "gearshape.fill",
                                             title: "",
                                             action: {
-                                                print("点击设置按钮")
+                                                withAnimation(.easeInOut(duration: 0.2)) {
+                                                    showSettings = true
+                                                }
                                             },
                                             deviceOrientation: deviceOrientation
                                         )
@@ -1220,7 +1228,9 @@ struct ContentView: View {
                                             systemName: "questionmark.circle.fill",
                                             title: "",
                                             action: {
-                                                print("点击帮助按钮")
+                                                withAnimation(.easeInOut(duration: 0.2)) {
+                                                    showHelp = true
+                                                }
                                             },
                                             deviceOrientation: deviceOrientation
                                         )
@@ -1298,6 +1308,18 @@ struct ContentView: View {
                         .position(x: geometry.size.width/2, y: geometry.size.height/2)
                         .transition(.opacity)
                         .zIndex(4)
+                }
+                
+                // 添加设置面板
+                if showSettings {
+                    SettingsPanel(isPresented: $showSettings)
+                        .zIndex(4)  // 确保设置面板显示在最上层
+                }
+                
+                // 添加帮助面板
+                if showHelp {
+                    HelpPanel(isPresented: $showHelp)
+                        .zIndex(4)  // 确保帮助面板显示在最上层
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
