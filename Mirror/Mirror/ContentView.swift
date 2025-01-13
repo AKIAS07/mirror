@@ -170,8 +170,12 @@ struct CameraContainer: View {
     let previousBrightness: CGFloat
     @Binding var containerSelected: Bool
     @Binding var isLighted: Bool
+    @Binding var isControlAreaVisible: Bool
     
     let cameraManager: CameraManager
+    
+    // 添加截图状态
+    @StateObject private var captureState = CaptureState()
     
     // 添加放缩相关的绑定
     @Binding var currentScale: CGFloat
@@ -192,6 +196,7 @@ struct CameraContainer: View {
          previousBrightness: CGFloat,
          isSelected: Binding<Bool>,
          isLighted: Binding<Bool>,
+         isControlAreaVisible: Binding<Bool>,
          currentScale: Binding<CGFloat>,
          showScaleIndicator: Binding<Bool>,
          currentIndicatorScale: Binding<CGFloat>,
@@ -206,6 +211,7 @@ struct CameraContainer: View {
         self.previousBrightness = previousBrightness
         _containerSelected = isSelected
         _isLighted = isLighted
+        _isControlAreaVisible = isControlAreaVisible
         _currentScale = currentScale
         _showScaleIndicator = showScaleIndicator
         _currentIndicatorScale = currentIndicatorScale
@@ -255,6 +261,27 @@ struct CameraContainer: View {
                                         onPinchEnded(scale)
                                     }
                             )
+                            .onTapGesture(count: 2) {
+                                print("------------------------")
+                                print("双击相机画面 - 捕捉截图")
+                                print("当前模式：\(isMirrored ? "镜像模式" : "正常模式")")
+                                
+                                // 捕捉当前画面
+                                captureState.capturedImage = image
+                                
+                                // 显示操作按钮并隐藏控制区域
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    captureState.showButtons = true
+                                    isControlAreaVisible = false
+                                }
+                                
+                                // 触发震动反馈
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.prepare()
+                                generator.impactOccurred()
+                                
+                                print("------------------------")
+                            }
                     }
                     
                     // 添加缩放提示
@@ -262,6 +289,17 @@ struct CameraContainer: View {
                         ScaleIndicatorView(scale: currentIndicatorScale)
                             .position(x: geometry.size.width/2, y: geometry.size.height/2)
                             .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
+                    }
+                    
+                    // 添加截图操作按钮
+                    VStack {
+                        Spacer()
+                        CaptureActionsView(captureState: captureState) {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isControlAreaVisible = true
+                            }
+                        }
+                        .padding(.bottom, 180) // 确保不会被底部控制栏遮挡
                     }
                 } else {
                     RestartCameraView(action: restartAction)
@@ -1034,6 +1072,9 @@ struct ContentView: View {
     // 添加帮助面板状态
     @State private var showHelp = false
     
+    // 添加控制面板可见性状态
+    @State private var isControlAreaVisible = true
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -1052,6 +1093,7 @@ struct ContentView: View {
                                 previousBrightness: previousBrightness,
                                 isSelected: $ModeASelected,
                                 isLighted: $isLighted,
+                                isControlAreaVisible: $isControlAreaVisible,
                                 currentScale: $currentScale,
                                 showScaleIndicator: $showScaleIndicator,
                                 currentIndicatorScale: $currentIndicatorScale,
@@ -1076,6 +1118,7 @@ struct ContentView: View {
                                 previousBrightness: previousBrightness,
                                 isSelected: $ModeBSelected,
                                 isLighted: $isLighted,
+                                isControlAreaVisible: $isControlAreaVisible,
                                 currentScale: $currentScale,
                                 showScaleIndicator: $showScaleIndicator,
                                 currentIndicatorScale: $currentIndicatorScale,
@@ -1090,180 +1133,189 @@ struct ContentView: View {
                     }
                     
                     // 控制面板
-                    ZStack {
-                        // 黑色容器
-                        VStack(spacing: 0) {
-                            Rectangle()
-                                .fill(Color.black.opacity(0.5))
-                                .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
-                                .animation(.easeInOut(duration: 0.3), value: isLighted)
-                                .overlay(
-                                    HStack(spacing: 40) {
-                                        // 左按钮 - 模式A
-                                        CircleButton(
-                                            systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
-                                            title: "",
-                                            action: {
-                                                // 直接传递选中状态和亮度状态
-                                                ModeASelected = ModeBSelected
-                                                isLighted = ModeBSelected
-                                                
-                                                // 根据选中状态设置亮度
-                                                if ModeBSelected {
-                                                    // 如果之前是选中状态，保持最大亮度
-                                                    UIScreen.main.brightness = 1.0
-                                                    print("切换到模式A - 保持最大亮度")
-                                                } else {
-                                                    // 如果之前是未选中状态，保持原始亮度
-                                                    UIScreen.main.brightness = previousBrightness
-                                                    print("切换到模式A - 保持原始亮度：\(previousBrightness)")
-                                                }
-                                                
-                                                // 设置为模式A
-                                                if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
-                                                    processor.setMode(.modeA)
-                                                }
-                                                cameraManager.isMirrored = true
-                                                
-                                                // 重置模式B的状态（移到最后）
-                                                ModeBSelected = false
-                                            },
-                                            deviceOrientation: deviceOrientation,
-                                            isDisabled: cameraManager.isMirrored
-                                        )
-                                        
-                                        // 中间按钮 - Two of Me
-                                        CircleButton(
-                                            systemName: "rectangle.split.2x1",
-                                            title: "",
-                                            action: {
-                                                // 在进入 Two of Me 模式前，确保恢复原始亮度
-                                                if cameraManager.isMirrored {
-                                                    if ModeASelected {
-                                                        UIScreen.main.brightness = previousBrightness
-                                                        print("进入 Two of Me 前 - 模式A恢复原始亮度：\(previousBrightness)")
-                                                        ModeASelected = false
-                                                    }
-                                                } else {
+                    if isControlAreaVisible {
+                        ZStack {
+                            // 黑色容器
+                            VStack(spacing: 0) {
+                                Rectangle()
+                                    .fill(Color.black.opacity(0.5))
+                                    .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
+                                    .animation(.easeInOut(duration: 0.3), value: isLighted)
+                                    .overlay(
+                                        HStack(spacing: 40) {
+                                            // 左按钮 - 模式A
+                                            CircleButton(
+                                                systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right",
+                                                title: "",
+                                                action: {
+                                                    // 直接传递选中状态和亮度状态
+                                                    ModeASelected = ModeBSelected
+                                                    isLighted = ModeBSelected
+                                                    
+                                                    // 根据选中状态设置亮度
                                                     if ModeBSelected {
+                                                        // 如果之前是选中状态，保持最大亮度
+                                                        UIScreen.main.brightness = 1.0
+                                                        print("切换到模式A - 保持最大亮度")
+                                                    } else {
+                                                        // 如果之前是未选中状态，保持原始亮度
                                                         UIScreen.main.brightness = previousBrightness
-                                                        print("进入 Two of Me 前 - 模式B恢复原始亮度：\(previousBrightness)")
-                                                        ModeBSelected = false
+                                                        print("切换到模式A - 保持原始亮度：\(previousBrightness)")
                                                     }
-                                                }
-                                                
-                                                // 确保在显示 TwoOfMe 页面前恢复原始亮度
-                                                UIScreen.main.brightness = previousBrightness
-                                                print("进入 Two of Me 前 - 强制恢复原始亮度：\(previousBrightness)")
-                                                
-                                                print("进入 Two of Me 模式")
-                                                showingTwoOfMe = true
-                                            },
-                                            deviceOrientation: deviceOrientation
-                                        )
-                                        
-                                        // 右按钮 - 模式B
-                                        CircleButton(
-                                            systemName: "camera",
-                                            title: "",
-                                            action: {
-                                                // 直接传递选中状态和亮度状态
-                                                ModeBSelected = ModeASelected
-                                                isLighted = ModeASelected
-                                                
-                                                // 根据选中状态设置亮度
-                                                if ModeASelected {
-                                                    // 如果之前是选中状态，保持最大亮度
-                                                    UIScreen.main.brightness = 1.0
-                                                    print("切换到模式B - 保持最大亮度")
-                                                } else {
-                                                    // 如果之前是未选中状态，保持原始亮度
+                                                    
+                                                    // 设置为模式A
+                                                    if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
+                                                        processor.setMode(.modeA)
+                                                    }
+                                                    cameraManager.isMirrored = true
+                                                    
+                                                    // 重置模式B的状态（移到最后）
+                                                    ModeBSelected = false
+                                                },
+                                                deviceOrientation: deviceOrientation,
+                                                isDisabled: cameraManager.isMirrored
+                                            )
+                                            
+                                            // 中间按钮 - Two of Me
+                                            CircleButton(
+                                                systemName: "rectangle.split.2x1",
+                                                title: "",
+                                                action: {
+                                                    // 在进入 Two of Me 模式前，确保恢复原始亮度
+                                                    if cameraManager.isMirrored {
+                                                        if ModeASelected {
+                                                            UIScreen.main.brightness = previousBrightness
+                                                            print("进入 Two of Me 前 - 模式A恢复原始亮度：\(previousBrightness)")
+                                                            ModeASelected = false
+                                                        }
+                                                    } else {
+                                                        if ModeBSelected {
+                                                            UIScreen.main.brightness = previousBrightness
+                                                            print("进入 Two of Me 前 - 模式B恢复原始亮度：\(previousBrightness)")
+                                                            ModeBSelected = false
+                                                        }
+                                                    }
+                                                    
+                                                    // 确保在显示 TwoOfMe 页面前恢复原始亮度
                                                     UIScreen.main.brightness = previousBrightness
-                                                    print("切换到模式B - 保持原始亮度：\(previousBrightness)")
-                                                }
-                                                
-                                                // 设置为模式B
-                                                if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
-                                                    processor.setMode(.modeB)
-                                                }
-                                                cameraManager.isMirrored = false
-                                                
-                                                // 重置模式A的状态（移到最后）
-                                                ModeASelected = false
-                                            },
-                                            deviceOrientation: deviceOrientation,
-                                            isDisabled: !cameraManager.isMirrored
-                                        )
-                                    }
-                                )
-                        }
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .offset(x: containerOffset, y: dragVerticalOffset)
-                        .ignoresSafeArea(.all)
-                        .zIndex(1)  // 确保黑色容器在上层
+                                                    print("进入 Two of Me 前 - 强制恢复原始亮度：\(previousBrightness)")
+                                                    
+                                                    print("进入 Two of Me 模式")
+                                                    showingTwoOfMe = true
+                                                },
+                                                deviceOrientation: deviceOrientation
+                                            )
+                                            
+                                            // 右按钮 - 模式B
+                                            CircleButton(
+                                                systemName: "camera",
+                                                title: "",
+                                                action: {
+                                                    // 直接传递选中状态和亮度状态
+                                                    ModeBSelected = ModeASelected
+                                                    isLighted = ModeASelected
+                                                    
+                                                    // 根据选中状态设置亮度
+                                                    if ModeASelected {
+                                                        // 如果之前是选中状态，保持最大亮度
+                                                        UIScreen.main.brightness = 1.0
+                                                        print("切换到模式B - 保持最大亮度")
+                                                    } else {
+                                                        // 如果之前是未选中状态，保持原始亮度
+                                                        UIScreen.main.brightness = previousBrightness
+                                                        print("切换到模式B - 保持原始亮度：\(previousBrightness)")
+                                                    }
+                                                    
+                                                    // 设置为模式B
+                                                    if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
+                                                        processor.setMode(.modeB)
+                                                    }
+                                                    cameraManager.isMirrored = false
+                                                    
+                                                    // 重置模式A的状态（移到最后）
+                                                    ModeASelected = false
+                                                },
+                                                deviceOrientation: deviceOrientation,
+                                                isDisabled: !cameraManager.isMirrored
+                                            )
+                                        }
+                                    )
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .offset(x: containerOffset, y: dragVerticalOffset)
+                            .ignoresSafeArea(.all)
+                            .zIndex(1)  // 确保黑色容器在上层
 
-                        // 黄色容器
-                        VStack(spacing: 0) {
-                            Rectangle()
-                                .fill(Color.yellow.opacity(0.5))
-                                .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
-                                .overlay(
-                                    HStack(spacing: 40) {
-                                        Spacer()
-                                        
-                                        // 设置按钮
-                                        CircleButton(
-                                            systemName: "gearshape.fill",
-                                            title: "",
-                                            action: {
-                                                withAnimation(.easeInOut(duration: 0.2)) {
-                                                    showSettings = true
-                                                }
-                                            },
-                                            deviceOrientation: deviceOrientation
-                                        )
-                                        
-                                        // 帮助按钮
-                                        CircleButton(
-                                            systemName: "questionmark.circle.fill",
-                                            title: "",
-                                            action: {
-                                                withAnimation(.easeInOut(duration: 0.2)) {
-                                                    showHelp = true
-                                                }
-                                            },
-                                            deviceOrientation: deviceOrientation
-                                        )
-                                        
-                                        Spacer()
-                                    }
-                                )
-                        }
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .offset(x: containerOffset, y: dragVerticalOffset + 120)  // 保持在黑色容器下方
-                        .animation(.easeInOut(duration: 0.3), value: isLighted)
-                        .ignoresSafeArea(.all)
-                        .zIndex(0)  // 确保黄色容器在下层
+                            // 黄色容器
+                            VStack(spacing: 0) {
+                                Rectangle()
+                                    .fill(Color.yellow.opacity(0.5))
+                                    .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
+                                    .overlay(
+                                        HStack(spacing: 40) {
+                                            Spacer()
+                                            
+                                            // 设置按钮
+                                            CircleButton(
+                                                systemName: "gearshape.fill",
+                                                title: "",
+                                                action: {
+                                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                                        showSettings = true
+                                                    }
+                                                },
+                                                deviceOrientation: deviceOrientation
+                                            )
+                                            
+                                            // 帮助按钮
+                                            CircleButton(
+                                                systemName: "questionmark.circle.fill",
+                                                title: "",
+                                                action: {
+                                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                                        showHelp = true
+                                                    }
+                                                },
+                                                deviceOrientation: deviceOrientation
+                                            )
+                                            
+                                            Spacer()
+                                        }
+                                    )
+                            }
+                            .frame(maxHeight: .infinity, alignment: .bottom)
+                            .offset(x: containerOffset, y: dragVerticalOffset + 120)  // 保持在黑色容器下方
+                            .animation(.easeInOut(duration: 0.3), value: isLighted)
+                            .ignoresSafeArea(.all)
+                            .zIndex(0)  // 确保黄色容器在下层
 
-                        // 箭头放置在黑色容器上方
-                        VStack {
-                            Spacer()
-                            DraggableArrow(isExpanded: !isControlPanelVisible, 
-                                         isLighted: isLighted,
-                                         screenWidth: geometry.size.width,
-                                         isControlPanelVisible: $isControlPanelVisible,
-                                         showDragHint: $showArrowHint,
-                                         dragHintState: $dragHintState,
-                                         dragOffset: $dragOffset,
-                                         dragVerticalOffset: $dragVerticalOffset,
-                                         containerOffset: $containerOffset)
-                                .padding(.bottom, 120)
+                            // 箭头放置在黑色容器上方
+                            VStack {
+                                Spacer()
+                                DraggableArrow(isExpanded: !isControlPanelVisible, 
+                                             isLighted: isLighted,
+                                             screenWidth: geometry.size.width,
+                                             isControlPanelVisible: $isControlPanelVisible,
+                                             showDragHint: $showArrowHint,
+                                             dragHintState: $dragHintState,
+                                             dragOffset: $dragOffset,
+                                             dragVerticalOffset: $dragVerticalOffset,
+                                             containerOffset: $containerOffset)
+                                    .padding(.bottom, 120)
+                            }
+                            .offset(x: dragOffset, y: dragVerticalOffset)
                         }
-                        .offset(x: dragOffset, y: dragVerticalOffset)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .ignoresSafeArea(.all, edges: .bottom)
+                        .zIndex(1)
+                        .animation(.easeInOut(duration: 0.3), value: isControlAreaVisible)
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                removal: .opacity.combined(with: .move(edge: .bottom))
+                            )
+                        )
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .ignoresSafeArea(.all, edges: .bottom)
-                    .zIndex(1)
                     
                     // 更新背景遮罩视图，确保正确传递选中状态
                     BackgroundMaskView(isSelected: cameraManager.isMirrored ? ModeASelected : ModeBSelected, isLighted: isLighted)

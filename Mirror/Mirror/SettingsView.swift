@@ -1,74 +1,69 @@
 import SwiftUI
 
 // 设置面板布局常量
-struct SettingsLayoutConfig {
-    static let panelWidth: CGFloat = 300
-    static let panelHeight: CGFloat = 400
-    static let cornerRadius: CGFloat = 20
-    static let closeButtonSize: CGFloat = 30
-    static let closeButtonPadding: CGFloat = 15
+public struct SettingsLayoutConfig {
+    public static let panelWidth: CGFloat = 300
+    public static let panelHeight: CGFloat = 400
+    public static let cornerRadius: CGFloat = 20
+    public static let closeButtonSize: CGFloat = 30
+    public static let closeButtonPadding: CGFloat = 15
 }
 
 // 设置面板视图
-struct SettingsPanel: View {
+public struct SettingsPanel: View {
     @Binding var isPresented: Bool
     
-    var body: some View {
+    public init(isPresented: Binding<Bool>) {
+        self._isPresented = isPresented
+    }
+    
+    public var body: some View {
         ZStack {
             // 半透明背景
-            Color.black.opacity(0.3)
+            Color.black.opacity(0.5)
                 .edgesIgnoringSafeArea(.all)
                 .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation {
                         isPresented = false
                     }
                 }
             
             // 设置面板
-            VStack {
-                // 设置面板主体
-                ZStack {
-                    // 白色背景
-                    RoundedRectangle(cornerRadius: SettingsLayoutConfig.cornerRadius)
-                        .fill(Color.white)
-                        .frame(width: SettingsLayoutConfig.panelWidth, 
-                               height: SettingsLayoutConfig.panelHeight)
-                    
-                    // 关闭按钮
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    isPresented = false
-                                }
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: SettingsLayoutConfig.closeButtonSize))
-                                    .foregroundColor(.gray)
-                            }
-                            .padding(.trailing, SettingsLayoutConfig.closeButtonPadding)
-                            .padding(.top, SettingsLayoutConfig.closeButtonPadding)
+            VStack(spacing: 20) {
+                // 标题
+                HStack {
+                    Text("设置")
+                        .font(.title2)
+                        .foregroundColor(.white)
+                    Spacer()
+                    Button(action: {
+                        withAnimation {
+                            isPresented = false
                         }
-                        Spacer()
-                    }
-                    .frame(width: SettingsLayoutConfig.panelWidth, 
-                           height: SettingsLayoutConfig.panelHeight)
-                    
-                    // 设置内容
-                    VStack(spacing: 20) {
-                        Text("设置")
-                            .font(.title)
-                            .foregroundColor(.black)
-                        
-                        // 这里可以添加更多设置选项
-                        Text("更多设置选项即将推出...")
-                            .foregroundColor(.gray)
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
                     }
                 }
-                .frame(width: SettingsLayoutConfig.panelWidth, 
-                       height: SettingsLayoutConfig.panelHeight)
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                // 版本信息
+                VStack(spacing: 10) {
+                    Text("Mirror")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    Text("Version 1.0.0")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.8))
         }
         .transition(.opacity)
     }
