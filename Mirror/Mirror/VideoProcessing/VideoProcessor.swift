@@ -118,7 +118,17 @@ class CameraObserver: NSObject {
 // 主视频处理器
 class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     var imageHandler: ((UIImage) -> Void)?
-    let context = CIContext()
+    lazy var context: CIContext = {
+        // 使用 Metal 加速并保持最高质量
+        let options = [
+            CIContextOption.outputColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+            CIContextOption.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+            CIContextOption.useSoftwareRenderer: false,
+            CIContextOption.highQualityDownsample: true
+        ]
+        return CIContext(options: options)
+    }()
+    
     var isMirrored: Bool = false
     private var previousOrientation: UIDeviceOrientation = .unknown
     private var previousMirrorState: Bool = false
@@ -153,7 +163,11 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
         connection.videoOrientation = .portrait
-        connection.isVideoMirrored = false  // 确保连接不自动镜像
+        connection.isVideoMirrored = false
+        
+        // 锁定缓冲区以防止数据竞争
+        CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly) }
         
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
         var processedImage = ciImage
@@ -186,11 +200,9 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
         // 根据当前模式处理图像
         switch currentMode {
         case .modeA:
-            // 模式A：应用水平翻转（镜像效果）
             processedImage = processedImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
             
         case .modeB:
-            // 模式B：在设备方向为3或4时进行180度旋转
             if deviceOrientation == .landscapeLeft || deviceOrientation == .landscapeRight {
                 let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
                     .rotated(by: .pi)
@@ -198,8 +210,12 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
             }
         }
         
-        if let cgImage = context.createCGImage(processedImage, from: processedImage.extent) {
-            let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
+        // 使用高质量渲染
+        if let cgImage = context.createCGImage(processedImage, 
+                                             from: processedImage.extent,
+                                             format: .RGBA8,
+                                             colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!) {
+            let uiImage = UIImage(cgImage: cgImage, scale: UIScreen.main.scale, orientation: .up)
             DispatchQueue.main.async {
                 self.imageHandler?(uiImage)
             }

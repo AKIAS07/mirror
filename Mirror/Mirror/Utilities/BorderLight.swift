@@ -88,11 +88,6 @@ struct BorderLightView: View {
     let showOriginalHighlight: Bool
     let showMirroredHighlight: Bool
     
-    private let normalWidth: CGFloat = 1
-    private let selectedWidth: CGFloat = 20
-    private let normalColor = Color.green
-    private let selectedColor = Color.white
-    
     var body: some View {
         let isHighlighted = showOriginalHighlight || showMirroredHighlight
         
@@ -101,27 +96,39 @@ struct BorderLightView: View {
             let frameWidth = screenWidth
             let frameHeight = centerY
             
-            Rectangle()
-                .stroke(
-                    isHighlighted ? selectedColor : normalColor,
-                    lineWidth: isHighlighted ? selectedWidth : normalWidth
-                )
-                .frame(width: frameWidth, height: frameHeight)
-                .position(
-                    x: frameWidth/2,
-                    y: frameHeight/2
-                )
-                .overlay(
-                    Rectangle()
-                        .stroke(normalColor.opacity(isHighlighted ? 0.3 : 1), lineWidth: normalWidth)
-                        .frame(width: frameWidth, height: frameHeight)
-                        .position(
-                            x: frameWidth/2,
-                            y: frameHeight/2
-                        )
-                )
-                .animation(.easeInOut(duration: 0.2), value: isHighlighted)
-                .clipped()
+            ZStack {
+                // 发光边框
+                RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
+                    .stroke(
+                        isHighlighted ? BorderStyle.splitScreenSelectedColor : BorderStyle.splitScreenNormalColor,
+                        lineWidth: isHighlighted ? BorderStyle.splitScreenSelectedWidth : BorderStyle.splitScreenNormalWidth
+                    )
+                    .frame(width: frameWidth, height: frameHeight)
+                    .position(
+                        x: frameWidth/2,
+                        y: frameHeight/2
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
+                            .stroke(BorderStyle.splitScreenNormalColor.opacity(isHighlighted ? 0.3 : 1), lineWidth: BorderStyle.splitScreenNormalWidth)
+                            .frame(width: frameWidth, height: frameHeight)
+                            .position(
+                                x: frameWidth/2,
+                                y: frameHeight/2
+                            )
+                    )
+                    .animation(.easeInOut(duration: 0.2), value: isHighlighted)
+            }
+            .mask(
+                // 遮罩，只显示绿色框线内的部分
+                RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
+                    .frame(width: frameWidth - BorderStyle.splitScreenNormalWidth, height: frameHeight - BorderStyle.splitScreenNormalWidth)
+                    .position(
+                        x: frameWidth/2,
+                        y: frameHeight/2
+                    )
+            )
+            .clipped()
         }
     }
 } 

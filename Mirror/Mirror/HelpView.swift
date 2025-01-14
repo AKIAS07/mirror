@@ -3,6 +3,10 @@ import SwiftUI
 public struct HelpPanel: View {
     @Binding var isPresented: Bool
     
+    // 使用与设置面板相同的尺寸
+    private let panelWidth: CGFloat = SettingsLayoutConfig.panelWidth + 50 // 帮助面板稍微宽一点，方便显示内容
+    private let panelHeight: CGFloat = SettingsLayoutConfig.panelHeight + 100 // 帮助面板稍微高一点，方便滚动内容
+    
     public init(isPresented: Binding<Bool>) {
         self._isPresented = isPresented
     }
@@ -56,6 +60,8 @@ public struct HelpPanel: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black.opacity(0.8))
+            .frame(width: panelWidth, height: panelHeight)
+            .cornerRadius(SettingsLayoutConfig.cornerRadius)
         }
         .transition(.opacity)
     }

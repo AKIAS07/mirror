@@ -1,10 +1,25 @@
 import SwiftUI
 
 struct BorderStyle {
+    // 主页边框样式
     static let normalColor = Color.green
-    static let selectedColor = Color.white
+    static var selectedColor = Color.white {
+        didSet {
+            splitScreenSelectedColor = selectedColor
+        }
+    }
     static let normalWidth: CGFloat = 1
-    static let selectedWidth: CGFloat = 40
+    static var selectedWidth: CGFloat = 40 {
+        didSet {
+            splitScreenSelectedWidth = selectedWidth
+        }
+    }
+    
+    // 分屏边框样式
+    static let splitScreenNormalWidth: CGFloat = 1
+    static var splitScreenSelectedWidth: CGFloat = 40
+    static let splitScreenNormalColor = Color.green
+    static var splitScreenSelectedColor = Color.white
 }
 
 struct DragAnimationConfig {
@@ -49,5 +64,5 @@ struct CameraLayoutConfig {
     }
     
     static let bottomOffset: CGFloat = 0      // 底部偏移
-    static let verticalOffset: CGFloat = 0    // 垂直偏移
+    static let verticalOffset: CGFloat = 0   // 垂直偏移
 } 

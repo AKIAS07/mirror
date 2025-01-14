@@ -246,7 +246,7 @@ struct ContentView: View {
                             // 黄色容器
                             VStack(spacing: 0) {
                                 Rectangle()
-                                    .fill(Color.yellow.opacity(0.5))
+                                    .fill(Color.gray.opacity(0.5))
                                     .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
                                     .overlay(
                                         HStack(spacing: 40) {

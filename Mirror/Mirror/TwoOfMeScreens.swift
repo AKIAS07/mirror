@@ -1444,9 +1444,9 @@ struct TwoOfMeScreens: View {
                         
                         // 触控1（透明形）
                         ZStack {
-                            Color.clear
+                            Color.yellow
                                 .contentShape(Rectangle())
-                                .frame(width: screenWidth, height: 20)
+                                .frame(width: 50, height: 20)
                             
                             // 按钮容器
                             if showContainer {

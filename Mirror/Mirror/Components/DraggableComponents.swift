@@ -206,7 +206,7 @@ struct DraggableArrow: View {
             ZStack {
                 // 黄色半透明背景
                 Rectangle()
-                    .fill(isExpanded ? Color.clear : Color.white.opacity(0.2))
+                    .fill(isExpanded ? Color.clear : Color.white.opacity(0.0))
                     .frame(width: geometry.size.width, height: 50)
                     .allowsHitTesting(false)
                 
@@ -215,7 +215,7 @@ struct DraggableArrow: View {
                     // 箭头图标
                     Image(systemName: isExpanded ? "suit.diamond" : "suit.diamond.fill")
                         .font(.system(size: 30, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.white.opacity(0.7))
                         .frame(width: ArrowLayoutConfig.arrowWidth, height: ArrowLayoutConfig.arrowHeight)
                         .contentShape(Rectangle())
                         .padding(.leading, isControlPanelVisible ? 
