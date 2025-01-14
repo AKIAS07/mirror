@@ -4,9 +4,9 @@ import Photos
 
 // 截图操作按钮样式
 public struct CaptureButtonStyle {
-    public static let buttonSize: CGFloat = 50
-    public static let buttonSpacing: CGFloat = 30
-    public static let buttonBackgroundOpacity: Double = 0.7
+    public static let buttonSize: CGFloat = 60
+    public static let buttonSpacing: CGFloat = 40
+    public static let buttonBackgroundOpacity: Double = 0.5
 }
 
 // 截图操作状态
@@ -15,12 +15,61 @@ public class CaptureState: ObservableObject {
     @Published public var showButtons: Bool = false
     @Published public var showSaveSuccess: Bool = false
     @Published public var showSaveError: Bool = false
+    @Published public var currentScale: CGFloat = 1.0
     
     public init() {}
+    
+    // 根据缩放比例裁剪图片
+    private func cropImage(_ image: UIImage, scale: CGFloat) -> UIImage {
+        let screenBounds = UIScreen.main.bounds
+        let screenSize = screenBounds.size
+        
+        // 计算图片在屏幕上的实际显示尺寸
+        let imageAspect = image.size.width / image.size.height
+        let screenAspect = screenSize.width / screenSize.height
+        
+        var drawWidth: CGFloat
+        var drawHeight: CGFloat
+        
+        if imageAspect > screenAspect {
+            // 图片较宽，以高度为基准
+            drawHeight = screenSize.height
+            drawWidth = drawHeight * imageAspect
+        } else {
+            // 图片较高，以宽度为基准
+            drawWidth = screenSize.width
+            drawHeight = drawWidth / imageAspect
+        }
+        
+        // 应用缩放
+        let scale = max(1.0, scale)
+        drawWidth *= scale
+        drawHeight *= scale
+        
+        // 计算居中位置
+        let x = (drawWidth - screenSize.width) / 2
+        let y = (drawHeight - screenSize.height) / 2
+        
+        // 创建绘图上下文
+        UIGraphicsBeginImageContextWithOptions(screenSize, false, image.scale)
+        
+        // 绘制放大后的图片，保持宽高比
+        let drawRect = CGRect(x: -x, y: -y, width: drawWidth, height: drawHeight)
+        image.draw(in: drawRect)
+        
+        // 获取裁剪后的图片
+        let croppedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return croppedImage ?? image
+    }
     
     // 保存图片到相册
     public func saveToPhotos() {
         guard let image = capturedImage else { return }
+        
+        // 根据缩放比例处理图片
+        let processedImage = cropImage(image, scale: currentScale)
         
         PHPhotoLibrary.requestAuthorization { status in
             guard status == .authorized else {
@@ -32,7 +81,7 @@ public class CaptureState: ObservableObject {
             }
             
             PHPhotoLibrary.shared().performChanges({
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
+                PHAssetChangeRequest.creationRequestForAsset(from: processedImage)
             }) { success, error in
                 DispatchQueue.main.async {
                     if success {
@@ -53,8 +102,11 @@ public class CaptureState: ObservableObject {
     public func shareImage() {
         guard let image = capturedImage else { return }
         
+        // 根据缩放比例处理图片
+        let processedImage = cropImage(image, scale: currentScale)
+        
         let activityViewController = UIActivityViewController(
-            activityItems: [image],
+            activityItems: [processedImage],
             applicationActivities: nil
         )
         
@@ -100,13 +152,18 @@ public struct CaptureActionButton: View {
             
             action()
         }) {
-            Image(systemName: systemName)
-                .font(.system(size: 24))
-                .foregroundColor(.white)
-                .frame(width: CaptureButtonStyle.buttonSize, 
-                       height: CaptureButtonStyle.buttonSize)
-                .background(Color.black.opacity(CaptureButtonStyle.buttonBackgroundOpacity))
-                .clipShape(Circle())
+            ZStack {
+                Circle()
+                    .fill(Color.black.opacity(0.5))
+                    .frame(width: CaptureButtonStyle.buttonSize, 
+                           height: CaptureButtonStyle.buttonSize)
+                
+                Image(systemName: systemName)
+                    .font(.system(size: 24))
+                    .foregroundColor(.white)
+            }
+            .frame(width: CaptureButtonStyle.buttonSize, 
+                   height: CaptureButtonStyle.buttonSize)
         }
     }
 }
@@ -132,80 +189,119 @@ public struct CaptureActionsView: View {
     public var body: some View {
         if captureState.showButtons {
             GeometryReader { geometry in
-                let availableHeight = geometry.size.height
-                let containerFrame = CameraContainerFrame.frame
+                let screenBounds = UIScreen.main.bounds
                 
                 ZStack {
+                    // 添加一个全屏背景层来阻止点击事件穿透
+                    Color.black.opacity(0.0001)
+                        .frame(width: screenBounds.width, height: screenBounds.height)
+                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .contentShape(Rectangle())
+                    
+                    // 图片层
                     if let image = captureState.capturedImage {
-                        // 保持和相机画面相同的位置和布局
                         Image(uiImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: containerFrame.width, height: containerFrame.height)
-                            .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
-                            .position(x: containerFrame.midX, y: containerFrame.midY)
-                            .onTapGesture {
-                                withAnimation {
-                                    showButtons.toggle()
+                            .frame(width: screenBounds.width, height: screenBounds.height)
+                            .scaleEffect(captureState.currentScale)
+                            .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                            .background(GeometryReader { geometry in
+                                Color.clear.onAppear {
+                                    let frame = geometry.frame(in: .global)
+                                    print("截图图片中心点: x=\(frame.midX), y=\(frame.midY)")
+                                    print("截图图片尺寸: width=\(frame.width), height=\(frame.height)")
+                                    print("截图图片缩放比例: \(captureState.currentScale)")
                                 }
-                            }
-                            .zIndex(10) // 确保图片在上层
+                            })
                     }
                     
-                    // 操作按钮
+                    // 半透明背景层（用于点击隐藏按钮）
+                    Color.black.opacity(0.01)
+                        .frame(width: screenBounds.width, height: screenBounds.height)
+                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .onTapGesture {
+                            withAnimation {
+                                showButtons.toggle()
+                            }
+                        }
+                    
+                    // 按钮控制层
                     if showButtons {
                         VStack(spacing: 0) {
-                            Spacer()
-                            // 黑色半透明背景
-                            Rectangle()
-                                .fill(Color.black.opacity(0.5))
-                                .frame(width: geometry.size.width, height: 120)
-                                .overlay(
-                                    HStack(spacing: 40) {
-                                        Spacer()
-                                        
-                                        // 下载按钮
-                                        CaptureActionButton(
-                                            systemName: "square.and.arrow.down",
-                                            action: captureState.saveToPhotos
-                                        )
-                                        
-                                        // 分享按钮
-                                        CaptureActionButton(
-                                            systemName: "square.and.arrow.up",
-                                            action: captureState.shareImage
-                                        )
-                                        
-                                        // 关闭按钮
-                                        CaptureActionButton(
-                                            systemName: "xmark.circle.fill",
-                                            action: {
-                                                withAnimation {
-                                                    captureState.reset {
-                                                        onDismiss()
-                                                    }
-                                                }
+                            // 顶部关闭按钮
+                            ZStack {
+                                // 关闭按钮
+                                CaptureActionButton(
+                                    systemName: "xmark.circle.fill",
+                                    action: {
+                                        withAnimation {
+                                            captureState.reset {
+                                                onDismiss()
                                             }
-                                        )
-                                        
-                                        Spacer()
+                                        }
                                     }
                                 )
+                                .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 0)
+                                .background(GeometryReader { geometry in
+                                    Color.clear.onAppear {
+                                        let frame = geometry.frame(in: .global)
+                                        print("关闭按钮位置: x=\(frame.midX), y=\(frame.midY)")
+                                    }
+                                })
+                            }
+                            
+                            Spacer()
+                            
+                            // 底部操作按钮
+                            ZStack {
+                                HStack(spacing: CaptureButtonStyle.buttonSpacing) {
+                                    Spacer()
+                                    
+                                    // 下载按钮
+                                    CaptureActionButton(
+                                        systemName: "square.and.arrow.down",
+                                        action: captureState.saveToPhotos
+                                    )
+                                    .background(GeometryReader { geometry in
+                                        Color.clear.onAppear {
+                                            let frame = geometry.frame(in: .global)
+                                            print("下载按钮位置: x=\(frame.midX), y=\(frame.midY)")
+                                        }
+                                    })
+                                    
+                                    // 分享按钮
+                                    CaptureActionButton(
+                                        systemName: "square.and.arrow.up",
+                                        action: captureState.shareImage
+                                    )
+                                    .background(GeometryReader { geometry in
+                                        Color.clear.onAppear {
+                                            let frame = geometry.frame(in: .global)
+                                            print("分享按钮位置: x=\(frame.midX), y=\(frame.midY)")
+                                        }
+                                    })
+                                    
+                                    Spacer()
+                                }
+                            }
+                            .frame(height: 120)
                         }
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .ignoresSafeArea(.all, edges: .bottom)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .zIndex(11) // 确保按钮在最上层
+                        .frame(width: screenBounds.width, height: screenBounds.height)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .ignoresSafeArea()
-            .zIndex(9) // 整个捕获视图在主界面上层
+            .zIndex(9)
             .onChange(of: captureState.showSaveSuccess) { newValue in
                 if newValue {
                     alertType = .success
                     showAlert = true
+                    // 1秒后自动关闭弹窗
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        captureState.showSaveSuccess = false
+                        showAlert = false
+                    }
                 }
             }
             .onChange(of: captureState.showSaveError) { newValue in
@@ -219,9 +315,8 @@ public struct CaptureActionsView: View {
                 case .success:
                     return Alert(
                         title: Text("保存成功"),
-                        dismissButton: .default(Text("确定")) {
-                            captureState.showSaveSuccess = false
-                        }
+                        message: nil,
+                        dismissButton: nil
                     )
                 case .error:
                     return Alert(
@@ -229,6 +324,7 @@ public struct CaptureActionsView: View {
                         message: Text("请确保已授予相册访问权限"),
                         dismissButton: .default(Text("确定")) {
                             captureState.showSaveError = false
+                            showAlert = false
                         }
                     )
                 }

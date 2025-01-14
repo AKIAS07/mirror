@@ -8,6 +8,7 @@
 import SwiftUI
 import AVFoundation
 import UIKit
+import Photos
 
 struct BorderStyle {
     static let normalColor = Color.green
@@ -187,6 +188,10 @@ struct CameraContainer: View {
     // 添加震动反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
+    // 添加截图处理相关的状态
+    @State private var lastScreenshotTime: Date = Date()
+    private let screenshotDebounceInterval: TimeInterval = 0.5
+    
     init(session: AVCaptureSession, 
          isMirrored: Bool, 
          isActive: Bool, 
@@ -265,9 +270,11 @@ struct CameraContainer: View {
                                 print("------------------------")
                                 print("双击相机画面 - 捕捉截图")
                                 print("当前模式：\(isMirrored ? "镜像模式" : "正常模式")")
+                                print("当前缩放比例：\(currentScale)")
                                 
-                                // 捕捉当前画面
+                                // 捕捉当前画面并设置缩放比例
                                 captureState.capturedImage = image
+                                captureState.currentScale = currentScale
                                 
                                 // 显示操作按钮并隐藏控制区域
                                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -1075,6 +1082,13 @@ struct ContentView: View {
     // 添加控制面板可见性状态
     @State private var isControlAreaVisible = true
     
+    // 添加截图处理相关的状态
+    @State private var lastScreenshotTime: Date = Date()
+    private let screenshotDebounceInterval: TimeInterval = 0.5
+    
+    // 添加照片库权限状态
+    @State private var photoLibraryAuthorizationStatus: PHAuthorizationStatus = .notDetermined
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -1427,8 +1441,10 @@ struct ContentView: View {
                         handleAppForeground()
                     }
                 
+                
                 // 预准备震动反馈
                 feedbackGenerator.prepare()
+
             }
             .onDisappear {
                 // 移除所有通知监听
@@ -1569,6 +1585,8 @@ struct ContentView: View {
         print("最终画面比例：\(Int(baseScale * 100))%")
         print("------------------------")
     }
+    
+    
 }
 
 #Preview {
