@@ -419,7 +419,10 @@ struct TwoOfMeScreens: View {
                 height: max(min(newOffset.height, maxOffset.height), -maxOffset.height)
             )
             
-            // 使用封的边缘检测方法
+            // 更新 ImageUploader 的偏移量
+            imageUploader.setOffset(originalOffset, maxOffset: maxOffset)
+            
+            // 使用封装的边缘检测方法
             let edges = originalEdgeDetector.detectEdges(
                 offset: originalOffset,
                 maxOffset: maxOffset,
@@ -436,6 +439,17 @@ struct TwoOfMeScreens: View {
             if edges.top { print("  下边缘重合") }
             if edges.bottom { print("  上边缘重合") }
             print("------------------------")
+            
+            // 在更新偏移量后，计算并打印可见区域
+            if let image = originalImage {
+                calculateVisibleArea(
+                    imageSize: image.size,
+                    screenWidth: screenWidth,
+                    screenHeight: screenHeight,
+                    scale: currentScale,
+                    offset: originalOffset
+                )
+            }
         }
     }
     
@@ -462,7 +476,7 @@ struct TwoOfMeScreens: View {
     @State private var showMirroredLeftBorder: Bool = false
     @State private var showMirroredRightBorder: Bool = false
 
-    // 添加 Mirrored 屏幕的拖拽处理方法
+    // 修改 Mirrored 屏幕的拖拽处理方法
     private func handleMirroredDragGesture(
         value: DragGesture.Value,
         screenWidth: CGFloat,
@@ -525,6 +539,9 @@ struct TwoOfMeScreens: View {
                 height: max(min(newOffset.height, maxOffset.height), -maxOffset.height)
             )
             
+            // 更新 ImageUploader 的偏移量
+            imageUploader.setOffset(mirroredOffset, maxOffset: maxOffset)
+            
             // 使用边缘检测方法
             let edges = mirroredEdgeDetector.detectEdges(
                 offset: mirroredOffset,
@@ -542,6 +559,17 @@ struct TwoOfMeScreens: View {
             if edges.top { print("  下边框重合") }
             if edges.bottom { print("  上边缘重合") }
             print("------------------------")
+            
+            // 在更新偏移量后，计算并打印可见区域
+            if let image = mirroredImage {
+                calculateVisibleArea(
+                    imageSize: image.size,
+                    screenWidth: screenWidth,
+                    screenHeight: screenHeight,
+                    scale: currentMirroredScale,
+                    offset: mirroredOffset
+                )
+            }
         }
     }
 
@@ -758,6 +786,74 @@ struct TwoOfMeScreens: View {
     // 添加状态变量跟踪是否是首次显示
     @State private var isFirstAppear: Bool = true
     @State private var isRestoringFromBackground: Bool = false  // 添加状态跟踪变量
+    
+    // 添加计算可见区域的方法
+    private func calculateVisibleArea(
+        imageSize: CGSize,
+        screenWidth: CGFloat,
+        screenHeight: CGFloat,
+        scale: CGFloat,
+        offset: CGSize
+    ) {
+        print("------------------------")
+        print("[可见区域] 初始参数")
+        print("屏幕尺寸：\(Int(screenWidth))x\(Int(screenHeight))")
+        print("图片尺寸：\(Int(imageSize.width))x\(Int(imageSize.height))")
+        print("缩放比例：\(scale)")
+        print("当前偏移：\(offset)")
+        print("------------------------")
+        
+        // 计算显示区域的尺寸（屏幕的一半高度）
+        let viewportWidth = screenWidth
+        let viewportHeight = screenHeight / 2
+        
+        print("------------------------")
+        print("[可见区域] 显示区域")
+        print("宽度：\(Int(viewportWidth))")
+        print("高度：\(Int(viewportHeight))")
+        print("------------------------")
+        
+        // 计算图片缩放后的实际尺寸
+        let scaledImageWidth = imageSize.width * scale
+        let scaledImageHeight = imageSize.height * scale
+        
+        print("------------------------")
+        print("[可见区域] 缩放后尺寸")
+        print("宽度：\(Int(scaledImageWidth))")
+        print("高度：\(Int(scaledImageHeight))")
+        print("------------------------")
+        
+        // 计算图片中心点相对于显示区域的偏移
+        let centerOffsetX = offset.width
+        let centerOffsetY = offset.height
+        
+        // 计算可见区域在原始图片中的位置
+        let visibleX = (scaledImageWidth - viewportWidth) / 2 - centerOffsetX
+        let visibleY = (scaledImageHeight - viewportHeight) / 2 - centerOffsetY
+        let visibleWidth = viewportWidth
+        let visibleHeight = viewportHeight
+        
+        print("------------------------")
+        print("[可见区域] 缩放空间中的位置")
+        print("中心偏移：(\(Int(centerOffsetX)), \(Int(centerOffsetY)))")
+        print("可见区域：")
+        print("  起点：(\(Int(visibleX)), \(Int(visibleY)))")
+        print("  尺寸：\(Int(visibleWidth))x\(Int(visibleHeight))")
+        print("------------------------")
+        
+        // 转换为原始图片的坐标系
+        let originalVisibleX = visibleX / scale
+        let originalVisibleY = visibleY / scale
+        let originalVisibleWidth = visibleWidth / scale
+        let originalVisibleHeight = visibleHeight / scale
+        
+        print("------------------------")
+        print("[可见区域] 原始图片中的位置")
+        print("起点：(\(Int(originalVisibleX)), \(Int(originalVisibleY)))")
+        print("尺寸：\(Int(originalVisibleWidth))x\(Int(originalVisibleHeight))")
+        print("终点：(\(Int(originalVisibleX + originalVisibleWidth)), \(Int(originalVisibleY + originalVisibleHeight)))")
+        print("------------------------")
+    }
     
     var body: some View {
         GeometryReader { geometry in

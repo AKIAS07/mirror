@@ -307,6 +307,9 @@ class ImageUploader: ObservableObject {
             return
         }
         
+        // 裁剪图片为分屏大小
+        let croppedImage = cropImageToScreenSize(imageToSave, for: screenID)
+        
         // 检查相册权限并保存图片
         PHPhotoLibrary.requestAuthorization { [weak self] status in
             guard let self = self else { return }
@@ -317,9 +320,9 @@ class ImageUploader: ObservableObject {
                     print("[下载功能] 已获得权限")
                     print("------------------------")
                     
-                    // 保存图片到相册
+                    // 保存裁剪后的图片到相册
                     PHPhotoLibrary.shared().performChanges({
-                        let request = PHAssetChangeRequest.creationRequestForAsset(from: imageToSave)
+                        let request = PHAssetChangeRequest.creationRequestForAsset(from: croppedImage)
                         request.creationDate = Date()
                     }) { success, error in
                         DispatchQueue.main.async {
@@ -361,6 +364,8 @@ class ImageUploader: ObservableObject {
     // 添加定格图片引用
     private var pausedOriginalImage: UIImage?
     private var pausedMirroredImage: UIImage?
+    private var currentOffset: CGSize = .zero  // 添加当前偏移量
+    private var maxOffset: CGSize = .zero      // 添加最大偏移量
     
     // 添加设置定格图片的方法
     func setPausedImage(_ image: UIImage?, for screenID: ScreenID) {
@@ -370,6 +375,55 @@ class ImageUploader: ObservableObject {
         case .mirrored:
             pausedMirroredImage = image
         }
+    }
+    
+    // 添加设置偏移量的方法
+    func setOffset(_ offset: CGSize, maxOffset: CGSize) {
+        self.currentOffset = offset
+        self.maxOffset = maxOffset
+    }
+    
+    // 添加图片裁剪方法
+    private func cropImageToScreenSize(_ image: UIImage, for screenID: ScreenID) -> UIImage {
+        let screenBounds = UIScreen.main.bounds
+        let screenWidth = screenBounds.width
+        let screenHeight = screenBounds.height
+        
+        // 计算显示区域的尺寸（屏幕的一半高度）
+        let viewportWidth = screenWidth
+        let viewportHeight = screenHeight / 2
+        
+        // 计算图片缩放后的实际尺寸
+        let scale = image.size.width / screenWidth  // 图片相对于屏幕的缩放比例
+        let scaledImageWidth = image.size.width
+        let scaledImageHeight = image.size.height
+        
+        // 计算基础偏移（图片中心到显示区域中心的距离）
+        let baseOffsetY = (scaledImageHeight - viewportHeight * scale) / 2
+        
+        // 计算可见区域在原始图片中的位置
+        let visibleX = (scaledImageWidth - viewportWidth * scale) / 2 - currentOffset.width * scale
+        var visibleY = baseOffsetY - currentOffset.height * scale
+        
+        let visibleWidth = viewportWidth * scale
+        let visibleHeight = viewportHeight * scale
+        
+        // 确保裁剪区域不超出图片范围
+        let safeCropX = max(0, min(visibleX, image.size.width - visibleWidth))
+        let safeCropY = max(0, min(visibleY, image.size.height - visibleHeight))
+        let safeCropWidth = min(visibleWidth, image.size.width - safeCropX)
+        let safeCropHeight = min(visibleHeight, image.size.height - safeCropY)
+        
+        // 创建裁剪区域
+        let cropRect = CGRect(x: safeCropX, y: safeCropY, width: safeCropWidth, height: safeCropHeight)
+        
+        // 从原图中裁剪指定区域
+        if let cgImage = image.cgImage?.cropping(to: cropRect) {
+            let croppedImage = UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+            return croppedImage
+        }
+        
+        return image
     }
     
     // 显示下载控件
