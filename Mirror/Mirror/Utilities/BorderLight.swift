@@ -10,6 +10,11 @@ class BorderLightManager: ObservableObject {
     private var originalBrightness: CGFloat = UIScreen.main.brightness
     private var isControllingBrightness = false
     
+    init() {
+        // 保存当前亮度
+        originalBrightness = UIScreen.main.brightness
+    }
+    
     // 切换边框灯状态
     func toggleBorderLight(for screenID: ScreenID) {
         switch screenID {
@@ -73,11 +78,6 @@ class BorderLightManager: ObservableObject {
             isControllingBrightness = false
             print("设备亮度已恢复")
         }
-    }
-    
-    // 在初始化时保存当前亮度
-    init() {
-        originalBrightness = UIScreen.main.brightness
     }
 }
 

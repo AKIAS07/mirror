@@ -855,6 +855,17 @@ struct TwoOfMeScreens: View {
         print("------------------------")
     }
     
+    // 添加触控区1点击状态跟踪
+    @State private var zone1LastTapTime: Date = Date()
+    @State private var zone1TapCount: Int = 0
+    
+    // 添加截图管理器
+    @StateObject private var screenshotManager = ScreenshotManager.shared
+    
+    init() {
+        // 不再需要设置边框灯管理器引用
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             let screenBounds = UIScreen.main.bounds
@@ -1554,7 +1565,7 @@ struct TwoOfMeScreens: View {
                         .frame(height: screenHeight / 2)
                         .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight/4 : screenHeight*3/4)
                         
-                        // 触控1（透明形）
+                        // 触控1
                         ZStack {
                             Color.yellow
                                 .contentShape(Rectangle())
@@ -1569,25 +1580,51 @@ struct TwoOfMeScreens: View {
                             }
                         }
                         .position(x: screenWidth/2, y: screenHeight/2)
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onEnded { gesture in
-                                    if isZone1Enabled {
+                        .onTapGesture {
+                            if isZone1Enabled {
+                                let now = Date()
+                                let timeSinceLastTap = now.timeIntervalSince(zone1LastTapTime)
+                                
+                                if timeSinceLastTap > 0.3 {  // 如果距离上次点击超过300ms，认为是新的单击
+                                    zone1TapCount = 1
+                                    // 延迟处理单击，给双击留出判断时间
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        if self.zone1TapCount == 1 {  // 如果在延迟期间没有发生第二次点击
+                                            print("------------------------")
+                                            print("触控区1被点击")
+                                            print("区域：中央透明矩形")
+                                            print("可点击状态：已启用")
+                                            print("------------------------")
+                                            
+                                            handleContainerVisibility(showContainer: true)
+                                        }
+                                    }
+                                } else {  // 300ms内的第二次点击
+                                    zone1TapCount += 1
+                                    if zone1TapCount == 2 {  // 双击确认
                                         print("------------------------")
-                                        print("触控区1被点击")
+                                        print("触控区1被双击")
                                         print("区域：中央透明矩形")
-                                        print("点击位置：(x=\(Int(gesture.location.x)), y=\(Int(gesture.location.y)))pt")
-                                        print("可点击状态：已启用")
+                                        print("当前布局：\(layoutDescription)")
                                         print("------------------------")
                                         
-                                        handleContainerVisibility(showContainer: true)
-                                    } else {
-                                        print("------------------------")
-                                        print("触控区1禁")
-                                        print("------------------------")
+                                        // 更新截图管理器的图像引用
+                                        screenshotManager.setImages(
+                                            original: isOriginalPaused ? pausedOriginalImage : originalImage,
+                                            mirrored: isMirroredPaused ? pausedMirroredImage : mirroredImage
+                                        )
+                                        
+                                        // 执行双屏截图
+                                        screenshotManager.captureDoubleScreens()
                                     }
                                 }
-                        )
+                                zone1LastTapTime = now
+                            } else {
+                                print("------------------------")
+                                print("触控区1禁用")
+                                print("------------------------")
+                            }
+                        }
                     }
                 }
                 
@@ -1602,6 +1639,9 @@ struct TwoOfMeScreens: View {
                         )
                         .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
                 }
+                
+                // 添加截图动画
+                ScreenshotAnimationView(isVisible: $screenshotManager.isFlashing)
             }
             .onAppear {
                 // 确保开启设备方向监听

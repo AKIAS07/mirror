@@ -402,8 +402,8 @@ class ImageUploader: ObservableObject {
         let baseOffsetY = (scaledImageHeight - viewportHeight * scale) / 2
         
         // 计算可见区域在原始图片中的位置
-        let visibleX = (scaledImageWidth - viewportWidth * scale) / 2 - currentOffset.width * scale
-        var visibleY = baseOffsetY - currentOffset.height * scale
+        let visibleX = (scaledImageWidth - viewportWidth) / 2 - currentOffset.width * scale
+        let visibleY = baseOffsetY - currentOffset.height * scale
         
         let visibleWidth = viewportWidth * scale
         let visibleHeight = viewportHeight * scale
