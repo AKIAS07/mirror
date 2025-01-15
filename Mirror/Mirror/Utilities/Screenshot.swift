@@ -8,6 +8,7 @@ struct ScreenshotAnimationView: View {
     @Binding var isVisible: Bool
     let screenWidth = UIScreen.main.bounds.width
     let screenHeight = UIScreen.main.bounds.height
+    let touchZonePosition: TouchZonePosition  // 添加触控区位置参数
     
     // 定义触控区1的尺寸和位置
     private let touchZoneWidth: CGFloat = 50
@@ -17,9 +18,9 @@ struct ScreenshotAnimationView: View {
     private let padding: CGFloat = 20        // 与触控区的间距
     
     var body: some View {
-        // 触控区1位于屏幕中心
-        let centerX = screenWidth / 2
-        let centerY = screenHeight / 2
+        // 触控区1位于屏幕中心，根据位置偏移
+        let centerX = screenWidth/2 + touchZonePosition.xOffset
+        let centerY = screenHeight/2
         
         // 计算四个角的位置
         let left = centerX - touchZoneWidth/2 - padding

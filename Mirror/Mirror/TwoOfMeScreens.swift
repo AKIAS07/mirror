@@ -78,6 +78,21 @@ struct ButtonContainer: View {
     }
 }
 
+// 添加触控区位置枚举
+enum TouchZonePosition: Int {
+    case left = 1   // 左边位置
+    case center = 0 // 中间位置（初始）
+    case right = 2  // 右边位置
+    
+    var xOffset: CGFloat {
+        switch self {
+        case .left: return -100
+        case .center: return 0
+        case .right: return 100
+        }
+    }
+}
+
 struct TwoOfMeScreens: View {
     @StateObject private var cameraManager = CameraManager()
     @StateObject private var imageUploader = ImageUploader()
@@ -127,7 +142,22 @@ struct TwoOfMeScreens: View {
     // 添加拖动相关的状态和常量
     @State private var originalOffset: CGSize = .zero
     @State private var mirroredOffset: CGSize = .zero
-
+    
+    // 添加阻尼相关常量
+    private let dragDampingFactor: CGFloat = 0.6  // 拖动阻尼系数（0.0-1.0，越小阻力越大）
+    private let animationDuration: TimeInterval = 0.5  // 动画持续时间
+    private let springDamping: CGFloat = 0.5  // 弹簧阻尼（0.0-1.0，越小弹性越大）
+    private let springResponse: CGFloat = 0.8  // 弹簧响应速度
+    
+    @State private var showScaleIndicator = false
+    @State private var currentIndicatorScale: CGFloat = 1.0
+    
+    // 添加状态变量来跟踪当前缩放的屏幕
+    @State private var activeScalingScreen: ScreenID?
+    
+    // 添加状态变量跟踪是否是首次显示
+    @State private var isFirstAppear: Bool = true
+    @State private var isRestoringFromBackground: Bool = false  // 添加状态跟踪变量
     
     // 添加获取拖动方向的辅助函数
     private func getDragDirection(translation: CGSize) -> String {
@@ -335,9 +365,6 @@ struct TwoOfMeScreens: View {
             return translation
         }
     }
-    
-    // 添加拖动阻尼系数
-    private let dragDampingFactor: CGFloat = 0.3  // 值越小，移动越不灵敏（0.0-1.0）
     
     // 添加记录初始触摸位置和初始偏移的状态
     @State private var initialTouchLocation: CGPoint = .zero
@@ -777,15 +804,10 @@ struct TwoOfMeScreens: View {
         }
     }
     
-    @State private var showScaleIndicator = false
-    @State private var currentIndicatorScale: CGFloat = 1.0
-    
-    // 添加状态变量来跟踪当前缩放的屏幕
-    @State private var activeScalingScreen: ScreenID?
-    
-    // 添加状态变量跟踪是否是首次显示
-    @State private var isFirstAppear: Bool = true
-    @State private var isRestoringFromBackground: Bool = false  // 添加状态跟踪变量
+    // 添加触控区位置状态
+    @State private var touchZonePosition: TouchZonePosition = .center
+    @State private var dragOffset: CGFloat = 0
+    @State private var isDraggingTouchZone: Bool = false
     
     // 添加计算可见区域的方法
     private func calculateVisibleArea(
@@ -1579,7 +1601,60 @@ struct TwoOfMeScreens: View {
                                 .animation(.linear(duration: 0.5), value: containerWidth)
                             }
                         }
-                        .position(x: screenWidth/2, y: screenHeight/2)
+                        .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
+                        .gesture(
+                            DragGesture(minimumDistance: 5.0)  // 添加最小拖动距离阈值
+                                .onChanged { value in
+                                    if isZone1Enabled {
+                                        isDraggingTouchZone = true
+                                        
+                                        // 应用阻尼效果
+                                        let rawOffset = value.translation.width
+                                        dragOffset = rawOffset
+                                        
+                                        // 每隔100ms打印一次状态，减少日志输出频率
+                                        let now = Date()
+                                        if now.timeIntervalSince(lastOutputTime) >= 0.1 {
+                                            print("------------------------")
+                                            print("触控区1正在拖动")
+                                            print("原始偏移：\(Int(rawOffset))pt")
+                                            print("阻尼后偏移：\(Int(rawOffset * dragDampingFactor))pt")
+                                            print("------------------------")
+                                            lastOutputTime = now
+                                        }
+                                    }
+                                }
+                                .onEnded { value in
+                                    if isZone1Enabled {
+                                        isDraggingTouchZone = false
+                                        let totalOffset = touchZonePosition.xOffset + (value.translation.width * dragDampingFactor)
+                                        
+                                        // 根据最终位置决定停靠位置
+                                        withAnimation(
+                                            .interpolatingSpring(
+                                                duration: animationDuration,
+                                                bounce: 0.2,
+                                                initialVelocity: 0.5
+                                            )
+                                        ) {
+                                            if totalOffset < -50 {
+                                                touchZonePosition = .left
+                                            } else if totalOffset > 50 {
+                                                touchZonePosition = .right
+                                            } else {
+                                                touchZonePosition = .center
+                                            }
+                                            dragOffset = 0
+                                        }
+                                        
+                                        // 打印最终位置
+                                        print("------------------------")
+                                        print("触控区1拖动结束")
+                                        print("最终位置：\(touchZonePosition)")
+                                        print("------------------------")
+                                    }
+                                }
+                        )
                         .onTapGesture {
                             if isZone1Enabled {
                                 let now = Date()
@@ -1641,7 +1716,10 @@ struct TwoOfMeScreens: View {
                 }
                 
                 // 添加截图动画
-                ScreenshotAnimationView(isVisible: $screenshotManager.isFlashing)
+                ScreenshotAnimationView(
+                    isVisible: $screenshotManager.isFlashing,
+                    touchZonePosition: touchZonePosition
+                )
             }
             .onAppear {
                 // 确保开启设备方向监听
