@@ -384,7 +384,7 @@ class ImageUploader: ObservableObject {
     }
     
     // 添加图片裁剪方法
-    private func cropImageToScreenSize(_ image: UIImage, for screenID: ScreenID) -> UIImage {
+    func cropImageToScreenSize(_ image: UIImage, for screenID: ScreenID) -> UIImage {
         let screenBounds = UIScreen.main.bounds
         let screenWidth = screenBounds.width
         let screenHeight = screenBounds.height
@@ -394,28 +394,32 @@ class ImageUploader: ObservableObject {
         let viewportHeight = screenHeight / 2
         
         // 计算图片缩放后的实际尺寸
-        let scale = image.size.width / screenWidth  // 图片相对于屏幕的缩放比例
-        let scaledImageWidth = image.size.width
-        let scaledImageHeight = image.size.height
+        let scale = max(viewportWidth / image.size.width, viewportHeight / image.size.height)  // 修改缩放比例计算
+        let scaledImageWidth = image.size.width * scale
+        let scaledImageHeight = image.size.height * scale
         
         // 计算基础偏移（图片中心到显示区域中心的距离）
-        let baseOffsetY = (scaledImageHeight - viewportHeight * scale) / 2
+        let baseOffsetX = (scaledImageWidth - viewportWidth) / 2  // 添加水平方向的基础偏移
+        let baseOffsetY = (scaledImageHeight - viewportHeight) / 2
         
         // 计算可见区域在原始图片中的位置
-        let visibleX = (scaledImageWidth - viewportWidth) / 2 - currentOffset.width * scale
+        let visibleX = baseOffsetX - currentOffset.width * scale
         let visibleY = baseOffsetY - currentOffset.height * scale
         
-        let visibleWidth = viewportWidth * scale
-        let visibleHeight = viewportHeight * scale
+        let visibleWidth = viewportWidth
+        let visibleHeight = viewportHeight
         
         // 确保裁剪区域不超出图片范围
-        let safeCropX = max(0, min(visibleX, image.size.width - visibleWidth))
-        let safeCropY = max(0, min(visibleY, image.size.height - visibleHeight))
-        let safeCropWidth = min(visibleWidth, image.size.width - safeCropX)
-        let safeCropHeight = min(visibleHeight, image.size.height - safeCropY)
+        let safeCropX = max(0, min(visibleX, scaledImageWidth - visibleWidth))
+        let safeCropY = max(0, min(visibleY, scaledImageHeight - visibleHeight))
+        let safeCropWidth = min(visibleWidth, scaledImageWidth - safeCropX)
+        let safeCropHeight = min(visibleHeight, scaledImageHeight - safeCropY)
         
         // 创建裁剪区域
-        let cropRect = CGRect(x: safeCropX, y: safeCropY, width: safeCropWidth, height: safeCropHeight)
+        let cropRect = CGRect(x: safeCropX / scale, 
+                            y: safeCropY / scale, 
+                            width: safeCropWidth / scale, 
+                            height: safeCropHeight / scale)
         
         // 从原图中裁剪指定区域
         if let cgImage = image.cgImage?.cropping(to: cropRect) {
@@ -700,16 +704,19 @@ struct ImagePicker: UIViewControllerRepresentable {
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
-                self.parent.selectedImage = image
+                // 裁剪图片
+                let croppedImage = self.parent.imageUploader?.cropImageToScreenSize(image, for: self.parent.screenID) ?? image
+                self.parent.selectedImage = croppedImage
                 
                 print("------------------------")
                 print("[图片选择器] 已选择图片")
-                print("图片尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
+                print("原始尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
+                print("裁剪后尺寸：\(Int(croppedImage.size.width))x\(Int(croppedImage.size.height))")
                 print("目标区域：\(self.parent.screenID == .original ? "Original" : "Mirrored")屏幕")
                 print("------------------------")
                 
-                // 保存上传的图片
-                self.parent.imageUploader?.setPausedImage(image, for: self.parent.screenID)
+                // 保存裁剪后的图片
+                self.parent.imageUploader?.setPausedImage(croppedImage, for: self.parent.screenID)
                 
                 // 关闭图片选择器
                 self.parent.presentationMode.wrappedValue.dismiss()
