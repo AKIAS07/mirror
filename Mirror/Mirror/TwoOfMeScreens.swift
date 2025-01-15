@@ -1163,7 +1163,11 @@ struct TwoOfMeScreens: View {
                                                     print("区域：Original屏幕")
                                                     print("位置：\(isScreensSwapped ? "下部" : "上部")")
                                                     print("------------------------")
-                                                    imageUploader.showRectangle(for: .original)
+                                                    if isOriginalPaused {
+                                                        imageUploader.showDownloadOverlay(for: .original)
+                                                    } else {
+                                                        imageUploader.showRectangle(for: .original)
+                                                    }
                                                 }
                                             }
                                     )
@@ -1261,7 +1265,11 @@ struct TwoOfMeScreens: View {
                                                     print("区域：Original屏幕（定格状态）")
                                                     print("位置：\(isScreensSwapped ? "下部" : "上部")")
                                                     print("------------------------")
-                                                    imageUploader.showRectangle(for: .original)
+                                                    if isOriginalPaused {
+                                                        imageUploader.showDownloadOverlay(for: .original)
+                                                    } else {
+                                                        imageUploader.showRectangle(for: .original)
+                                                    }
                                                 }
                                             }
                                     )
@@ -1334,7 +1342,11 @@ struct TwoOfMeScreens: View {
                                                     print("区域：Mirrored屏幕")
                                                     print("位置：\(isScreensSwapped ? "上部" : "下部")")
                                                     print("------------------------")
-                                                    imageUploader.showRectangle(for: .mirrored)
+                                                    if isMirroredPaused {
+                                                        imageUploader.showDownloadOverlay(for: .mirrored)
+                                                    } else {
+                                                        imageUploader.showRectangle(for: .mirrored)
+                                                    }
                                                 }
                                             }
                                     )
@@ -1432,7 +1444,11 @@ struct TwoOfMeScreens: View {
                                                     print("区域：Mirrored屏幕（定格状态）")
                                                     print("位置：\(isScreensSwapped ? "上部" : "下部")")
                                                     print("------------------------")
-                                                    imageUploader.showRectangle(for: .mirrored)
+                                                    if isMirroredPaused {
+                                                        imageUploader.showDownloadOverlay(for: .mirrored)
+                                                    } else {
+                                                        imageUploader.showRectangle(for: .mirrored)
+                                                    }
                                                 }
                                             }
                                     )
@@ -1596,6 +1612,8 @@ struct TwoOfMeScreens: View {
                 pausedOriginalImage = nil
                 originalOffset = .zero
                 originalEdgeDetector.resetBorders()
+                // 清除ImageUploader中的定格图片
+                imageUploader.setPausedImage(nil, for: .original)
                 print("Original画面已恢复")
             } else {
                 // 进入定格状态
@@ -1616,6 +1634,8 @@ struct TwoOfMeScreens: View {
                     default:
                         pausedOriginalImage = image
                     }
+                    // 更新ImageUploader中的定格图片
+                    imageUploader.setPausedImage(pausedOriginalImage, for: .original)
                 }
                 
                 // 保持当前缩放比例
@@ -1631,6 +1651,8 @@ struct TwoOfMeScreens: View {
                 pausedMirroredImage = nil
                 mirroredOffset = .zero
                 mirroredEdgeDetector.resetBorders()
+                // 清除ImageUploader中的定格图片
+                imageUploader.setPausedImage(nil, for: .mirrored)
                 print("Mirrored画面已恢复")
             } else {
                 // 进入定格状态
@@ -1651,6 +1673,8 @@ struct TwoOfMeScreens: View {
                     default:
                         pausedMirroredImage = image
                     }
+                    // 更新ImageUploader中的定格图片
+                    imageUploader.setPausedImage(pausedMirroredImage, for: .mirrored)
                 }
                 
                 // 保持当前缩放比例

@@ -7,6 +7,8 @@ class ImageUploader: ObservableObject {
     @Published var showOriginalOverlay = false
     @Published var showMirroredOverlay = false
     @Published var isOverlayVisible: Bool = false
+    @Published var showDownloadOverlay = false  // 添加下载遮罩状态
+    @Published var isDownloadMode = false  // 添加下载模式状态
     @Published var showImagePicker = false {
         didSet {
             if showImagePicker {
@@ -25,6 +27,8 @@ class ImageUploader: ObservableObject {
     @Published var selectedScreenID: ScreenID?
     @Published var showPermissionAlert = false  // 添加权限提示弹窗状态
     @Published var permissionAlertType: PermissionAlertType = .initial  // 添加弹窗类型状态
+    @Published var showToast = false  // 添加提示状态
+    @Published var toastMessage = ""  // 添加提示文本
     
     private var hideTimer: Timer?
     
@@ -100,6 +104,8 @@ class ImageUploader: ObservableObject {
             showMirroredOverlay = false
             isOverlayVisible = false
             showImagePicker = false
+            showDownloadOverlay = false  // 重置下载遮罩状态
+            isDownloadMode = false  // 重置下载模式状态
         }
         
         // 确保在隐藏控件时恢复相机状态
@@ -110,7 +116,7 @@ class ImageUploader: ObservableObject {
         onUploadStateChanged?(false)
         
         print("------------------------")
-        print("[上传控件] 隐藏")
+        print("[上传/下载控件] 隐藏")
         print("状态：其他触控区已恢复")
         print("------------------------")
     }
@@ -284,6 +290,111 @@ class ImageUploader: ObservableObject {
         }
         hideRectangle()
     }
+    
+    // 添加下载图片方法
+    func downloadImage(for screenID: ScreenID) {
+        print("------------------------")
+        print("[下载功能] 开始")
+        print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+        print("------------------------")
+        
+        // 获取要保存的图片
+        guard let imageToSave = screenID == .original ? pausedOriginalImage : pausedMirroredImage else {
+            print("------------------------")
+            print("[下载功能] 错误：没有可保存的图片")
+            print("------------------------")
+            hideRectangle()
+            return
+        }
+        
+        // 检查相册权限并保存图片
+        PHPhotoLibrary.requestAuthorization { [weak self] status in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                if status == .authorized || status == .limited {
+                    print("------------------------")
+                    print("[下载功能] 已获得权限")
+                    print("------------------------")
+                    
+                    // 保存图片到相册
+                    PHPhotoLibrary.shared().performChanges({
+                        let request = PHAssetChangeRequest.creationRequestForAsset(from: imageToSave)
+                        request.creationDate = Date()
+                    }) { success, error in
+                        DispatchQueue.main.async {
+                            if success {
+                                print("------------------------")
+                                print("[下载功能] 图片保存成功")
+                                print("------------------------")
+                                // 显示保存成功提示
+                                self.toastMessage = "保存成功"
+                                self.showToast = true
+                                // 2秒后自动隐藏提示
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                    self.showToast = false
+                                    self.hideRectangle()  // 在提示消失后再隐藏下载页面
+                                }
+                            } else {
+                                print("------------------------")
+                                print("[下载功能] 图片保存失败")
+                                if let error = error {
+                                    print("错误信息：\(error.localizedDescription)")
+                                }
+                                print("------------------------")
+                                self.hideRectangle()
+                            }
+                        }
+                    }
+                } else {
+                    print("------------------------")
+                    print("[下载功能] 权限被拒绝")
+                    print("------------------------")
+                    // 显示权限提示弹窗
+                    self.permissionAlertType = .settings
+                    self.showPermissionAlert = true
+                }
+            }
+        }
+    }
+    
+    // 添加定格图片引用
+    private var pausedOriginalImage: UIImage?
+    private var pausedMirroredImage: UIImage?
+    
+    // 添加设置定格图片的方法
+    func setPausedImage(_ image: UIImage?, for screenID: ScreenID) {
+        switch screenID {
+        case .original:
+            pausedOriginalImage = image
+        case .mirrored:
+            pausedMirroredImage = image
+        }
+    }
+    
+    // 显示下载控件
+    func showDownloadOverlay(for screenID: ScreenID) {
+        // 如果已有计时器，先取消
+        hideTimer?.invalidate()
+        
+        withAnimation {
+            showOriginalOverlay = screenID == .original
+            showMirroredOverlay = screenID == .mirrored
+            isOverlayVisible = true
+            showDownloadOverlay = true
+            isDownloadMode = true
+        }
+        
+        // 设置自动隐藏计时器
+        hideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.hideRectangle()
+        }
+        
+        print("------------------------")
+        print("[下载控件] 显示")
+        print("位置：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+        print("------------------------")
+    }
 }
 
 // 遮罩视图组件
@@ -303,55 +414,49 @@ struct OverlayView: View {
                         // 全屏遮罩
                         Color.black.opacity(0.01)
                             .edgesIgnoringSafeArea(.all)
+                            .onLongPressGesture(minimumDuration: 0.5) {
+                                // 长按显示下载控件
+                                imageUploader.showDownloadOverlay(for: screenID)
+                            }
                         
-                        // 上传区域
+                        // 上传/下载区域
                         VStack(spacing: 0) {
                             if screenID == .original {
                                 // Original屏幕（上半部分）
                                 ZStack {
-                                    uploadArea
-                                        .frame(height: geometry.size.height / 2)
-                                        .background(
-                                            GeometryReader { rectGeo in
-                                                Color.clear
-                                                    .onAppear {
-                                                        let screenCenter = CGPoint(x: geometry.size.width/2, y: geometry.size.height/4)
-                                                        let rectCenter = CGPoint(
-                                                            x: rectGeo.frame(in: .global).midX,
-                                                            y: rectGeo.frame(in: .global).midY
-                                                        )
-                                                        print("------------------------")
-                                                        print("[Original屏幕坐标]")
-                                                        print("分屏中心: x=\(screenCenter.x), y=\(screenCenter.y)")
-                                                        print("矩形中心: x=\(rectCenter.x), y=\(rectCenter.y)")
-                                                        print("------------------------")
-                                                    }
-                                            }
-                                        )
+                                    if imageUploader.showDownloadOverlay {
+                                        downloadArea
+                                            .frame(height: geometry.size.height / 2)
+                                    } else {
+                                        uploadArea
+                                            .frame(height: geometry.size.height / 2)
+                                    }
                                 }
                             } else {
                                 // Mirrored屏幕（下半部分）
                                 ZStack {
-                                    uploadArea
-                                        .frame(height: geometry.size.height / 2)
-                                        .background(
-                                            GeometryReader { rectGeo in
-                                                Color.clear
-                                                    .onAppear {
-                                                        let screenCenter = CGPoint(x: geometry.size.width/2, y: geometry.size.height * 3/4)
-                                                        let rectCenter = CGPoint(
-                                                            x: rectGeo.frame(in: .global).midX,
-                                                            y: rectGeo.frame(in: .global).midY
-                                                        )
-                                                        print("------------------------")
-                                                        print("[Mirrored屏幕坐标]")
-                                                        print("分屏中心: x=\(screenCenter.x), y=\(screenCenter.y)")
-                                                        print("矩形中心: x=\(rectCenter.x), y=\(rectCenter.y)")
-                                                        print("------------------------")
-                                                    }
-                                            }
-                                        )
+                                    if imageUploader.showDownloadOverlay {
+                                        downloadArea
+                                            .frame(height: geometry.size.height / 2)
+                                    } else {
+                                        uploadArea
+                                            .frame(height: geometry.size.height / 2)
+                                    }
                                 }
+                            }
+                        }
+                        
+                        // 提示视图
+                        if imageUploader.showToast {
+                            VStack {
+                                Spacer()
+                                Text(imageUploader.toastMessage)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.black.opacity(0.7))
+                                    .cornerRadius(10)
+                                    .padding(.bottom, 50)
                             }
                         }
                     }
@@ -425,6 +530,41 @@ struct OverlayView: View {
                 imageUploader.uploadImage(for: screenID)
             }) {
                 Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 80))
+                    .rotationEffect(getRotationAngle(deviceOrientation))
+                    .frame(width: 80, height: 80)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
+        }
+    }
+    
+    // 添加下载区域视图
+    private var downloadArea: some View {
+        ZStack {
+            // 背景
+            if screenID == .original {
+                Rectangle()
+                    .fill(Color.black)
+                    .frame(height: centerY)
+                    .allowsHitTesting(false)
+            } else {
+                Rectangle()
+                    .fill(Color.white)
+                    .frame(height: centerY)
+                    .allowsHitTesting(false)
+            }
+            
+            // 下载按钮
+            Button(action: {
+                print("------------------------")
+                print("[下载按钮] 点击")
+                print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                print("当前设备方向：\(getOrientationDescription(deviceOrientation))")
+                print("------------------------")   
+                imageUploader.downloadImage(for: screenID)
+            }) {
+                Image(systemName: "arrow.down.to.line.circle.fill")
                     .font(.system(size: 80))
                     .rotationEffect(getRotationAngle(deviceOrientation))
                     .frame(width: 80, height: 80)
@@ -513,6 +653,9 @@ struct ImagePicker: UIViewControllerRepresentable {
                 print("图片尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
                 print("目标区域：\(self.parent.screenID == .original ? "Original" : "Mirrored")屏幕")
                 print("------------------------")
+                
+                // 保存上传的图片
+                self.parent.imageUploader?.setPausedImage(image, for: self.parent.screenID)
                 
                 // 关闭图片选择器
                 self.parent.presentationMode.wrappedValue.dismiss()
