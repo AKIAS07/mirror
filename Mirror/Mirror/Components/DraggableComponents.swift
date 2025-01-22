@@ -213,8 +213,10 @@ struct DraggableArrow: View {
                 // 箭头图标容器
                 HStack {
                     // 箭头图标
-                    Image(systemName: isExpanded ? "suit.diamond" : "suit.diamond.fill")
-                        .font(.system(size: 30, weight: .bold))
+                    Image(isExpanded ? "icon-bf-white" : "icon-star")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: isExpanded ? 40 : 30)  // icon-star 保持30，icon-bf-white 放大到45
                         .foregroundColor(.white.opacity(0.7))
                         .frame(width: ArrowLayoutConfig.arrowWidth, height: ArrowLayoutConfig.arrowHeight)
                         .contentShape(Rectangle())
@@ -326,6 +328,7 @@ struct DraggableArrow: View {
                     Spacer()
                         .allowsHitTesting(false)
                 }
+                .offset(y: 25)  // 将整个 HStack 向下移动
             }
             .onChange(of: isControlPanelVisible) { _ in
                 showDragHint = false

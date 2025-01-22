@@ -1589,9 +1589,10 @@ struct TwoOfMeScreens: View {
                         
                         // 触控1
                         ZStack {
-                            Color.yellow
+                            Image("icon-bf-color-1")
+                                .resizable()
+                                .frame(width: 40, height: 40)
                                 .contentShape(Rectangle())
-                                .frame(width: 50, height: 20)
                             
                             // 按钮容器
                             if showContainer {

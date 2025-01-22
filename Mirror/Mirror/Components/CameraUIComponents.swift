@@ -3,17 +3,20 @@ import AVFoundation
 
 struct CircleButton: View {
     let systemName: String
+    let imageName: String
     let title: String
     let action: () -> Void
     let deviceOrientation: UIDeviceOrientation
     let isDisabled: Bool
     
-    init(systemName: String, 
+    init(systemName: String = "", 
+         imageName: String = "",
          title: String, 
          action: @escaping () -> Void, 
          deviceOrientation: UIDeviceOrientation,
          isDisabled: Bool = false) {
         self.systemName = systemName
+        self.imageName = imageName
         self.title = title
         self.action = action
         self.deviceOrientation = deviceOrientation
@@ -22,23 +25,29 @@ struct CircleButton: View {
     
     var body: some View {
         Button(action: action) {
-            if systemName.isEmpty {
+            if !title.isEmpty {
                 // 只显示文字，用于焦距按钮
                 Text(title)
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 60, height: 60)
-                    .background(Color.black.opacity(0.5))
-                    .clipShape(Circle())
+            } else if !imageName.isEmpty {
+                // 显示自定义图片
+                Image(imageName)
+                    .resizable()
+                    .renderingMode(.original)  // 使用原始渲染模式
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 40, height: 40)  // 增加图标尺寸
+                    .opacity(isDisabled ? 0.3 : 1.0)
+                    .rotationEffect(getIconRotationAngle(deviceOrientation))
+                    .frame(width: 60, height: 60)
             } else {
-                // 显示图标，用于其他按钮
+                // 显示系统图标
                 Image(systemName: systemName)
-                    .font(.system(size: 24))
+                    .font(.system(size: 30))  // 增加系统图标尺寸
                     .foregroundColor(isDisabled ? .gray : .white)
                     .rotationEffect(getIconRotationAngle(deviceOrientation))
                     .frame(width: 60, height: 60)
-                    .background(Color.black.opacity(isDisabled ? 0.3 : 0.5))
-                    .clipShape(Circle())
             }
         }
         .disabled(isDisabled)

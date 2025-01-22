@@ -185,15 +185,57 @@ class ScreenshotManager: ObservableObject {
     // 合并两个图片
     private func combineImages(top: UIImage, bottom: UIImage) -> UIImage {
         let screenBounds = UIScreen.main.bounds
-        let finalSize = CGSize(width: screenBounds.width, height: screenBounds.height)
+        let orientation = UIDevice.current.orientation
+        
+        // 根据设备方向决定最终图片的尺寸和拼接方式
+        let finalSize: CGSize
+        let isLandscape = orientation.isLandscape
+        
+        if isLandscape {
+            // 横屏时，最终图片的宽度是屏幕高度，高度是屏幕宽度
+            finalSize = CGSize(width: screenBounds.height, height: screenBounds.width)
+        } else {
+            // 竖屏时，最终图片的宽度是屏幕宽度，高度是屏幕高度
+            finalSize = CGSize(width: screenBounds.width, height: screenBounds.height)
+        }
         
         UIGraphicsBeginImageContextWithOptions(finalSize, false, 0.0)
+        let context = UIGraphicsGetCurrentContext()!
         
-        // 绘制上半部分
-        top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
-        
-        // 绘制下半部分
-        bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
+        // 根据设备方向进行不同的处理
+        switch orientation {
+        case .landscapeLeft:
+            // 向左横屏：垂直拼接后逆时针旋转90度
+            context.translateBy(x: 0, y: finalSize.height)
+            context.rotate(by: -CGFloat.pi / 2)
+            // 在旋转后的坐标系中绘制
+            let drawHeight = finalSize.height
+            let drawWidth = finalSize.width
+            top.draw(in: CGRect(x: 0, y: 0, width: drawHeight, height: drawWidth/2))
+            bottom.draw(in: CGRect(x: 0, y: drawWidth/2, width: drawHeight, height: drawWidth/2))
+            
+        case .landscapeRight:
+            // 向右横屏：垂直拼接后顺时针旋转90度
+            context.translateBy(x: finalSize.width, y: 0)
+            context.rotate(by: CGFloat.pi / 2)
+            // 在旋转后的坐标系中绘制
+            let drawHeight = finalSize.height
+            let drawWidth = finalSize.width
+            top.draw(in: CGRect(x: 0, y: 0, width: drawHeight, height: drawWidth/2))
+            bottom.draw(in: CGRect(x: 0, y: drawWidth/2, width: drawHeight, height: drawWidth/2))
+            
+        case .portraitUpsideDown:
+            // 倒置竖屏：垂直拼接后旋转180度
+            context.translateBy(x: finalSize.width, y: finalSize.height)
+            context.rotate(by: CGFloat.pi)
+            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
+            bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
+            
+        default:
+            // 正常竖屏：直接垂直拼接
+            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
+            bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
+        }
         
         let combinedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
