@@ -146,7 +146,7 @@ struct DragHintView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .bold))
@@ -156,26 +156,26 @@ struct DragHintView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             case .rightOnly:
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             case .leftOnly:
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             case .upOnly:
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             case .downOnly:
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             }
         }

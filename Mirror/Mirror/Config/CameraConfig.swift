@@ -45,7 +45,7 @@ struct ArrowLayoutConfig {
     static let arrowWidth: CGFloat = 50
     static let arrowHeight: CGFloat = 50
     static let arrowHalfWidth: CGFloat = arrowWidth / 2
-    static let arrowPadding: CGFloat = 5  // 箭头到边缘的距离
+    static let arrowPadding: CGFloat = -10  // 箭头到边缘的距离
 }
 
 struct CameraLayoutConfig {

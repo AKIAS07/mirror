@@ -75,6 +75,7 @@ struct ContentView: View {
     // 添加动画相关的状态
     @State private var showIconAnimation = false
     @State private var animatingIcon = ""
+    @State private var animationPosition: CGPoint = .zero  // 添加动画位置状态
     
     var body: some View {
         GeometryReader { geometry in
@@ -142,7 +143,7 @@ struct ContentView: View {
                                 VStack(spacing: 0) {
                                     Rectangle()
                                         .fill(Color.black.opacity(0.5))
-                                        .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
+                                        .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .animation(.easeInOut(duration: 0.3), value: isLighted)
                                         .overlay(
                                             HStack(spacing: 40) {
@@ -153,6 +154,7 @@ struct ContentView: View {
                                                     action: {
                                                         // 显示动画
                                                         animatingIcon = "icon-bf-white-left"
+                                                        animationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)  // 左按钮位置
                                                         withAnimation {
                                                             showIconAnimation = true
                                                         }
@@ -197,6 +199,7 @@ struct ContentView: View {
                                                     action: {
                                                         // 显示动画
                                                         animatingIcon = "icon-bf-color-1"
+                                                        animationPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height - 25 + dragVerticalOffset)  // 中间按钮位置
                                                         withAnimation {
                                                             showIconAnimation = true
                                                         }
@@ -239,6 +242,7 @@ struct ContentView: View {
                                                     action: {
                                                         // 显示动画
                                                         animatingIcon = "icon-bf-white-right"
+                                                        animationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)  // 右按钮位置
                                                         withAnimation {
                                                             showIconAnimation = true
                                                         }
@@ -287,7 +291,7 @@ struct ContentView: View {
                                 VStack(spacing: 0) {
                                     Rectangle()
                                         .fill(Color.gray.opacity(0.5))
-                                        .frame(width: isLighted ? geometry.size.width - 20 : geometry.size.width, height: 120)
+                                        .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .overlay(
                                             HStack(spacing: 40) {
                                                 Spacer()
@@ -334,6 +338,7 @@ struct ContentView: View {
                                 DraggableArrow(isExpanded: !isControlPanelVisible, 
                                              isLighted: isLighted,
                                              screenWidth: geometry.size.width,
+                                             deviceOrientation: deviceOrientation,
                                              isControlPanelVisible: $isControlPanelVisible,
                                              showDragHint: $showArrowHint,
                                              dragHintState: $dragHintState,
@@ -419,10 +424,11 @@ struct ContentView: View {
                     Image(animatingIcon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 150, height: 150)  // 放大10倍
-                        .opacity(0.25)  // 设置透明度为0.5
+                        .frame(width: 100, height: 100)
+                        .opacity(0.25)
                         .transition(.opacity)
-                        .position(x: geometry.size.width/2, y: geometry.size.height/2 - 300)
+                        .rotationEffect(getIconRotationAngle(deviceOrientation))  // 添加旋转效果
+                        .position(animationPosition)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -623,7 +629,17 @@ struct ContentView: View {
         print("------------------------")
     }
     
-    
+    // 添加获取图标旋转角度的函数
+    private func getIconRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        default:
+            return .degrees(0)
+        }
+    }
 }
 
 #Preview {

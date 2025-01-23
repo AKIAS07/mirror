@@ -4,8 +4,8 @@ public struct HelpPanel: View {
     @Binding var isPresented: Bool
     
     // 使用与设置面板相同的尺寸
-    private let panelWidth: CGFloat = SettingsLayoutConfig.panelWidth + 50 // 帮助面板稍微宽一点，方便显示内容
-    private let panelHeight: CGFloat = SettingsLayoutConfig.panelHeight + 100 // 帮助面板稍微高一点，方便滚动内容
+    private let panelWidth: CGFloat = SettingsLayoutConfig.panelWidth  // 帮助面板稍微宽一点，方便显示内容
+    private let panelHeight: CGFloat = SettingsLayoutConfig.panelHeight  // 帮助面板稍微高一点，方便滚动内容
     
     public init(isPresented: Binding<Bool>) {
         self._isPresented = isPresented
@@ -14,7 +14,7 @@ public struct HelpPanel: View {
     public var body: some View {
         ZStack {
             // 半透明背景
-            Color.black.opacity(0.5)
+            Color.black.opacity(0.3)
                 .edgesIgnoringSafeArea(.all)
                 .onTapGesture {
                     withAnimation {

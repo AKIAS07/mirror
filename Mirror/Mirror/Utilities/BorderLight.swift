@@ -1,6 +1,46 @@
 import SwiftUI
 import UIKit
 
+// 边框灯样式管理器
+class BorderLightStyleManager: ObservableObject {
+    @Published var selectedColor: Color = BorderStyle.selectedColor {
+        didSet {
+            BorderStyle.selectedColor = selectedColor
+        }
+    }
+    @Published var selectedWidth: CGFloat = BorderStyle.selectedWidth {
+        didSet {
+            BorderStyle.selectedWidth = selectedWidth
+        }
+    }
+    
+    // 添加手势设置，true 表示默认设置（单击边框灯，双击拍照），false 表示交换设置
+    @Published var isDefaultGesture: Bool = true
+    
+    static let shared = BorderLightStyleManager()
+    
+    private init() {
+        // 设置默认值
+        selectedColor = BorderStyle.selectedColor
+        selectedWidth = BorderStyle.selectedWidth
+        isDefaultGesture = true
+        
+        // 延迟加载保存的设置
+        DispatchQueue.main.async {
+            UserSettingsManager.shared.applySettings()
+        }
+    }
+    
+    func updateStyle(color: Color? = nil, width: CGFloat? = nil) {
+        if let color = color {
+            selectedColor = color
+        }
+        if let width = width {
+            selectedWidth = width
+        }
+    }
+}
+
 // 边框灯管理器
 class BorderLightManager: ObservableObject {
     @Published var showOriginalHighlight = false
@@ -87,6 +127,7 @@ struct BorderLightView: View {
     let centerY: CGFloat
     let showOriginalHighlight: Bool
     let showMirroredHighlight: Bool
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
     var body: some View {
         let isHighlighted = showOriginalHighlight || showMirroredHighlight
@@ -100,8 +141,8 @@ struct BorderLightView: View {
                 // 发光边框
                 RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
                     .stroke(
-                        isHighlighted ? BorderStyle.splitScreenSelectedColor : BorderStyle.splitScreenNormalColor,
-                        lineWidth: isHighlighted ? BorderStyle.splitScreenSelectedWidth : BorderStyle.splitScreenNormalWidth
+                        isHighlighted ? styleManager.selectedColor : BorderStyle.splitScreenNormalColor,
+                        lineWidth: isHighlighted ? styleManager.selectedWidth : BorderStyle.splitScreenNormalWidth
                     )
                     .frame(width: frameWidth, height: frameHeight)
                     .position(
@@ -118,6 +159,8 @@ struct BorderLightView: View {
                             )
                     )
                     .animation(.easeInOut(duration: 0.2), value: isHighlighted)
+                    .animation(.easeInOut(duration: 0.2), value: styleManager.selectedColor)
+                    .animation(.easeInOut(duration: 0.2), value: styleManager.selectedWidth)
             }
             .mask(
                 // 遮罩，只显示绿色框线内的部分

@@ -13,6 +13,7 @@ struct DraggableArrow: View {
     let isExpanded: Bool
     let isLighted: Bool
     let screenWidth: CGFloat
+    let deviceOrientation: UIDeviceOrientation
     @Binding var isControlPanelVisible: Bool
     @Binding var showDragHint: Bool
     @Binding var dragHintState: DragHintState
@@ -25,6 +26,7 @@ struct DraggableArrow: View {
     // 添加状态变量来锁定方向判定
     @State private var isDirectionLocked = false
     @State private var lastDragTranslation: CGFloat = 0
+    @State private var dragRotation: Double = 0  // 添加旋转角度状态
     
     // 添加拖拽方向枚举
     private enum DragDirection {
@@ -51,24 +53,14 @@ struct DraggableArrow: View {
                 // 更新位置 = 当前位置 + 增量
                 dragVerticalOffset = min(0, max(-verticalDestination, dragVerticalOffset + translationDelta))
                 
-                // 根据拖拽方向来决定箭头方向，而不是根据位置
-                if translationDelta < 0 {
-                    // 向上拖动
-                    dragHintState = .upOnly
-                } else {
-                    // 向下拖动
-                    dragHintState = .downOnly
+                // 计算旋转角度（如果是 icon-star）
+                if !isExpanded {
+                    let progress = abs(dragVerticalOffset) / verticalDestination
+                    dragRotation = progress * 360
                 }
                 
                 // 更新上一次的translation
                 lastDragTranslation = value.translation.height
-            }
-            
-            // 显示拖动提示（避免重复触发动画）
-            if !showDragHint {
-                withAnimation(.easeInOut(duration: DragAnimationConfig.hintFadeDuration)) {
-                    showDragHint = true
-                }
             }
         }
     }
@@ -87,10 +79,20 @@ struct DraggableArrow: View {
                 if moveDistance > DragAnimationConfig.dragThreshold {
                     // 移动距离超过阈值，根据移动方向决定最终位置
                     dragVerticalOffset = translation < 0 ? -verticalDestination : 0
+                    // 如果是向上拖动且是 icon-star，设置完整的360度旋转
+                    if !isExpanded && translation < 0 {
+                        dragRotation = 360
+                    } else if !isExpanded {
+                        dragRotation = 0
+                    }
                 } else {
                     // 移动距离不足，回到最近的位置
                     dragVerticalOffset = currentPosition < -verticalDestination / 2 ? 
                         -verticalDestination : 0
+                    // 根据最终位置设置旋转角度
+                    if !isExpanded {
+                        dragRotation = currentPosition < -verticalDestination / 2 ? 360 : 0
+                    }
                 }
             }
         }
@@ -105,19 +107,22 @@ struct DraggableArrow: View {
                 // 容器当前显示，允许自由拖动
                 dragOffset = translation
                 containerOffset = translation
-                dragHintState = translation > 0 ? .rightOnly : .leftOnly
+                
+                // 计算旋转角度（如果是 icon-star）
+                if !isExpanded {
+                    let progress = abs(translation) / (screenWidth * 0.2)  // 使用20%屏幕宽度作为基准
+                    dragRotation = min(360, progress * 360)
+                }
             } else {
                 // 容器当前隐藏，根据位置处理拖动
                 if containerOffset < 0 {
                     // 从左侧隐藏状态拖动，使用相对于当前位置的偏移
                     dragOffset = -screenWidth + 60 + translation
                     containerOffset = -screenWidth + translation
-                    dragHintState = .rightOnly
                 } else {
                     // 从右侧隐藏状态拖动
                     dragOffset = max(0, min(screenWidth - 60, translation + screenWidth - 60))
                     containerOffset = max(0, min(screenWidth, translation + screenWidth))
-                    dragHintState = .leftOnly
                 }
             }
         }
@@ -135,16 +140,19 @@ struct DraggableArrow: View {
                         dragOffset = -(screenWidth - 60)
                         containerOffset = -screenWidth
                         isControlPanelVisible = false
+                        if !isExpanded { dragRotation = 360 }  // 设置完整旋转
                         print("快速向左滑动 - 隐藏到左侧")
                     } else if velocity > 0 && translation > 0 {  // 向右滑动且位移为正
                         dragOffset = screenWidth - 60
                         containerOffset = screenWidth
                         isControlPanelVisible = false
+                        if !isExpanded { dragRotation = 360 }  // 设置完整旋转
                         print("快速向右滑动 - 隐藏到右侧")
                     } else {
                         // 如果方向不一致，回到原位
                         dragOffset = 0
                         containerOffset = 0
+                        if !isExpanded { dragRotation = 0 }  // 重置旋转
                         print("方向不一致 - 回到中间")
                     }
                 } else {  // 缓慢滑动
@@ -152,16 +160,19 @@ struct DraggableArrow: View {
                         if dragOffset < 0 {
                             dragOffset = -(screenWidth - 60)
                             containerOffset = -screenWidth
+                            if !isExpanded { dragRotation = 360 }  // 设置完整旋转
                             print("向左滑动足够 - 隐藏到左侧")
                         } else {
                             dragOffset = screenWidth - 60
                             containerOffset = screenWidth
+                            if !isExpanded { dragRotation = 360 }  // 设置完整旋转
                             print("向右滑动足够 - 隐藏到右侧")
                         }
                         isControlPanelVisible = false
                     } else {
                         dragOffset = 0
                         containerOffset = 0
+                        if !isExpanded { dragRotation = 0 }  // 重置旋转
                         print("滑动不足 - 回到中间")
                     }
                 }
@@ -181,10 +192,12 @@ struct DraggableArrow: View {
                 dragOffset = 0
                 containerOffset = 0
                 isControlPanelVisible = true
+                if !isExpanded { dragRotation = 360 }  // 设置完整旋转
                 print("从左侧显示到中间 - 速度:\(velocity), 距离:\(translation)")
             } else {
                 dragOffset = -(screenWidth - 60)
                 containerOffset = -screenWidth
+                if !isExpanded { dragRotation = 0 }  // 重置旋转
                 print("保持在左侧隐藏 - 速度:\(velocity), 距离:\(translation)")
             }
         } else {  // 当前在右侧
@@ -192,12 +205,33 @@ struct DraggableArrow: View {
                 dragOffset = 0
                 containerOffset = 0
                 isControlPanelVisible = true
+                if !isExpanded { dragRotation = 360 }  // 设置完整旋转
                 print("从右侧显示到中间 - 速度:\(velocity), 距离:\(translation)")
             } else {
                 dragOffset = screenWidth - 60
                 containerOffset = screenWidth
+                if !isExpanded { dragRotation = 0 }  // 重置旋转
                 print("保持在右侧隐藏 - 速度:\(velocity), 距离:\(translation)")
             }
+        }
+    }
+    
+    // 添加获取图标旋转角度的函数
+    private func getIconRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        default:
+            return .degrees(0)
+        }
+    }
+    
+    // 处理拖动结束
+    private func resetDragRotation() {
+        withAnimation(.easeOut(duration: 0.3)) {
+            dragRotation = 0
         }
     }
     
@@ -219,6 +253,8 @@ struct DraggableArrow: View {
                         .frame(width: isExpanded ? 40 : 30)  // icon-star 保持30，icon-bf-white 放大到45
                         .foregroundColor(.white.opacity(0.7))
                         .frame(width: ArrowLayoutConfig.arrowWidth, height: ArrowLayoutConfig.arrowHeight)
+                        .rotationEffect(getIconRotationAngle(deviceOrientation))  // 设备旋转
+                        .rotationEffect(.degrees(isExpanded ? 0 : dragRotation))  // 拖动旋转（仅适用于 icon-star）
                         .contentShape(Rectangle())
                         .padding(.leading, isControlPanelVisible ? 
                              geometry.size.width/2 - ArrowLayoutConfig.arrowHalfWidth : 
@@ -281,13 +317,6 @@ struct DraggableArrow: View {
                                         switch dragDirection {
                                         case .horizontal:
                                             handleHorizontalDrag(value: value, velocity: value.velocity.width)
-                                            
-                                            // 显示拖动提示
-                                            if !showDragHint {
-                                                withAnimation {
-                                                    showDragHint = true
-                                                }
-                                            }
                                             
                                         case .vertical:
                                             handleVerticalDrag(value: value)

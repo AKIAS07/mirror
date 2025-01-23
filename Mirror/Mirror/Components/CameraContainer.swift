@@ -20,6 +20,9 @@ struct CameraContainer: View {
     
     let cameraManager: CameraManager
     
+    // 添加手势设置管理器
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    
     // 添加截图状态
     @StateObject private var captureState = CaptureState()
     
@@ -111,9 +114,10 @@ struct CameraContainer: View {
                                         onPinchEnded(scale)
                                     }
                             )
-                            .onTapGesture(count: 2) {
+                            // 根据手势设置处理点击事件
+                            .onTapGesture(count: styleManager.isDefaultGesture ? 2 : 1) {
                                 print("------------------------")
-                                print("双击相机画面 - 捕捉截图")
+                                print("\(styleManager.isDefaultGesture ? "双击" : "单击")相机画面 - 捕捉截图")
                                 print("当前模式：\(isMirrored ? "镜像模式" : "正常模式")")
                                 print("当前缩放比例：\(currentScale)")
                                 
@@ -169,7 +173,8 @@ struct CameraContainer: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
-        .onTapGesture {
+        // 根据手势设置处理点击事件
+        .onTapGesture(count: styleManager.isDefaultGesture ? 1 : 2) {
             withAnimation(.easeInOut(duration: 0.2)) {
                 containerSelected.toggle()
                 

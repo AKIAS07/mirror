@@ -2,8 +2,8 @@ import SwiftUI
 
 // 设置面板布局常量
 public struct SettingsLayoutConfig {
-    public static let panelWidth: CGFloat = 250
-    public static let panelHeight: CGFloat = 300
+    public static let panelWidth: CGFloat = 300  // 250 + 50
+    public static let panelHeight: CGFloat = 400 // 300 + 100
     public static let cornerRadius: CGFloat = 16
     public static let closeButtonSize: CGFloat = 24
     public static let closeButtonPadding: CGFloat = 12
@@ -21,12 +21,24 @@ extension EnvironmentValues {
     }
 }
 
+// 添加自定义的 ColorPicker 包装视图
+struct CustomColorPicker: View {
+    @Binding var selection: Color
+    let onChange: () -> Void
+    
+    var body: some View {
+        ColorPicker("", selection: $selection)
+            .labelsHidden()
+            .onChange(of: selection) { _ in
+                onChange()
+            }
+    }
+}
+
 // 设置面板视图
 public struct SettingsPanel: View {
     @Binding var isPresented: Bool
-    @State private var borderColor: Color = BorderStyle.selectedColor
-    @State private var borderWidth: CGFloat = BorderStyle.selectedWidth
-    @Environment(\.borderLightSettings) var borderLightSettings
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
     public init(isPresented: Binding<Bool>) {
         self._isPresented = isPresented
@@ -35,7 +47,7 @@ public struct SettingsPanel: View {
     public var body: some View {
         ZStack {
             // 半透明背景
-            Color.black.opacity(0.5)
+            Color.black.opacity(0.3)
                 .edgesIgnoringSafeArea(.all)
                 .onTapGesture {
                     withAnimation {
@@ -74,20 +86,79 @@ public struct SettingsPanel: View {
                         Text("颜色")
                             .foregroundColor(.gray)
                         Spacer()
-                        ColorPicker("", selection: $borderColor)
-                            .labelsHidden()
+                        CustomColorPicker(selection: $styleManager.selectedColor) {
+                            styleManager.saveCurrentSettings()
+                        }
                     }
                     
-                    // 宽度滑块
+                    // 常用颜色快捷选择
+                    HStack(spacing: 12) {
+                        ForEach([Color.red, .yellow, .blue, .green, .purple, .black, .white], id: \.self) { color in
+                            Button(action: {
+                                styleManager.updateStyle(color: color)
+                                styleManager.saveCurrentSettings()
+                            }) {
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 24, height: 24)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: styleManager.selectedColor == color ? 2 : 0)
+                                    )
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    
+                    // 宽度选择
                     HStack {
                         Text("宽度")
                             .foregroundColor(.gray)
-                        Slider(value: $borderWidth, in: 1...100) {
-                            Text("")
+                        Picker("", selection: $styleManager.selectedWidth) {
+                            Text("1").tag(CGFloat(8))
+                            Text("2").tag(CGFloat(16))
+                            Text("3").tag(CGFloat(24))
+                            Text("4").tag(CGFloat(32))
+                            Text("5").tag(CGFloat(40))
                         }
-                        Text("\(Int(borderWidth))")
-                            .foregroundColor(.gray)
-                            .frame(width: 30)
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: .infinity)
+                        .onChange(of: styleManager.selectedWidth) { _ in
+                            styleManager.saveCurrentSettings()
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                
+                // 添加手势设置
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("手势设置")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(styleManager.isDefaultGesture ? "边框灯：单击" : "边框灯：双击")
+                                .foregroundColor(.gray)
+                            Text(styleManager.isDefaultGesture ? "拍照：双击" : "拍照：单击")
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            withAnimation {
+                                styleManager.isDefaultGesture.toggle()
+                                styleManager.saveCurrentSettings()
+                            }
+                        }) {
+                            Image(systemName: "arrow.up.arrow.down")
+                                .font(.title3)
+                                .foregroundColor(.white)
+                                .padding(8)
+                                .background(Color.gray.opacity(0.3))
+                                .clipShape(Circle())
+                        }
                     }
                 }
                 .padding(.horizontal)
@@ -110,12 +181,6 @@ public struct SettingsPanel: View {
             .background(Color.black.opacity(0.8))
             .frame(width: SettingsLayoutConfig.panelWidth, height: SettingsLayoutConfig.panelHeight)
             .cornerRadius(SettingsLayoutConfig.cornerRadius)
-            .onChange(of: borderColor) { newValue in
-                BorderStyle.selectedColor = newValue
-            }
-            .onChange(of: borderWidth) { newValue in
-                BorderStyle.selectedWidth = newValue
-            }
         }
         .transition(.opacity)
     }
