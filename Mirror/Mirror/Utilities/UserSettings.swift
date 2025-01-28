@@ -8,6 +8,10 @@ private enum UserSettingsKeys {
     static let borderLightColorAlpha = "borderLightColorAlpha"
     static let borderLightWidth = "borderLightWidth"
     static let gestureMode = "gestureMode"
+    static let iconColorRed = "iconColorRed"
+    static let iconColorGreen = "iconColorGreen"
+    static let iconColorBlue = "iconColorBlue"
+    static let iconColorAlpha = "iconColorAlpha"
 }
 
 // 用户设置管理器
@@ -50,6 +54,24 @@ class UserSettingsManager {
         print("保存手势模式设置：\(isDefault ? "默认" : "交换")")
     }
     
+    // 保存图标颜色
+    func saveIconColor(_ color: Color) {
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        
+        defaults.set(Double(red), forKey: UserSettingsKeys.iconColorRed)
+        defaults.set(Double(green), forKey: UserSettingsKeys.iconColorGreen)
+        defaults.set(Double(blue), forKey: UserSettingsKeys.iconColorBlue)
+        defaults.set(Double(alpha), forKey: UserSettingsKeys.iconColorAlpha)
+        defaults.synchronize()
+        print("保存图标颜色设置")
+    }
+    
     // MARK: - 加载设置
     
     // 加载边框灯颜色
@@ -88,6 +110,25 @@ class UserSettingsManager {
         return isDefault
     }
     
+    // 加载图标颜色
+    func loadIconColor() -> Color {
+        let red = defaults.double(forKey: UserSettingsKeys.iconColorRed)
+        let green = defaults.double(forKey: UserSettingsKeys.iconColorGreen)
+        let blue = defaults.double(forKey: UserSettingsKeys.iconColorBlue)
+        let alpha = defaults.double(forKey: UserSettingsKeys.iconColorAlpha)
+        
+        if red == 0 && green == 0 && blue == 0 && alpha == 0 {
+            return .white // 默认白色
+        }
+        
+        let uiColor = UIColor(red: CGFloat(red), 
+                            green: CGFloat(green), 
+                            blue: CGFloat(blue), 
+                            alpha: CGFloat(alpha))
+        print("加载图标颜色设置")
+        return Color(uiColor)
+    }
+    
     // MARK: - 应用设置
     
     // 应用所有保存的设置
@@ -107,6 +148,9 @@ class UserSettingsManager {
             
             // 应用手势模式
             styleManager.isDefaultGesture = self.loadGestureMode()
+            
+            // 应用图标颜色
+            styleManager.iconColor = self.loadIconColor()
             
             print("已应用所有用户设置")
         }

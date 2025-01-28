@@ -47,7 +47,7 @@ public struct SettingsPanel: View {
     public var body: some View {
         ZStack {
             // 半透明背景
-            Color.black.opacity(0.3)
+            Color.black.opacity(0.5)
                 .edgesIgnoringSafeArea(.all)
                 .onTapGesture {
                     withAnimation {
@@ -93,7 +93,15 @@ public struct SettingsPanel: View {
                     
                     // 常用颜色快捷选择
                     HStack(spacing: 12) {
-                        ForEach([Color.red, .yellow, .blue, .green, .purple, .black, .white], id: \.self) { color in
+                        ForEach([
+                            Color(red: 1, green: 0.8, blue: 0.8),  // 柔和粉红
+                            Color(red: 0.9, green: 0.9, blue: 0.6),  // 柔和黄色
+                            Color(red: 0.8, green: 0.9, blue: 1),  // 柔和蓝色
+                            Color(red: 0.8, green: 1, blue: 0.8),  // 柔和绿色
+                            Color(red: 0.9, green: 0.8, blue: 1),  // 柔和紫色
+                            Color.white,
+                            Color(white: 0.2)  // 深灰色替代纯黑
+                        ], id: \.self) { color in
                             Button(action: {
                                 styleManager.updateStyle(color: color)
                                 styleManager.saveCurrentSettings()
@@ -163,6 +171,37 @@ public struct SettingsPanel: View {
                 }
                 .padding(.horizontal)
                 
+                // 添加图标颜色设置
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("主屏蝴蝶颜色")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    HStack(spacing: 12) {
+                        ForEach([
+                            Color.white,
+                            Color(red: 1, green: 0.95, blue: 0.8),  // 温暖白
+                            Color(red: 0.9, green: 1, blue: 0.9),   // 清新白
+                            Color(red: 0.9, green: 0.95, blue: 1),   // 冷调白
+                            Color.black
+                        ], id: \.self) { color in
+                            Button(action: {
+                                styleManager.iconColor = color
+                            }) {
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 24, height: 24)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white, lineWidth: styleManager.iconColor == color ? 2 : 0)
+                                    )
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .padding(.horizontal)
+                
                 Spacer()
                 
                 // 版本信息
@@ -178,13 +217,15 @@ public struct SettingsPanel: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.8))
+            .background(Color.black.opacity(0.3))
             .frame(width: SettingsLayoutConfig.panelWidth, height: SettingsLayoutConfig.panelHeight)
             .cornerRadius(SettingsLayoutConfig.cornerRadius)
         }
         .transition(.opacity)
     }
 }
+
+
 
 // 预览
 #Preview {

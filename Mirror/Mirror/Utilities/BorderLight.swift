@@ -14,6 +14,13 @@ class BorderLightStyleManager: ObservableObject {
         }
     }
     
+    // 添加图标颜色属性
+    @Published var iconColor: Color = .white {
+        didSet {
+            UserSettingsManager.shared.saveIconColor(iconColor)
+        }
+    }
+    
     // 添加手势设置，true 表示默认设置（单击边框灯，双击拍照），false 表示交换设置
     @Published var isDefaultGesture: Bool = true
     

@@ -146,139 +146,10 @@ struct ContentView: View {
                                         .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .animation(.easeInOut(duration: 0.3), value: isLighted)
                                         .overlay(
-                                            HStack(spacing: 40) {
-                                                // 左按钮 - 模式A
-                                                CircleButton(
-                                                    imageName: "icon-bf-white-left",
-                                                    title: "",
-                                                    action: {
-                                                        // 显示动画
-                                                        animatingIcon = "icon-bf-white-left"
-                                                        animationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)  // 左按钮位置
-                                                        withAnimation {
-                                                            showIconAnimation = true
-                                                        }
-                                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
-                                                            withAnimation {
-                                                                showIconAnimation = false
-                                                            }
-                                                        }
-                                                        
-                                                        // 原有逻辑
-                                                        ModeASelected = ModeBSelected
-                                                        isLighted = ModeBSelected
-                                                        
-                                                        // 根据选中状态设置亮度
-                                                        if ModeBSelected {
-                                                            // 如果之前是选中状态，保持最大亮度
-                                                            UIScreen.main.brightness = 1.0
-                                                            print("切换到模式A - 保持最大亮度")
-                                                        } else {
-                                                            // 如果之前是未选中状态，保持原始亮度
-                                                            UIScreen.main.brightness = previousBrightness
-                                                            print("切换到模式A - 保持原始亮度：\(previousBrightness)")
-                                                        }
-                                                        
-                                                        // 设置为模式A
-                                                        if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
-                                                            processor.setMode(.modeA)
-                                                        }
-                                                        cameraManager.isMirrored = true
-                                                        
-                                                        // 重置模式B的状态（移到最后）
-                                                        ModeBSelected = false
-                                                    },
-                                                    deviceOrientation: deviceOrientation,
-                                                    isDisabled: cameraManager.isMirrored
-                                                )
-                                                
-                                                // 中间按钮 - Two of Me
-                                                CircleButton(
-                                                    imageName: "icon-bf-color-1",
-                                                    title: "",
-                                                    action: {
-                                                        // 显示动画
-                                                        animatingIcon = "icon-bf-color-1"
-                                                        animationPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height - 25 + dragVerticalOffset)  // 中间按钮位置
-                                                        withAnimation {
-                                                            showIconAnimation = true
-                                                        }
-                                                        
-                                                        // 原有逻辑
-                                                        if cameraManager.isMirrored {
-                                                            if ModeASelected {
-                                                                UIScreen.main.brightness = previousBrightness
-                                                                print("进入 Two of Me 前 - 模式A恢复原始亮度：\(previousBrightness)")
-                                                                ModeASelected = false
-                                                            }
-                                                        } else {
-                                                            if ModeBSelected {
-                                                                UIScreen.main.brightness = previousBrightness
-                                                                print("进入 Two of Me 前 - 模式B恢复原始亮度：\(previousBrightness)")
-                                                                ModeBSelected = false
-                                                            }
-                                                        }
-                                                        
-                                                        // 确保在显示 TwoOfMe 页面前恢复原始亮度
-                                                        UIScreen.main.brightness = previousBrightness
-                                                        print("进入 Two of Me 前 - 强制恢复原始亮度：\(previousBrightness)")
-                                                        
-                                                        // 等待动画结束后再跳转
-                                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
-                                                            withAnimation {
-                                                                showIconAnimation = false
-                                                                print("进入 Two of Me 模式")
-                                                                showingTwoOfMe = true
-                                                            }
-                                                        }
-                                                    },
-                                                    deviceOrientation: deviceOrientation
-                                                )
-                                                
-                                                // 右按钮 - 模式B
-                                                CircleButton(
-                                                    imageName: "icon-bf-white-right",
-                                                    title: "",
-                                                    action: {
-                                                        // 显示动画
-                                                        animatingIcon = "icon-bf-white-right"
-                                                        animationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)  // 右按钮位置
-                                                        withAnimation {
-                                                            showIconAnimation = true
-                                                        }
-                                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
-                                                            withAnimation {
-                                                                showIconAnimation = false
-                                                            }
-                                                        }
-                                                        
-                                                        // 原有逻辑
-                                                        ModeBSelected = ModeASelected
-                                                        isLighted = ModeASelected
-                                                        
-                                                        // 根据选中状态设置亮度
-                                                        if ModeASelected {
-                                                            // 如果之前是选中状态，保持最大亮度
-                                                            UIScreen.main.brightness = 1.0
-                                                            print("切换到模式B - 保持最大亮度")
-                                                        } else {
-                                                            // 如果之前是未选中状态，保持原始亮度
-                                                            UIScreen.main.brightness = previousBrightness
-                                                            print("切换到模式B - 保持原始亮度：\(previousBrightness)")
-                                                        }
-                                                        
-                                                        // 设置为模式B
-                                                        if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
-                                                            processor.setMode(.modeB)
-                                                        }
-                                                        cameraManager.isMirrored = false
-                                                        
-                                                        // 重置模式A的状态（移到最后）
-                                                        ModeASelected = false
-                                                    },
-                                                    deviceOrientation: deviceOrientation,
-                                                    isDisabled: !cameraManager.isMirrored
-                                                )
+                                            HStack(spacing: 60) {
+                                                createLeftButton(geometry: geometry)
+                                                createMiddleButton(geometry: geometry)
+                                                createRightButton(geometry: geometry)
                                             }
                                         )
                                 }
@@ -293,11 +164,12 @@ struct ContentView: View {
                                         .fill(Color.gray.opacity(0.5))
                                         .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .overlay(
-                                            HStack(spacing: 40) {
+                                            HStack(spacing: 60) {
                                                 Spacer()
                                                 
                                                 // 设置按钮
                                                 CircleButton(
+                                                    imageName: nil,
                                                     systemName: "gearshape.fill",
                                                     title: "",
                                                     action: {
@@ -310,6 +182,7 @@ struct ContentView: View {
                                                 
                                                 // 帮助按钮
                                                 CircleButton(
+                                                    imageName: nil,
                                                     systemName: "questionmark.circle.fill",
                                                     title: "",
                                                     action: {
@@ -639,6 +512,129 @@ struct ContentView: View {
         default:
             return .degrees(0)
         }
+    }
+    
+    // 添加左按钮创建函数
+    private func createLeftButton(geometry: GeometryProxy) -> some View {
+        CircleButton(
+            imageName: "icon-bf-white-left",
+            title: "",
+            action: {
+                // 显示动画
+                animatingIcon = "icon-bf-white-left"
+                animationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)
+                withAnimation {
+                    showIconAnimation = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    withAnimation {
+                        showIconAnimation = false
+                    }
+                }
+                
+                ModeASelected = ModeBSelected
+                isLighted = ModeBSelected
+                
+                if ModeBSelected {
+                    UIScreen.main.brightness = 1.0
+                    print("切换到模式A - 保持最大亮度")
+                } else {
+                    UIScreen.main.brightness = previousBrightness
+                    print("切换到模式A - 保持原始亮度：\(previousBrightness)")
+                }
+                
+                if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
+                    processor.setMode(.modeA)
+                }
+                cameraManager.isMirrored = true
+                ModeBSelected = false
+            },
+            deviceOrientation: deviceOrientation,
+            isDisabled: cameraManager.isMirrored,
+            useCustomColor: true
+        )
+    }
+    
+    // 添加中间按钮创建函数
+    private func createMiddleButton(geometry: GeometryProxy) -> some View {
+        CircleButton(
+            imageName: "icon-bf-color-1",
+            title: "",
+            action: {
+                animatingIcon = "icon-bf-color-1"
+                animationPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height - 25 + dragVerticalOffset)
+                withAnimation {
+                    showIconAnimation = true
+                }
+                
+                if cameraManager.isMirrored {
+                    if ModeASelected {
+                        UIScreen.main.brightness = previousBrightness
+                        print("进入 Two of Me 前 - 模式A恢复原始亮度：\(previousBrightness)")
+                        ModeASelected = false
+                    }
+                } else {
+                    if ModeBSelected {
+                        UIScreen.main.brightness = previousBrightness
+                        print("进入 Two of Me 前 - 模式B恢复原始亮度：\(previousBrightness)")
+                        ModeBSelected = false
+                    }
+                }
+                
+                UIScreen.main.brightness = previousBrightness
+                print("进入 Two of Me 前 - 强制恢复原始亮度：\(previousBrightness)")
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    withAnimation {
+                        showIconAnimation = false
+                        print("进入 Two of Me 模式")
+                        showingTwoOfMe = true
+                    }
+                }
+            },
+            deviceOrientation: deviceOrientation,
+            useCustomColor: false
+        )
+    }
+    
+    // 添加右按钮创建函数
+    private func createRightButton(geometry: GeometryProxy) -> some View {
+        CircleButton(
+            imageName: "icon-bf-white-right",
+            title: "",
+            action: {
+                animatingIcon = "icon-bf-white-right"
+                animationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)
+                withAnimation {
+                    showIconAnimation = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    withAnimation {
+                        showIconAnimation = false
+                    }
+                }
+                
+                ModeBSelected = ModeASelected
+                isLighted = ModeASelected
+                
+                if ModeASelected {
+                    UIScreen.main.brightness = 1.0
+                    print("切换到模式B - 保持最大亮度")
+                } else {
+                    UIScreen.main.brightness = previousBrightness
+                    print("切换到模式B - 保持原始亮度：\(previousBrightness)")
+                }
+                
+                if let processor = cameraManager.videoOutputDelegate as? MainVideoProcessor {
+                    processor.setMode(.modeB)
+                }
+                cameraManager.isMirrored = false
+                ModeASelected = false
+            },
+            deviceOrientation: deviceOrientation,
+            isDisabled: !cameraManager.isMirrored,
+            useCustomColor: true
+        )
     }
 }
 

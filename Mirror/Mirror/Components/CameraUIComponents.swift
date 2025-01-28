@@ -2,59 +2,62 @@ import SwiftUI
 import AVFoundation
 
 struct CircleButton: View {
-    let systemName: String
-    let imageName: String
+    let imageName: String?
+    let systemName: String?
     let title: String
     let action: () -> Void
-    let deviceOrientation: UIDeviceOrientation
-    let isDisabled: Bool
+    var deviceOrientation: UIDeviceOrientation = .portrait
+    var isDisabled: Bool = false
+    var useCustomColor: Bool = true
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
-    init(systemName: String = "", 
-         imageName: String = "",
-         title: String, 
-         action: @escaping () -> Void, 
-         deviceOrientation: UIDeviceOrientation,
-         isDisabled: Bool = false) {
-        self.systemName = systemName
+    init(
+        imageName: String? = nil,
+        systemName: String? = nil,
+        title: String,
+        action: @escaping () -> Void,
+        deviceOrientation: UIDeviceOrientation = .portrait,
+        isDisabled: Bool = false,
+        useCustomColor: Bool = true
+    ) {
         self.imageName = imageName
+        self.systemName = systemName
         self.title = title
         self.action = action
         self.deviceOrientation = deviceOrientation
         self.isDisabled = isDisabled
+        self.useCustomColor = useCustomColor
     }
     
     var body: some View {
         Button(action: action) {
-            if !title.isEmpty {
-                // 只显示文字，用于焦距按钮
-                Text(title)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 60, height: 60)
-            } else if !imageName.isEmpty {
-                // 显示自定义图片
-                Image(imageName)
-                    .resizable()
-                    .renderingMode(.original)  // 使用原始渲染模式
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 40, height: 40)  // 增加图标尺寸
-                    .opacity(isDisabled ? 0.3 : 1.0)
-                    .rotationEffect(getIconRotationAngle(deviceOrientation))
-                    .frame(width: 60, height: 60)
-            } else {
-                // 显示系统图标
-                Image(systemName: systemName)
-                    .font(.system(size: 30))  // 增加系统图标尺寸
-                    .foregroundColor(isDisabled ? .gray : .white)
-                    .rotationEffect(getIconRotationAngle(deviceOrientation))
-                    .frame(width: 60, height: 60)
+            VStack {
+                if let imageName = imageName {
+                    Image(imageName)
+                        .resizable()
+                        .renderingMode(useCustomColor ? .template : .original)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 40, height: 40)
+                        .foregroundColor(useCustomColor ? styleManager.iconColor.opacity(isDisabled ? 0.3 : 1.0) : nil)
+                } else if let systemName = systemName {
+                    Image(systemName: systemName)
+                        .font(.system(size: 24))
+                        .foregroundColor(.white)
+                }
+                
+                if !title.isEmpty {
+                    Text(title)
+                        .font(.caption)
+                        .foregroundColor(.white)
+                }
             }
+            .rotationEffect(getRotationAngle(deviceOrientation))
         }
         .disabled(isDisabled)
     }
     
     // 获取图标旋转角度
-    private func getIconRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
         switch orientation {
         case .landscapeLeft:
             return .degrees(90)

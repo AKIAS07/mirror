@@ -20,6 +20,7 @@ struct DraggableArrow: View {
     @Binding var dragOffset: CGFloat
     @Binding var dragVerticalOffset: CGFloat
     @Binding var containerOffset: CGFloat
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
     // 添加状态变量来跟踪拖拽方向
     @State private var dragDirection: DragDirection = .none
@@ -249,9 +250,10 @@ struct DraggableArrow: View {
                     // 箭头图标
                     Image(isExpanded ? "icon-bf-white" : "icon-star")
                         .resizable()
+                        .renderingMode(.template)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: isExpanded ? 40 : 30)  // icon-star 保持30，icon-bf-white 放大到45
-                        .foregroundColor(.white.opacity(0.7))
+                        .frame(width: isExpanded ? 40 : 30)
+                        .foregroundColor(styleManager.iconColor.opacity(0.7))
                         .frame(width: ArrowLayoutConfig.arrowWidth, height: ArrowLayoutConfig.arrowHeight)
                         .rotationEffect(getIconRotationAngle(deviceOrientation))  // 设备旋转
                         .rotationEffect(.degrees(isExpanded ? 0 : dragRotation))  // 拖动旋转（仅适用于 icon-star）
