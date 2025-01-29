@@ -6,43 +6,26 @@ struct CircleButton: View {
     let systemName: String?
     let title: String
     let action: () -> Void
-    var deviceOrientation: UIDeviceOrientation = .portrait
+    let deviceOrientation: UIDeviceOrientation
     var isDisabled: Bool = false
-    var useCustomColor: Bool = true
-    @ObservedObject private var styleManager = BorderLightStyleManager.shared
-    
-    init(
-        imageName: String? = nil,
-        systemName: String? = nil,
-        title: String,
-        action: @escaping () -> Void,
-        deviceOrientation: UIDeviceOrientation = .portrait,
-        isDisabled: Bool = false,
-        useCustomColor: Bool = true
-    ) {
-        self.imageName = imageName
-        self.systemName = systemName
-        self.title = title
-        self.action = action
-        self.deviceOrientation = deviceOrientation
-        self.isDisabled = isDisabled
-        self.useCustomColor = useCustomColor
-    }
+    var useCustomColor: Bool = false
+    var customColor: Color = .white
     
     var body: some View {
         Button(action: action) {
-            VStack {
+            VStack(spacing: 4) {
                 if let imageName = imageName {
                     Image(imageName)
                         .resizable()
-                        .renderingMode(useCustomColor ? .template : .original)
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 40, height: 40)
-                        .foregroundColor(useCustomColor ? styleManager.iconColor.opacity(isDisabled ? 0.3 : 1.0) : nil)
+                        .apply(colorModifier: useCustomColor, color: customColor)
                 } else if let systemName = systemName {
                     Image(systemName: systemName)
-                        .font(.system(size: 24))
-                        .foregroundColor(.white)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 30, height: 30)
+                        .apply(colorModifier: useCustomColor, color: customColor)
                 }
                 
                 if !title.isEmpty {
@@ -51,20 +34,35 @@ struct CircleButton: View {
                         .foregroundColor(.white)
                 }
             }
+            .opacity(isDisabled ? 0.5 : 1.0)
             .rotationEffect(getRotationAngle(deviceOrientation))
         }
         .disabled(isDisabled)
     }
     
-    // 获取图标旋转角度
     private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
         switch orientation {
         case .landscapeLeft:
             return .degrees(90)
         case .landscapeRight:
             return .degrees(-90)
+        case .portraitUpsideDown:
+            return .degrees(180)
         default:
             return .degrees(0)
+        }
+    }
+}
+
+// MARK: - View Extension
+extension View {
+    @ViewBuilder
+    func apply(colorModifier shouldApply: Bool, color: Color) -> some View {
+        if shouldApply {
+            self.foregroundColor(color)
+                .colorMultiply(color)
+        } else {
+            self
         }
     }
 }

@@ -12,6 +12,11 @@ private enum UserSettingsKeys {
     static let iconColorGreen = "iconColorGreen"
     static let iconColorBlue = "iconColorBlue"
     static let iconColorAlpha = "iconColorAlpha"
+    static let splitScreenIconColorRed = "splitScreenIconColorRed"
+    static let splitScreenIconColorGreen = "splitScreenIconColorGreen"
+    static let splitScreenIconColorBlue = "splitScreenIconColorBlue"
+    static let splitScreenIconColorAlpha = "splitScreenIconColorAlpha"
+    static let hasUserConfig = "hasUserConfig"  // 新增：是否有用户配置
 }
 
 // 用户设置管理器
@@ -21,23 +26,48 @@ class UserSettingsManager {
     
     private init() {}
     
+    // MARK: - 配置管理
+    
+    // 保存当前配置
+    func saveCurrentConfig() {
+        defaults.set(true, forKey: UserSettingsKeys.hasUserConfig)
+        defaults.synchronize()
+        print("已保存用户配置")
+    }
+    
+    // 检查是否有保存的配置
+    func hasUserConfig() -> Bool {
+        return defaults.bool(forKey: UserSettingsKeys.hasUserConfig)
+    }
+    
+    // 清除所有配置
+    func clearAllConfig() {
+        let dictionary = defaults.dictionaryRepresentation()
+        dictionary.keys.forEach { key in
+            defaults.removeObject(forKey: key)
+        }
+        defaults.synchronize()
+        print("已清除所有配置")
+    }
+    
     // MARK: - 保存设置
     
     // 保存边框灯颜色
     func saveBorderLightColor(_ color: Color) {
+        let uiColor = UIColor(color)
         var red: CGFloat = 0
         var green: CGFloat = 0
         var blue: CGFloat = 0
         var alpha: CGFloat = 0
         
-        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-        
-        defaults.set(red, forKey: UserSettingsKeys.borderLightColorRed)
-        defaults.set(green, forKey: UserSettingsKeys.borderLightColorGreen)
-        defaults.set(blue, forKey: UserSettingsKeys.borderLightColorBlue)
-        defaults.set(alpha, forKey: UserSettingsKeys.borderLightColorAlpha)
-        defaults.synchronize()
-        print("保存边框灯颜色设置")
+        if uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            defaults.set(red, forKey: UserSettingsKeys.borderLightColorRed)
+            defaults.set(green, forKey: UserSettingsKeys.borderLightColorGreen)
+            defaults.set(blue, forKey: UserSettingsKeys.borderLightColorBlue)
+            defaults.set(alpha, forKey: UserSettingsKeys.borderLightColorAlpha)
+            defaults.synchronize()
+            print("保存边框灯颜色设置 - R:\(red) G:\(green) B:\(blue) A:\(alpha)")
+        }
     }
     
     // 保存边框灯宽度
@@ -62,43 +92,58 @@ class UserSettingsManager {
         var blue: CGFloat = 0
         var alpha: CGFloat = 0
         
-        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        if uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            defaults.set(red, forKey: UserSettingsKeys.iconColorRed)
+            defaults.set(green, forKey: UserSettingsKeys.iconColorGreen)
+            defaults.set(blue, forKey: UserSettingsKeys.iconColorBlue)
+            defaults.set(alpha, forKey: UserSettingsKeys.iconColorAlpha)
+            defaults.synchronize()
+            print("保存图标颜色设置 - R:\(red) G:\(green) B:\(blue) A:\(alpha)")
+        }
+    }
+    
+    // 保存分屏蝴蝶颜色
+    func saveSplitScreenIconColor(_ color: Color) {
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
         
-        defaults.set(Double(red), forKey: UserSettingsKeys.iconColorRed)
-        defaults.set(Double(green), forKey: UserSettingsKeys.iconColorGreen)
-        defaults.set(Double(blue), forKey: UserSettingsKeys.iconColorBlue)
-        defaults.set(Double(alpha), forKey: UserSettingsKeys.iconColorAlpha)
-        defaults.synchronize()
-        print("保存图标颜色设置")
+        if uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            defaults.set(red, forKey: UserSettingsKeys.splitScreenIconColorRed)
+            defaults.set(green, forKey: UserSettingsKeys.splitScreenIconColorGreen)
+            defaults.set(blue, forKey: UserSettingsKeys.splitScreenIconColorBlue)
+            defaults.set(alpha, forKey: UserSettingsKeys.splitScreenIconColorAlpha)
+            defaults.synchronize()
+            print("保存分屏蝴蝶颜色设置 - R:\(red) G:\(green) B:\(blue) A:\(alpha)")
+        }
     }
     
     // MARK: - 加载设置
     
     // 加载边框灯颜色
     func loadBorderLightColor() -> Color {
-        let red = defaults.double(forKey: UserSettingsKeys.borderLightColorRed)
-        let green = defaults.double(forKey: UserSettingsKeys.borderLightColorGreen)
-        let blue = defaults.double(forKey: UserSettingsKeys.borderLightColorBlue)
-        let alpha = defaults.double(forKey: UserSettingsKeys.borderLightColorAlpha)
-        
-        if red == 0 && green == 0 && blue == 0 && alpha == 0 {
-            return BorderStyle.selectedColor // 默认颜色
+        if let red = defaults.object(forKey: UserSettingsKeys.borderLightColorRed) as? CGFloat,
+           let green = defaults.object(forKey: UserSettingsKeys.borderLightColorGreen) as? CGFloat,
+           let blue = defaults.object(forKey: UserSettingsKeys.borderLightColorBlue) as? CGFloat,
+           let alpha = defaults.object(forKey: UserSettingsKeys.borderLightColorAlpha) as? CGFloat {
+            
+            print("加载边框灯颜色设置 - R:\(red) G:\(green) B:\(blue) A:\(alpha)")
+            return Color(UIColor(red: red, green: green, blue: blue, alpha: alpha))
         }
         
-        let uiColor = UIColor(red: CGFloat(red), 
-                            green: CGFloat(green), 
-                            blue: CGFloat(blue), 
-                            alpha: CGFloat(alpha))
-        print("加载边框灯颜色设置")
-        return Color(uiColor)
+        print("使用边框灯默认颜色")
+        return BorderStyle.selectedColor
     }
     
     // 加载边框灯宽度
     func loadBorderLightWidth() -> CGFloat {
-        let width = defaults.double(forKey: UserSettingsKeys.borderLightWidth)
-        if width == 0 {
+        // 检查是否存在保存的值
+        if defaults.object(forKey: UserSettingsKeys.borderLightWidth) == nil {
             return BorderStyle.selectedWidth // 默认宽度
         }
+        let width = defaults.double(forKey: UserSettingsKeys.borderLightWidth)
         print("加载边框灯宽度设置：\(width)")
         return CGFloat(width)
     }
@@ -112,27 +157,40 @@ class UserSettingsManager {
     
     // 加载图标颜色
     func loadIconColor() -> Color {
-        let red = defaults.double(forKey: UserSettingsKeys.iconColorRed)
-        let green = defaults.double(forKey: UserSettingsKeys.iconColorGreen)
-        let blue = defaults.double(forKey: UserSettingsKeys.iconColorBlue)
-        let alpha = defaults.double(forKey: UserSettingsKeys.iconColorAlpha)
-        
-        if red == 0 && green == 0 && blue == 0 && alpha == 0 {
-            return .white // 默认白色
+        if let red = defaults.object(forKey: UserSettingsKeys.iconColorRed) as? CGFloat,
+           let green = defaults.object(forKey: UserSettingsKeys.iconColorGreen) as? CGFloat,
+           let blue = defaults.object(forKey: UserSettingsKeys.iconColorBlue) as? CGFloat,
+           let alpha = defaults.object(forKey: UserSettingsKeys.iconColorAlpha) as? CGFloat {
+            
+            print("加载图标颜色设置 - R:\(red) G:\(green) B:\(blue) A:\(alpha)")
+            return Color(UIColor(red: red, green: green, blue: blue, alpha: alpha))
         }
         
-        let uiColor = UIColor(red: CGFloat(red), 
-                            green: CGFloat(green), 
-                            blue: CGFloat(blue), 
-                            alpha: CGFloat(alpha))
-        print("加载图标颜色设置")
-        return Color(uiColor)
+        print("使用图标默认颜色")
+        return .white
+    }
+    
+    // 加载分屏蝴蝶颜色
+    func loadSplitScreenIconColor() -> Color {
+        if let red = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorRed) as? CGFloat,
+           let green = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorGreen) as? CGFloat,
+           let blue = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorBlue) as? CGFloat,
+           let alpha = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorAlpha) as? CGFloat {
+            
+            print("加载分屏蝴蝶颜色设置 - R:\(red) G:\(green) B:\(blue) A:\(alpha)")
+            return Color(UIColor(red: red, green: green, blue: blue, alpha: alpha))
+        }
+        
+        print("使用分屏蝴蝶默认颜色")
+        return Color(red: 0.8, green: 0.4, blue: 1.0)
     }
     
     // MARK: - 应用设置
     
     // 应用所有保存的设置
     func applySettings() {
+        print("开始应用所有用户设置...")
+        
         DispatchQueue.main.async {
             let styleManager = BorderLightStyleManager.shared
             
@@ -140,19 +198,27 @@ class UserSettingsManager {
             let color = self.loadBorderLightColor()
             styleManager.selectedColor = color
             BorderStyle.selectedColor = color
+            print("应用边框灯颜色：\(color)")
             
             // 应用边框灯宽度
             let width = self.loadBorderLightWidth()
             styleManager.selectedWidth = width
             BorderStyle.selectedWidth = width
+            print("应用边框灯宽度：\(width)")
             
             // 应用手势模式
             styleManager.isDefaultGesture = self.loadGestureMode()
+            print("应用手势模式：\(styleManager.isDefaultGesture ? "默认" : "交换")")
             
             // 应用图标颜色
             styleManager.iconColor = self.loadIconColor()
+            print("应用图标颜色")
             
-            print("已应用所有用户设置")
+            // 应用分屏蝴蝶颜色
+            styleManager.splitScreenIconColor = self.loadSplitScreenIconColor()
+            print("应用分屏蝴蝶颜色")
+            
+            print("完成应用所有用户设置")
         }
     }
 }
@@ -165,6 +231,8 @@ extension BorderLightStyleManager {
         settings.saveBorderLightColor(selectedColor)
         settings.saveBorderLightWidth(selectedWidth)
         settings.saveGestureMode(isDefault: isDefaultGesture)
+        settings.saveIconColor(iconColor)
+        settings.saveSplitScreenIconColor(splitScreenIconColor)
     }
 }
 

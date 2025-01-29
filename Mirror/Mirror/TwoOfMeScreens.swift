@@ -105,6 +105,7 @@ struct TwoOfMeScreens: View {
     @State private var isMirroredPaused = false  // Mirrored画面定格状态
     @State private var pausedOriginalImage: UIImage?  // 存储Original定格画面
     @State private var pausedMirroredImage: UIImage?  // 存储Mirrored定格画面
+    @State private var dragVerticalOffset: CGFloat = 0  // 添加垂直拖动偏移量
     
     // 触控区域可点击状态
     @State private var isZone1Enabled = true
@@ -1588,119 +1589,27 @@ struct TwoOfMeScreens: View {
                         .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight/4 : screenHeight*3/4)
                         
                         // 触控1
-                        ZStack {
-                            Image("icon-bf-color-1")
-                                .resizable()
-                                .frame(width: 40, height: 40)
-                                .contentShape(Rectangle())
-                            
-                            // 按钮容器
-                            if showContainer {
-                                ButtonContainer(width: containerWidth) {
-                                    handleSwapButtonTap()
-                                }
-                                .animation(.linear(duration: 0.5), value: containerWidth)
-                            }
-                        }
-                        .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
-                        .gesture(
-                            DragGesture(minimumDistance: 5.0)  // 添加最小拖动距离阈值
-                                .onChanged { value in
-                                    if isZone1Enabled {
-                                        isDraggingTouchZone = true
-                                        
-                                        // 应用阻尼效果
-                                        let rawOffset = value.translation.width
-                                        dragOffset = rawOffset
-                                        
-                                        // 每隔100ms打印一次状态，减少日志输出频率
-                                        let now = Date()
-                                        if now.timeIntervalSince(lastOutputTime) >= 0.1 {
-                                            print("------------------------")
-                                            print("触控区1正在拖动")
-                                            print("原始偏移：\(Int(rawOffset))pt")
-                                            print("阻尼后偏移：\(Int(rawOffset * dragDampingFactor))pt")
-                                            print("------------------------")
-                                            lastOutputTime = now
-                                        }
-                                    }
-                                }
-                                .onEnded { value in
-                                    if isZone1Enabled {
-                                        isDraggingTouchZone = false
-                                        let totalOffset = touchZonePosition.xOffset + (value.translation.width * dragDampingFactor)
-                                        
-                                        // 根据最终位置决定停靠位置
-                                        withAnimation(
-                                            .interpolatingSpring(
-                                                duration: animationDuration,
-                                                bounce: 0.2,
-                                                initialVelocity: 0.5
-                                            )
-                                        ) {
-                                            if totalOffset < -50 {
-                                                touchZonePosition = .left
-                                            } else if totalOffset > 50 {
-                                                touchZonePosition = .right
-                                            } else {
-                                                touchZonePosition = .center
-                                            }
-                                            dragOffset = 0
-                                        }
-                                        
-                                        // 打印最终位置
-                                        print("------------------------")
-                                        print("触控区1拖动结束")
-                                        print("最终位置：\(touchZonePosition)")
-                                        print("------------------------")
-                                    }
-                                }
+                        TouchZoneOne(
+                            showContainer: $showContainer,
+                            containerWidth: $containerWidth,
+                            touchZonePosition: $touchZonePosition,
+                            dragOffset: $dragOffset,
+                            isZone1Enabled: $isZone1Enabled,
+                            originalImage: originalImage,
+                            mirroredImage: mirroredImage,
+                            isOriginalPaused: isOriginalPaused,
+                            isMirroredPaused: isMirroredPaused,
+                            pausedOriginalImage: pausedOriginalImage,
+                            pausedMirroredImage: pausedMirroredImage,
+                            dragDampingFactor: dragDampingFactor,
+                            animationDuration: animationDuration,
+                            screenWidth: screenWidth,
+                            screenHeight: screenHeight,
+                            dragVerticalOffset: dragVerticalOffset,
+                            deviceOrientation: deviceOrientation,
+                            screenshotManager: screenshotManager,
+                            handleSwapButtonTap: handleSwapButtonTap
                         )
-                        .onTapGesture {
-                            if isZone1Enabled {
-                                let now = Date()
-                                let timeSinceLastTap = now.timeIntervalSince(zone1LastTapTime)
-                                
-                                if timeSinceLastTap > 0.3 {  // 如果距离上次点击超过300ms，认为是新的单击
-                                    zone1TapCount = 1
-                                    // 延迟处理单击，给双击留出判断时间
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                        if self.zone1TapCount == 1 {  // 如果在延迟期间没有发生第二次点击
-                                            print("------------------------")
-                                            print("触控区1被点击")
-                                            print("区域：中央透明矩形")
-                                            print("可点击状态：已启用")
-                                            print("------------------------")
-                                            
-                                            handleContainerVisibility(showContainer: true)
-                                        }
-                                    }
-                                } else {  // 300ms内的第二次点击
-                                    zone1TapCount += 1
-                                    if zone1TapCount == 2 {  // 双击确认
-                                        print("------------------------")
-                                        print("触控区1被双击")
-                                        print("区域：中央透明矩形")
-                                        print("当前布局：\(layoutDescription)")
-                                        print("------------------------")
-                                        
-                                        // 更新截图管理器的图像引用
-                                        screenshotManager.setImages(
-                                            original: isOriginalPaused ? pausedOriginalImage : originalImage,
-                                            mirrored: isMirroredPaused ? pausedMirroredImage : mirroredImage
-                                        )
-                                        
-                                        // 执行双屏截图
-                                        screenshotManager.captureDoubleScreens()
-                                    }
-                                }
-                                zone1LastTapTime = now
-                            } else {
-                                print("------------------------")
-                                print("触控区1禁用")
-                                print("------------------------")
-                            }
-                        }
                     }
                 }
                 

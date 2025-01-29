@@ -17,7 +17,6 @@ struct ContentView: View {
     @State private var showRestartHint = false
     @State private var deviceOrientation = UIDevice.current.orientation
     @State private var ModeASelected = false
-    // 在初始化时就记录初始亮度
     @State private var previousBrightness: CGFloat = {
         let brightness = UIScreen.main.brightness
         print("记录初始屏幕亮度：\(brightness)")
@@ -26,10 +25,8 @@ struct ContentView: View {
     @State private var ModeBSelected = false
     @State private var isLighted = false
     
-    // 添加一个变量来追踪是否是用户手动调整的亮度
     @State private var isUserAdjustingBrightness = false
     
-    // 添加放缩相关的状态变量
     @State private var currentScale: CGFloat = 1.0
     @State private var baseScale: CGFloat = 1.0
     @State private var showScaleLimitMessage = false
@@ -38,45 +35,43 @@ struct ContentView: View {
     @State private var currentIndicatorScale: CGFloat = 1.0
     @State private var isControlPanelVisible: Bool = true
     @State private var dragOffset: CGFloat = 0
-    @State private var dragVerticalOffset: CGFloat = 0  // 添加垂直偏移量
+    @State private var dragVerticalOffset: CGFloat = 0
     
-    // 添加放缩限制常量
-    private let minScale: CGFloat = 1.0     // 最小100%
-    private let maxScale: CGFloat = 10.0    // 最大1000%
-    private let verticalDestination: CGFloat = 120.0  // 向上拖拽的目标位置
-    private let verticalDragThreshold: CGFloat = 20.0  // 垂直拖拽的触发阈值
+    private let minScale: CGFloat = 1.0
+    private let maxScale: CGFloat = 10.0
+    private let verticalDestination: CGFloat = 120.0
+    private let verticalDragThreshold: CGFloat = 20.0
     
-    // 添加震动反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
-    // 添加新的状态变量
     @State private var showArrowHint = false
     @State private var dragHintState: DragHintState = .upAndRightLeft
     
-    // 添加黑色容器的独立偏移值
     @State private var containerOffset: CGFloat = 0
     
-    // 添加设置面板状态
     @State private var showSettings = false
     
-    // 添加帮助面板状态
     @State private var showHelp = false
     
-    // 添加控制面板可见性状态
     @State private var isControlAreaVisible = true
     
-    // 添加截图处理相关的状态
     @State private var lastScreenshotTime: Date = Date()
     private let screenshotDebounceInterval: TimeInterval = 0.5
     
-    // 添加照片库权限状态
     @State private var photoLibraryAuthorizationStatus: PHAuthorizationStatus = .notDetermined
     
-    // 添加动画相关的状态
     @State private var showIconAnimation = false
     @State private var animatingIcon = ""
-    @State private var animationPosition: CGPoint = .zero  // 添加动画位置状态
+    @State private var animationPosition: CGPoint = .zero
     
+    // 为每个按钮添加独立的动画状态
+    @State private var showLeftIconAnimation = false
+    @State private var showMiddleIconAnimation = false
+    @State private var showRightIconAnimation = false
+    @State private var leftAnimationPosition: CGPoint = .zero
+    @State private var middleAnimationPosition: CGPoint = .zero
+    @State private var rightAnimationPosition: CGPoint = .zero
+
     var body: some View {
         GeometryReader { geometry in
             
@@ -139,17 +134,20 @@ struct ContentView: View {
                         ZStack {
                             // 黑色容器和黄色容器组
                             ZStack {
-                                // 黑色容器
+                                // 第一个容器
                                 VStack(spacing: 0) {
                                     Rectangle()
-                                        .fill(Color.black.opacity(0.5))
+                                        .fill(Color.black.opacity(0.35))
                                         .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .animation(.easeInOut(duration: 0.3), value: isLighted)
                                         .overlay(
-                                            HStack(spacing: 60) {
-                                                createLeftButton(geometry: geometry)
-                                                createMiddleButton(geometry: geometry)
-                                                createRightButton(geometry: geometry)
+                                            ZStack {
+                                                // 按钮布局
+                                                HStack(spacing: 60) {
+                                                    createLeftButton(geometry: geometry)
+                                                    createMiddleButton(geometry: geometry)
+                                                    createRightButton(geometry: geometry)
+                                                }
                                             }
                                         )
                                 }
@@ -158,42 +156,55 @@ struct ContentView: View {
                                 .ignoresSafeArea(.all)
                                 .zIndex(1)  // 黑色容器层级
 
-                                // 黄色容器
+                                // 第二个容器
                                 VStack(spacing: 0) {
                                     Rectangle()
-                                        .fill(Color.gray.opacity(0.5))
+                                        .fill(Color.black.opacity(0.35))
                                         .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .overlay(
-                                            HStack(spacing: 60) {
-                                                Spacer()
+                                            ZStack {
+                                                // 顶部白色长条
+                                                Rectangle()
+                                                    .fill(Color.white.opacity(0.3))
+                                                    .frame(width: 150, height: 2)
+                                                    .cornerRadius(4)
+                                                    .padding(.top, -60)
                                                 
-                                                // 设置按钮
-                                                CircleButton(
-                                                    imageName: nil,
-                                                    systemName: "gearshape.fill",
-                                                    title: "",
-                                                    action: {
-                                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                                            showSettings = true
-                                                        }
-                                                    },
-                                                    deviceOrientation: deviceOrientation
-                                                )
-                                                
-                                                // 帮助按钮
-                                                CircleButton(
-                                                    imageName: nil,
-                                                    systemName: "questionmark.circle.fill",
-                                                    title: "",
-                                                    action: {
-                                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                                            showHelp = true
-                                                        }
-                                                    },
-                                                    deviceOrientation: deviceOrientation
-                                                )
-                                                
-                                                Spacer()
+                                                HStack(spacing: 60) {
+                                                    Spacer()
+                                                    
+                                                    // 设置按钮
+                                                    CircleButton(
+                                                        imageName: nil,
+                                                        systemName: "gearshape.fill",
+                                                        title: "",
+                                                        action: {
+                                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                                showSettings = true
+                                                            }
+                                                        },
+                                                        deviceOrientation: deviceOrientation,
+                                                        useCustomColor: true,
+                                                        customColor: BorderLightStyleManager.shared.iconColor
+                                                    )
+                                                    
+                                                    // 帮助按钮
+                                                    CircleButton(
+                                                        imageName: nil,
+                                                        systemName: "questionmark.circle.fill",
+                                                        title: "",
+                                                        action: {
+                                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                                showHelp = true
+                                                            }
+                                                        },
+                                                        deviceOrientation: deviceOrientation,
+                                                        useCustomColor: true,
+                                                        customColor: BorderLightStyleManager.shared.iconColor
+                                                    )
+                                                    
+                                                    Spacer()
+                                                }
                                             }
                                         )
                                 }
@@ -292,20 +303,49 @@ struct ContentView: View {
                         .zIndex(4)  // 确保帮助面板显示在最上层
                 }
                 
-                // 添加动画图标视图
-                if showIconAnimation {
-                    Image(animatingIcon)
+                // 替换原有的动画图标视图为三个独立的动画视图
+                if showLeftIconAnimation {
+                    Image("icon-bf-white-left")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 100, height: 100)
                         .opacity(0.25)
                         .transition(.opacity)
-                        .rotationEffect(getIconRotationAngle(deviceOrientation))  // 添加旋转效果
-                        .position(animationPosition)
+                        .rotationEffect(getIconRotationAngle(deviceOrientation))
+                        .position(leftAnimationPosition)
+                }
+                
+                if showMiddleIconAnimation {
+                    Image(BorderLightStyleManager.shared.splitScreenIconColor == .black || BorderLightStyleManager.shared.splitScreenIconColor == .white ? "icon-bf-white" : "icon-bf-color-1")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 100, height: 100)
+                        .opacity(0.25)
+                        .transition(.opacity)
+                        .rotationEffect(getIconRotationAngle(deviceOrientation))
+                        .position(middleAnimationPosition)
+                }
+                
+                if showRightIconAnimation {
+                    Image("icon-bf-white-right")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 100, height: 100)
+                        .opacity(0.25)
+                        .transition(.opacity)
+                        .rotationEffect(getIconRotationAngle(deviceOrientation))
+                        .position(rightAnimationPosition)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
+                // 检查并加载保存的配置
+                let settings = UserSettingsManager.shared
+                if settings.hasUserConfig() {
+                    print("检测到保存的用户配置，开始加载...")
+                    settings.applySettings()
+                }
+                
                 // 添加屏幕亮度变化通知监听
                 NotificationCenter.default.addObserver(
                     forName: UIScreen.brightnessDidChangeNotification,
@@ -313,7 +353,6 @@ struct ContentView: View {
                     queue: .main) { _ in
                         let currentBrightness = UIScreen.main.brightness
                         
-                        // 只有在非选中状态下才更新初始亮度
                         if !ModeASelected && !ModeBSelected {
                             previousBrightness = currentBrightness
                             print("用户调整了屏幕亮度，更新初始亮度：\(currentBrightness)")
@@ -357,10 +396,8 @@ struct ContentView: View {
                         handleAppForeground()
                     }
                 
-                
                 // 预准备震动反馈
                 feedbackGenerator.prepare()
-
             }
             .onDisappear {
                 // 移除所有通知监听
@@ -369,23 +406,6 @@ struct ContentView: View {
                 
                 print("主页面退出")
                 print("------------------------")
-            }
-            // 添加应用程序生命周期通知监听
-            .onChange(of: UIApplication.shared.applicationState) { newState in
-                if newState == .active {
-                    // 应用回到前台时，检查是否需要恢复最大亮度
-                    if cameraManager.isMirrored {
-                        if ModeASelected {
-                            UIScreen.main.brightness = 1.0
-                            print("应用回到前台 - 镜像模式恢复最大亮度")
-                        }
-                    } else {
-                        if ModeBSelected {
-                            UIScreen.main.brightness = 1.0
-                            print("应用回到前台 - 正常模式恢复最大亮度")
-                        }
-                    }
-                }
             }
         }
         .fullScreenCover(isPresented: $showingTwoOfMe) {
@@ -514,21 +534,22 @@ struct ContentView: View {
         }
     }
     
-    // 添加左按钮创建函数
+    // 更新左按钮创建函数
     private func createLeftButton(geometry: GeometryProxy) -> some View {
-        CircleButton(
+        let styleManager = BorderLightStyleManager.shared
+        return CircleButton(
             imageName: "icon-bf-white-left",
+            systemName: nil,
             title: "",
             action: {
-                // 显示动画
-                animatingIcon = "icon-bf-white-left"
-                animationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)
+                // 更新动画逻辑
+                leftAnimationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
-                    showIconAnimation = true
+                    showLeftIconAnimation = true
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
                     withAnimation {
-                        showIconAnimation = false
+                        showLeftIconAnimation = false
                     }
                 }
                 
@@ -551,20 +572,25 @@ struct ContentView: View {
             },
             deviceOrientation: deviceOrientation,
             isDisabled: cameraManager.isMirrored,
-            useCustomColor: true
+            useCustomColor: true,
+            customColor: styleManager.iconColor
         )
     }
     
-    // 添加中间按钮创建函数
+    // 更新中间按钮创建函数
     private func createMiddleButton(geometry: GeometryProxy) -> some View {
-        CircleButton(
-            imageName: "icon-bf-color-1",
+        let styleManager = BorderLightStyleManager.shared
+        let iconName = styleManager.splitScreenIconColor == .black || styleManager.splitScreenIconColor == .white ? "icon-bf-white" : "icon-bf-color-1"
+        
+        return CircleButton(
+            imageName: iconName,
+            systemName: nil,
             title: "",
             action: {
-                animatingIcon = "icon-bf-color-1"
-                animationPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height - 25 + dragVerticalOffset)
+                // 更新动画逻辑
+                middleAnimationPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
-                    showIconAnimation = true
+                    showMiddleIconAnimation = true
                 }
                 
                 if cameraManager.isMirrored {
@@ -586,31 +612,34 @@ struct ContentView: View {
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
                     withAnimation {
-                        showIconAnimation = false
+                        showMiddleIconAnimation = false
                         print("进入 Two of Me 模式")
                         showingTwoOfMe = true
                     }
                 }
             },
             deviceOrientation: deviceOrientation,
-            useCustomColor: false
+            useCustomColor: styleManager.splitScreenIconColor == .black || styleManager.splitScreenIconColor == .white,
+            customColor: styleManager.splitScreenIconColor
         )
     }
     
-    // 添加右按钮创建函数
+    // 更新右按钮创建函数
     private func createRightButton(geometry: GeometryProxy) -> some View {
-        CircleButton(
+        let styleManager = BorderLightStyleManager.shared
+        return CircleButton(
             imageName: "icon-bf-white-right",
+            systemName: nil,
             title: "",
             action: {
-                animatingIcon = "icon-bf-white-right"
-                animationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)
+                // 更新动画逻辑
+                rightAnimationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
-                    showIconAnimation = true
+                    showRightIconAnimation = true
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
                     withAnimation {
-                        showIconAnimation = false
+                        showRightIconAnimation = false
                     }
                 }
                 
@@ -633,7 +662,8 @@ struct ContentView: View {
             },
             deviceOrientation: deviceOrientation,
             isDisabled: !cameraManager.isMirrored,
-            useCustomColor: true
+            useCustomColor: true,
+            customColor: styleManager.iconColor
         )
     }
 }

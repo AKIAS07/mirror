@@ -21,29 +21,19 @@ struct CameraContainer: View {
     
     let cameraManager: CameraManager
     
-    // 添加手势设置管理器
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
-    
-    // 添加截图状态
     @StateObject private var captureState = CaptureState()
     
-    // 添加放缩相关的绑定
     @Binding var currentScale: CGFloat
     @Binding var showScaleIndicator: Bool
     @Binding var currentIndicatorScale: CGFloat
     let onPinchChanged: (CGFloat) -> Void
     let onPinchEnded: (CGFloat) -> Void
     
-    // 添加震动反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
-    // 添加截图处理相关的状态
     @State private var lastScreenshotTime: Date = Date()
     private let screenshotDebounceInterval: TimeInterval = 0.5
-    
-    // 添加音量按钮监听器
-    @State private var volumeButtonObserver: NSKeyValueObservation?
-    @State private var volumeView = MPVolumeView()
     
     init(session: AVCaptureSession, 
          isMirrored: Bool, 
@@ -170,14 +160,6 @@ struct CameraContainer: View {
             .onAppear {
                 CameraContainerFrame.frame = containerFrame
                 print("相机容器 - 设置 Frame:", containerFrame)
-                
-                // 设置音量按钮监听
-                setupVolumeButtonObserver()
-                
-                // 添加音量视图到界面
-                if let window = UIApplication.shared.windows.first {
-                    window.addSubview(volumeView)
-                }
             }
             .onChange(of: geometry.size) { _ in
                 CameraContainerFrame.frame = containerFrame
@@ -186,20 +168,16 @@ struct CameraContainer: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
-        // 根据手势设置处理点击事件
         .onTapGesture(count: styleManager.isDefaultGesture ? 1 : 2) {
             withAnimation(.easeInOut(duration: 0.2)) {
                 containerSelected.toggle()
                 
                 if containerSelected {
-                    // 设置为最大亮度
                     UIScreen.main.brightness = 1.0
                     print("提高亮度至最大")
-                    // 触发震动反馈
                     feedbackGenerator.impactOccurred(intensity: 1.0)
                     isLighted = true
                 } else {
-                    // 恢复原始亮度
                     UIScreen.main.brightness = previousBrightness
                     print("恢复原始亮度：\(previousBrightness)")
                     isLighted = false
@@ -210,24 +188,12 @@ struct CameraContainer: View {
         }
         .onAppear {
             setupVideoProcessing()
-            // 预准备震动反馈
             feedbackGenerator.prepare()
-        }
-        .onDisappear {
-            // 移除音量按钮监听器
-            volumeButtonObserver?.invalidate()
-            volumeButtonObserver = nil
-            
-            // 移除音量视图
-            volumeView.removeFromSuperview()
-            
-            print("主页面视图消失")
         }
     }
     
     private func setupVideoProcessing() {
         let processor = MainVideoProcessor()
-        // 根据isMirrored设置初始模式
         processor.setMode(isMirrored ? .modeA : .modeB)
         processor.isMirrored = isMirrored
         processor.imageHandler = { image in
@@ -236,62 +202,13 @@ struct CameraContainer: View {
             }
         }
         
-        // 创建并保存观察者
         let observer = CameraObserver(processor: processor)
         self.observer = observer
         
-        // 添加观察者
         if let connection = cameraManager.videoOutput.connection(with: .video) {
             connection.addObserver(observer, forKeyPath: "videoMirrored", options: [.new], context: nil)
         }
         
         cameraManager.videoOutputDelegate = processor
-    }
-    
-    // 添加音量按钮监听器设置
-    private func setupVolumeButtonObserver() {
-        // 隐藏系统音量UI
-        volumeView.frame = CGRect(x: -100, y: -100, width: 0, height: 0)
-        volumeView.alpha = 0.0
-        
-        // 获取音频会话单例
-        let audioSession = AVAudioSession.sharedInstance()
-        do {
-            // 设置音频会话类别
-            try audioSession.setCategory(.ambient, mode: .default)
-            try audioSession.setActive(true)
-        } catch {
-            print("设置音频会话失败：\(error.localizedDescription)")
-        }
-        
-        // 监听系统音量变化
-        volumeButtonObserver = AVAudioSession.sharedInstance().observe(\.outputVolume) { session, _ in
-            // 确保在主线程执行UI更新
-            DispatchQueue.main.async {
-                if let image = processedImage {
-                    print("------------------------")
-                    print("音量按钮触发 - 捕捉截图")
-                    print("当前模式：\(isMirrored ? "镜像模式" : "正常模式")")
-                    print("当前缩放比例：\(currentScale)")
-                    
-                    // 捕捉当前画面并设置缩放比例
-                    captureState.capturedImage = image
-                    captureState.currentScale = currentScale
-                    
-                    // 显示操作按钮并隐藏控制区域
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        captureState.showButtons = true
-                        isControlAreaVisible = false
-                    }
-                    
-                    // 触发震动反馈
-                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                    generator.prepare()
-                    generator.impactOccurred()
-                    
-                    print("------------------------")
-                }
-            }
-        }
     }
 } 

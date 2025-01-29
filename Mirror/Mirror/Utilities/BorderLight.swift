@@ -3,38 +3,49 @@ import UIKit
 
 // 边框灯样式管理器
 class BorderLightStyleManager: ObservableObject {
+    static let shared = BorderLightStyleManager()
+    
     @Published var selectedColor: Color = BorderStyle.selectedColor {
         didSet {
             BorderStyle.selectedColor = selectedColor
         }
     }
+    
     @Published var selectedWidth: CGFloat = BorderStyle.selectedWidth {
         didSet {
             BorderStyle.selectedWidth = selectedWidth
         }
     }
     
-    // 添加图标颜色属性
-    @Published var iconColor: Color = .white {
-        didSet {
-            UserSettingsManager.shared.saveIconColor(iconColor)
-        }
-    }
-    
-    // 添加手势设置，true 表示默认设置（单击边框灯，双击拍照），false 表示交换设置
     @Published var isDefaultGesture: Bool = true
-    
-    static let shared = BorderLightStyleManager()
+    @Published var iconColor: Color = .white
+    @Published var splitScreenIconColor: Color = Color(red: 0.8, green: 0.4, blue: 1.0) // 默认彩色
     
     private init() {
-        // 设置默认值
-        selectedColor = BorderStyle.selectedColor
-        selectedWidth = BorderStyle.selectedWidth
-        isDefaultGesture = true
-        
-        // 延迟加载保存的设置
-        DispatchQueue.main.async {
-            UserSettingsManager.shared.applySettings()
+        // 检查是否有保存的用户配置
+        let settings = UserSettingsManager.shared
+        if settings.hasUserConfig() {
+            print("BorderLightStyleManager - 检测到保存的用户配置，开始加载...")
+            // 加载保存的设置
+            self.selectedColor = settings.loadBorderLightColor()
+            self.selectedWidth = settings.loadBorderLightWidth()
+            self.isDefaultGesture = settings.loadGestureMode()
+            self.iconColor = settings.loadIconColor()
+            self.splitScreenIconColor = settings.loadSplitScreenIconColor()
+            
+            // 更新 BorderStyle
+            BorderStyle.selectedColor = self.selectedColor
+            BorderStyle.selectedWidth = self.selectedWidth
+            
+            print("BorderLightStyleManager - 配置加载完成")
+        } else {
+            print("BorderLightStyleManager - 使用默认配置")
+            // 使用默认设置
+            self.selectedColor = BorderStyle.selectedColor
+            self.selectedWidth = BorderStyle.selectedWidth
+            self.isDefaultGesture = true
+            self.iconColor = .white
+            self.splitScreenIconColor = Color(red: 0.8, green: 0.4, blue: 1.0)
         }
     }
     
@@ -45,6 +56,12 @@ class BorderLightStyleManager: ObservableObject {
         if let width = width {
             selectedWidth = width
         }
+        
+        UserSettingsManager.shared.saveBorderLightColor(selectedColor)
+        UserSettingsManager.shared.saveBorderLightWidth(selectedWidth)
+        UserSettingsManager.shared.saveGestureMode(isDefault: isDefaultGesture)
+        UserSettingsManager.shared.saveIconColor(iconColor)
+        UserSettingsManager.shared.saveSplitScreenIconColor(splitScreenIconColor)
     }
 }
 
@@ -52,6 +69,7 @@ class BorderLightStyleManager: ObservableObject {
 class BorderLightManager: ObservableObject {
     @Published var showOriginalHighlight = false
     @Published var showMirroredHighlight = false
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
     // 添加亮度控制相关属性
     private var originalBrightness: CGFloat = UIScreen.main.brightness
@@ -148,8 +166,8 @@ struct BorderLightView: View {
                 // 发光边框
                 RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
                     .stroke(
-                        isHighlighted ? styleManager.selectedColor : BorderStyle.splitScreenNormalColor,
-                        lineWidth: isHighlighted ? styleManager.selectedWidth : BorderStyle.splitScreenNormalWidth
+                        isHighlighted ? styleManager.selectedColor : Color.gray.opacity(0.3),
+                        lineWidth: isHighlighted ? styleManager.selectedWidth : 1
                     )
                     .frame(width: frameWidth, height: frameHeight)
                     .position(
@@ -158,7 +176,7 @@ struct BorderLightView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
-                            .stroke(BorderStyle.splitScreenNormalColor.opacity(isHighlighted ? 0.3 : 1), lineWidth: BorderStyle.splitScreenNormalWidth)
+                            .stroke(Color.gray.opacity(isHighlighted ? 0.3 : 1), lineWidth: 1)
                             .frame(width: frameWidth, height: frameHeight)
                             .position(
                                 x: frameWidth/2,
@@ -170,9 +188,9 @@ struct BorderLightView: View {
                     .animation(.easeInOut(duration: 0.2), value: styleManager.selectedWidth)
             }
             .mask(
-                // 遮罩，只显示绿色框线内的部分
+                // 遮罩，只显示边框线内的部分
                 RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
-                    .frame(width: frameWidth - BorderStyle.splitScreenNormalWidth, height: frameHeight - BorderStyle.splitScreenNormalWidth)
+                    .frame(width: frameWidth - 1, height: frameHeight - 1)
                     .position(
                         x: frameWidth/2,
                         y: frameHeight/2

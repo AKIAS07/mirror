@@ -28,7 +28,7 @@ public struct HelpPanel: View {
                 HStack {
                     Text("使用帮助")
                         .font(.title2)
-                        .foregroundColor(.white)
+                        .foregroundColor(.black)
                     Spacer()
                     Button(action: {
                         withAnimation {
@@ -37,7 +37,7 @@ public struct HelpPanel: View {
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title2)
-                            .foregroundColor(.white)
+                            .foregroundColor(.gray)
                     }
                 }
                 .padding(.horizontal)
@@ -59,7 +59,7 @@ public struct HelpPanel: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.8))
+            .background(Color.white)
             .frame(width: panelWidth, height: panelHeight)
             .cornerRadius(SettingsLayoutConfig.cornerRadius)
         }
@@ -80,7 +80,7 @@ public struct HelpItem: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.black)
             Text(content)
                 .font(.body)
                 .foregroundColor(.gray)

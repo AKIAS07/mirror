@@ -253,7 +253,7 @@ struct DraggableArrow: View {
                         .renderingMode(.template)
                         .aspectRatio(contentMode: .fit)
                         .frame(width: isExpanded ? 40 : 30)
-                        .foregroundColor(styleManager.iconColor.opacity(0.7))
+                        .foregroundColor(styleManager.iconColor)
                         .frame(width: ArrowLayoutConfig.arrowWidth, height: ArrowLayoutConfig.arrowHeight)
                         .rotationEffect(getIconRotationAngle(deviceOrientation))  // 设备旋转
                         .rotationEffect(.degrees(isExpanded ? 0 : dragRotation))  // 拖动旋转（仅适用于 icon-star）
