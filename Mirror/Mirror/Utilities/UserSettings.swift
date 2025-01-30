@@ -223,19 +223,6 @@ class UserSettingsManager {
     }
 }
 
-// MARK: - BorderLightStyleManager 扩展
-extension BorderLightStyleManager {
-    // 保存当前设置
-    func saveCurrentSettings() {
-        let settings = UserSettingsManager.shared
-        settings.saveBorderLightColor(selectedColor)
-        settings.saveBorderLightWidth(selectedWidth)
-        settings.saveGestureMode(isDefault: isDefaultGesture)
-        settings.saveIconColor(iconColor)
-        settings.saveSplitScreenIconColor(splitScreenIconColor)
-    }
-}
-
 // MARK: - Color 扩展
 extension Color {
     init(_ uiColor: UIColor) {

@@ -362,6 +362,18 @@ struct ContentView: View {
                         }
                     }
                 
+                // 添加按钮颜色更新通知监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("UpdateButtonColors"),
+                    object: nil,
+                    queue: .main) { _ in
+                        // 强制视图刷新
+                        withAnimation {
+                            isControlAreaVisible.toggle()
+                            isControlAreaVisible.toggle()
+                        }
+                    }
+                
                 // 设置允许的设备方向
                 let allowedOrientations: [UIDeviceOrientation] = [
                     .portrait,

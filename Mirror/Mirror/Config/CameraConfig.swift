@@ -2,7 +2,7 @@ import SwiftUI
 
 struct BorderStyle {
     // 主页边框样式
-    static let normalColor = Color.green
+    static let normalColor = Color.gray.opacity(0.3)
     static var selectedColor = Color.white {
         didSet {
             splitScreenSelectedColor = selectedColor
@@ -18,7 +18,7 @@ struct BorderStyle {
     // 分屏边框样式
     static let splitScreenNormalWidth: CGFloat = 1
     static var splitScreenSelectedWidth: CGFloat = 40
-    static let splitScreenNormalColor = Color.green
+    static let splitScreenNormalColor = Color.gray.opacity(0.3)
     static var splitScreenSelectedColor = Color.white
 }
 

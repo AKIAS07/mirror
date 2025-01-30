@@ -5,21 +5,33 @@ import UIKit
 class BorderLightStyleManager: ObservableObject {
     static let shared = BorderLightStyleManager()
     
+    // 当前显示的颜色和宽度（用于临时修改）
     @Published var selectedColor: Color = BorderStyle.selectedColor {
         didSet {
-            BorderStyle.selectedColor = selectedColor
+            // 当颜色改变时，立即更新 BorderStyle 的颜色，以便实时预览
+            withAnimation(.easeInOut(duration: 0.3)) {
+                BorderStyle.selectedColor = selectedColor
+            }
+        }
+    }
+    @Published var selectedWidth: CGFloat = BorderStyle.selectedWidth {
+        didSet {
+            // 当宽度改变时，立即更新 BorderStyle 的宽度，以便实时预览
+            withAnimation(.easeInOut(duration: 0.3)) {
+                BorderStyle.selectedWidth = selectedWidth
+            }
         }
     }
     
-    @Published var selectedWidth: CGFloat = BorderStyle.selectedWidth {
-        didSet {
-            BorderStyle.selectedWidth = selectedWidth
-        }
-    }
+    // 保存的颜色和宽度（用于恢复）
+    private var savedColor: Color = BorderStyle.selectedColor
+    private var savedWidth: CGFloat = BorderStyle.selectedWidth
     
     @Published var isDefaultGesture: Bool = true
     @Published var iconColor: Color = .white
     @Published var splitScreenIconColor: Color = Color(red: 0.8, green: 0.4, blue: 1.0) // 默认彩色
+    
+    @Published var isPreviewMode: Bool = false  // 添加预览模式状态
     
     // 添加计算属性，根据手势模式返回对应的点击次数
     var captureGestureCount: Int {
@@ -27,40 +39,76 @@ class BorderLightStyleManager: ObservableObject {
     }
     
     private init() {
+        // 监听设置页面的显示状态
+        NotificationCenter.default.addObserver(self, selector: #selector(handleSettingsPresented), name: NSNotification.Name("SettingsPresented"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleSettingsDismissed), name: NSNotification.Name("SettingsDismissed"), object: nil)
+        
         // 检查是否有保存的用户配置
         let settings = UserSettingsManager.shared
         if settings.hasUserConfig() {
             print("BorderLightStyleManager - 检测到保存的用户配置，开始加载...")
             // 加载保存的设置
-            self.selectedColor = settings.loadBorderLightColor()
-            self.selectedWidth = settings.loadBorderLightWidth()
+            self.savedColor = settings.loadBorderLightColor()
+            self.savedWidth = settings.loadBorderLightWidth()
+            self.selectedColor = self.savedColor
+            self.selectedWidth = self.savedWidth
             self.isDefaultGesture = settings.loadGestureMode()
             self.iconColor = settings.loadIconColor()
             self.splitScreenIconColor = settings.loadSplitScreenIconColor()
             
             // 更新 BorderStyle
-            BorderStyle.selectedColor = self.selectedColor
-            BorderStyle.selectedWidth = self.selectedWidth
+            BorderStyle.selectedColor = self.savedColor
+            BorderStyle.selectedWidth = self.savedWidth
             
             print("BorderLightStyleManager - 配置加载完成")
         } else {
             print("BorderLightStyleManager - 使用默认配置")
             // 使用默认设置
-            self.selectedColor = BorderStyle.selectedColor
-            self.selectedWidth = BorderStyle.selectedWidth
+            self.savedColor = BorderStyle.selectedColor
+            self.savedWidth = BorderStyle.selectedWidth
+            self.selectedColor = self.savedColor
+            self.selectedWidth = self.savedWidth
             self.isDefaultGesture = true
             self.iconColor = .white
             self.splitScreenIconColor = Color(red: 0.8, green: 0.4, blue: 1.0)
         }
     }
     
+    // 处理设置页面显示
+    @objc private func handleSettingsPresented() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isPreviewMode = true
+        }
+    }
+    
+    // 处理设置页面关闭
+    @objc private func handleSettingsDismissed() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isPreviewMode = false
+        }
+    }
+    
+    // 临时更新样式（不保存）
     func updateStyle(color: Color? = nil, width: CGFloat? = nil) {
         if let color = color {
-            selectedColor = color
+            withAnimation(.easeInOut(duration: 0.3)) {
+                selectedColor = color
+            }
         }
         if let width = width {
-            selectedWidth = width
+            withAnimation(.easeInOut(duration: 0.3)) {
+                selectedWidth = width
+            }
         }
+    }
+    
+    // 保存当前设置
+    func saveCurrentSettings() {
+        savedColor = selectedColor
+        savedWidth = selectedWidth
+        
+        BorderStyle.selectedColor = selectedColor
+        BorderStyle.selectedWidth = selectedWidth
         
         UserSettingsManager.shared.saveBorderLightColor(selectedColor)
         UserSettingsManager.shared.saveBorderLightWidth(selectedWidth)
@@ -68,21 +116,52 @@ class BorderLightStyleManager: ObservableObject {
         UserSettingsManager.shared.saveIconColor(iconColor)
         UserSettingsManager.shared.saveSplitScreenIconColor(splitScreenIconColor)
     }
+    
+    // 恢复到上次保存的设置
+    func restoreSettings() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            selectedColor = savedColor
+            selectedWidth = savedWidth
+        }
+    }
 }
 
 // 边框灯管理器
 class BorderLightManager: ObservableObject {
+    static let shared = BorderLightManager()  // 添加共享实例
+    
     @Published var showOriginalHighlight = false
     @Published var showMirroredHighlight = false
+    @Published var isPreviewMode = false
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
     // 添加亮度控制相关属性
     private var originalBrightness: CGFloat = UIScreen.main.brightness
-    private var isControllingBrightness = false
+    var isControllingBrightness = false  // 改为 public
     
-    init() {
+    init() {  // 移除 private 修饰符
         // 保存当前亮度
         originalBrightness = UIScreen.main.brightness
+        
+        // 监听设置页面的显示状态
+        NotificationCenter.default.addObserver(self, selector: #selector(handleSettingsPresented), name: NSNotification.Name("SettingsPresented"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleSettingsDismissed), name: NSNotification.Name("SettingsDismissed"), object: nil)
+    }
+    
+    // 处理设置页面显示
+    @objc private func handleSettingsPresented() {
+        isPreviewMode = true
+        showOriginalHighlight = true
+        showMirroredHighlight = true
+    }
+    
+    // 处理设置页面关闭
+    @objc private func handleSettingsDismissed() {
+        isPreviewMode = false
+        if !isControllingBrightness {
+            showOriginalHighlight = false
+            showMirroredHighlight = false
+        }
     }
     
     // 切换边框灯状态
@@ -149,6 +228,25 @@ class BorderLightManager: ObservableObject {
             print("设备亮度已恢复")
         }
     }
+    
+    // 开启所有边框灯
+    func turnOnAllLights() {
+        showOriginalHighlight = true
+        showMirroredHighlight = true
+        
+        // 添加震动反馈
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.prepare()
+        generator.impactOccurred()
+        
+        // 设置最大亮度
+        if !isControllingBrightness {
+            originalBrightness = UIScreen.main.brightness
+            UIScreen.main.brightness = 1.0
+            isControllingBrightness = true
+            print("设备亮度已调至最大")
+        }
+    }
 }
 
 // 边框灯视图
@@ -160,7 +258,7 @@ struct BorderLightView: View {
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
     var body: some View {
-        let isHighlighted = showOriginalHighlight || showMirroredHighlight
+        let isHighlighted = showOriginalHighlight || showMirroredHighlight || styleManager.isPreviewMode
         
         GeometryReader { geometry in
             // 计算实际的边框尺寸
@@ -188,9 +286,9 @@ struct BorderLightView: View {
                                 y: frameHeight/2
                             )
                     )
-                    .animation(.easeInOut(duration: 0.2), value: isHighlighted)
-                    .animation(.easeInOut(duration: 0.2), value: styleManager.selectedColor)
-                    .animation(.easeInOut(duration: 0.2), value: styleManager.selectedWidth)
+                    .animation(.easeInOut(duration: 0.3), value: isHighlighted)
+                    .animation(.easeInOut(duration: 0.3), value: styleManager.selectedColor)
+                    .animation(.easeInOut(duration: 0.3), value: styleManager.selectedWidth)
             }
             .mask(
                 // 遮罩，只显示边框线内的部分

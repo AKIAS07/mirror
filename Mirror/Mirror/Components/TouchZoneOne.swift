@@ -23,6 +23,7 @@ struct TouchZoneOne: View {
     @State private var isScreenSwapped: Bool = false
     @State private var hideContainerTimer: Timer? = nil
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    let borderLightManager: BorderLightManager  // 修改为通过参数注入
     let originalImage: UIImage?
     let mirroredImage: UIImage?
     let isOriginalPaused: Bool
@@ -63,7 +64,8 @@ struct TouchZoneOne: View {
         dragVerticalOffset: CGFloat,
         deviceOrientation: UIDeviceOrientation,
         screenshotManager: ScreenshotManager,
-        handleSwapButtonTap: @escaping () -> Void
+        handleSwapButtonTap: @escaping () -> Void,
+        borderLightManager: BorderLightManager  // 添加边框灯管理器参数
     ) {
         self._showContainer = showContainer
         self._containerWidth = containerWidth
@@ -84,6 +86,7 @@ struct TouchZoneOne: View {
         self.deviceOrientation = deviceOrientation
         self.screenshotManager = screenshotManager
         self.handleSwapButtonTap = handleSwapButtonTap
+        self.borderLightManager = borderLightManager  // 初始化边框灯管理器
     }
     
     // MARK: - Body
@@ -122,8 +125,8 @@ struct TouchZoneOne: View {
                         if now.timeIntervalSince(lastOutputTime) >= 0.1 {
                             print("------------------------")
                             print("触控区1正在拖动")
-                            print("原始偏移：\\(Int(rawOffset))pt")
-                            print("阻尼后偏移：\\(Int(rawOffset * dragDampingFactor))pt")
+                            print("原始偏移：\(Int(rawOffset))pt")
+                            print("阻尼后偏移：\(Int(rawOffset * dragDampingFactor))pt")
                             print("------------------------")
                             lastOutputTime = now
                         }
@@ -155,11 +158,22 @@ struct TouchZoneOne: View {
                         // 打印最终位置
                         print("------------------------")
                         print("触控区1拖动结束")
-                        print("最终位置：\\(touchZonePosition)")
+                        print("最终位置：\(touchZonePosition)")
                         print("------------------------")
                     }
                 }
         )
+        .onLongPressGesture(minimumDuration: 0.5) {
+            if isZone1Enabled {
+                print("------------------------")
+                print("触控区1被长按")
+                print("区域：中央透明矩形")
+                print("可点击状态：已启用")
+                print("------------------------")
+                
+                handleContainerVisibility(showContainer: true)
+            }
+        }
         .onTapGesture {
             if isZone1Enabled {
                 let now = Date()
@@ -176,7 +190,31 @@ struct TouchZoneOne: View {
                             print("可点击状态：已启用")
                             print("------------------------")
                             
-                            handleContainerVisibility(showContainer: true)
+                            // 根据手势设置决定单击功能
+                            if self.styleManager.isDefaultGesture {
+                                // 默认模式：单击控制边框灯
+                                if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
+                                    self.borderLightManager.turnOffAllLights()
+                                    print("所有边框灯已关闭")
+                                } else {
+                                    self.borderLightManager.turnOnAllLights()
+                                    print("所有边框灯已开启")
+                                }
+                            } else {
+                                // 交换模式：单击拍照
+                                print("------------------------")
+                                print("触控区1单击拍照")
+                                print("------------------------")
+                                
+                                // 更新截图管理器的图像引用
+                                self.screenshotManager.setImages(
+                                    original: self.isOriginalPaused ? self.pausedOriginalImage : self.originalImage,
+                                    mirrored: self.isMirroredPaused ? self.pausedMirroredImage : self.mirroredImage
+                                )
+                                
+                                // 执行双屏截图
+                                self.screenshotManager.captureDoubleScreens()
+                            }
                         }
                     }
                 } else {  // 300ms内的第二次点击
@@ -187,14 +225,27 @@ struct TouchZoneOne: View {
                         print("区域：中央透明矩形")
                         print("------------------------")
                         
-                        // 更新截图管理器的图像引用
-                        screenshotManager.setImages(
-                            original: isOriginalPaused ? pausedOriginalImage : originalImage,
-                            mirrored: isMirroredPaused ? pausedMirroredImage : mirroredImage
-                        )
-                        
-                        // 执行双屏截图
-                        screenshotManager.captureDoubleScreens()
+                        // 根据手势设置决定双击功能
+                        if self.styleManager.isDefaultGesture {
+                            // 默认模式：双击拍照
+                            // 更新截图管理器的图像引用
+                            self.screenshotManager.setImages(
+                                original: self.isOriginalPaused ? self.pausedOriginalImage : self.originalImage,
+                                mirrored: self.isMirroredPaused ? self.pausedMirroredImage : self.mirroredImage
+                            )
+                            
+                            // 执行双屏截图
+                            self.screenshotManager.captureDoubleScreens()
+                        } else {
+                            // 交换模式：双击控制边框灯
+                            if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
+                                self.borderLightManager.turnOffAllLights()
+                                print("所有边框灯已关闭")
+                            } else {
+                                self.borderLightManager.turnOnAllLights()
+                                print("所有边框灯已开启")
+                            }
+                        }
                     }
                 }
                 zone1LastTapTime = now

@@ -2,19 +2,46 @@ import SwiftUI
 
 public struct HelpPanel: View {
     @Binding var isPresented: Bool
-    
-    // 使用与设置面板相同的尺寸
-    private let panelWidth: CGFloat = SettingsLayoutConfig.panelWidth  // 帮助面板稍微宽一点，方便显示内容
-    private let panelHeight: CGFloat = SettingsLayoutConfig.panelHeight  // 帮助面板稍微高一点，方便滚动内容
+    @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     
     public init(isPresented: Binding<Bool>) {
         self._isPresented = isPresented
     }
     
+    private var isLandscape: Bool {
+        orientationManager.currentOrientation == .landscapeLeft || orientationManager.currentOrientation == .landscapeRight
+    }
+    
+    private var rotationAngle: Double {
+        switch orientationManager.currentOrientation {
+        case .landscapeLeft:
+            return 90
+        case .landscapeRight:
+            return -90
+        default:
+            return 0
+        }
+    }
+    
+    private var offsetX: CGFloat {
+        switch orientationManager.currentOrientation {
+        case .landscapeLeft:
+            return -80
+        case .landscapeRight:
+            return 80
+        default:
+            return 0
+        }
+    }
+    
+    private var offsetY: CGFloat {
+        isLandscape ? 0 : -80
+    }
+    
     public var body: some View {
         ZStack {
             // 半透明背景
-            Color.black.opacity(0.3)
+            Color.black.opacity(0.5)
                 .edgesIgnoringSafeArea(.all)
                 .onTapGesture {
                     withAnimation {
@@ -23,7 +50,7 @@ public struct HelpPanel: View {
                 }
             
             // 帮助面板
-            VStack(spacing: 20) {
+            VStack(spacing: 0) {
                 // 标题
                 HStack {
                     Text("使用帮助")
@@ -36,56 +63,193 @@ public struct HelpPanel: View {
                         }
                     }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
+                            .font(.system(size: 20))
                             .foregroundColor(.gray)
                     }
+                    .padding(.leading, 4)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 12)
+                .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight : SettingsLayoutConfig.panelWidth,
+                       height: SettingsLayoutConfig.titleBarHeight)
                 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 15) {
-                        HelpItem(title: "基本操作", 
-                                content: "• 双击屏幕：截图\n• 双指缩放：调整画面大小\n• 点击画面：开启/关闭补光")
+                ScrollView(showsIndicators: true) {
+                    VStack(spacing: SettingsTheme.itemSpacing) {
+
+                        VStack(alignment: .center, spacing: SettingsTheme.contentSpacing) {
+                            Text("主屏功能")
+                                .font(.headline)
+                                .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
                         
-                        HelpItem(title: "模式切换", 
-                                content: "• 左侧按钮：镜像模式\n• 右侧按钮：正常模式\n• 中间按钮：分屏模式")
+                        // 模式切换
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                            Text("模式切换")
+                                .font(.headline)
+                                .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("• 左侧按钮：正常镜")
+                                Text("• 右侧按钮：翻转镜")
+                                Text("• 中间按钮：进入分屏")
+                            }
+                            .font(.body)
+                            .foregroundColor(SettingsTheme.subtitleColor)
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(SettingsTheme.backgroundColor)
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
-                        HelpItem(title: "拖拽操作", 
-                                content: "• 上下拖动：展开/收起控制面板\n• 左右拖动：隐藏/显示控制面板")
+                        // 基本操作
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                            Text("屏幕操作")
+                                .font(.headline)
+                                .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("• 双击：拍照/退出")
+                                Text("• 单击：开启/关闭边框灯")
+                                Text("• 双指：缩放画面大小")
+                                Text("• 下载分享：图片下载/分享")
+                            }
+                            .font(.body)
+                            .foregroundColor(SettingsTheme.subtitleColor)
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(SettingsTheme.backgroundColor)
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+
+                        // 拖拽操作
+                        VStack(alignment: .center, spacing: SettingsTheme.contentSpacing) {
+                            Text("拖拽操作")
+                                .font(.headline)
+                                .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            
+                            VStack(alignment: .center, spacing: 5) {
+                                Text("• 上下拖动：扩展/还原面板")
+                                Text("• 左右拖动：隐藏/显示面板")
+                            }
+                            .font(.body)
+                            .foregroundColor(SettingsTheme.subtitleColor)
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(SettingsTheme.backgroundColor)
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+                        
+                        VStack(alignment: .center, spacing: SettingsTheme.contentSpacing) {
+                            Text("分屏功能")
+                                .font(.headline)
+                                .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                        
+                        // 模式切换
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                            Text("分屏显示（支持旋转）")
+                                .font(.headline)
+                                .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("• 上下分屏：正常镜+翻转镜")
+                                Text("• 左右分屏：正常镜+翻转镜")
+                            }
+                            .font(.body)
+                            .foregroundColor(SettingsTheme.subtitleColor)
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(SettingsTheme.backgroundColor2)
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+                        
+                        // 基本操作
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                            Text("屏幕操作")
+                                .font(.headline)
+                                .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("• 双击：拍照/退出")
+                                Text("• 单击：开启/关闭边框灯")
+                                Text("• 双指：缩放画面大小")
+                                Text("• 长按上传：图片上传")
+                                Text("• 长按下载：图片下载")
+                            }
+                            .font(.body)
+                            .foregroundColor(SettingsTheme.subtitleColor)
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(SettingsTheme.backgroundColor2)
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+
+                        // 拖拽操作
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                            Text("蝴蝶按钮")
+                                .font(.headline)
+                                .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("• 单击：双屏同时拍照/下载")
+                                Text("• 双击：双屏同时开灯/关灯")
+                                Text("• 长按：交换分屏")
+                            }
+                            .font(.body)
+                            .foregroundColor(SettingsTheme.subtitleColor)
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(SettingsTheme.backgroundColor2)
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+
+                        // 版本信息
+                        VStack(spacing: SettingsTheme.buttonSpacing) {
+                            Text("Mirror")
+                                .font(.headline)
+                                .foregroundColor(.gray)
+                            Text("Version 1.0.0")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.top, SettingsTheme.buttonSpacing)
+                        .padding(.bottom, SettingsTheme.buttonSpacing)
                     }
-                    .padding()
+                    .padding(SettingsTheme.padding)
+                    .padding(.top, SettingsTheme.buttonSpacing)
                 }
-                
-                Spacer()
+                .background(SettingsTheme.panelBackgroundColor)
+                .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight : SettingsLayoutConfig.panelWidth)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight : SettingsLayoutConfig.panelWidth,
+                   height: isLandscape ? SettingsLayoutConfig.panelWidth : SettingsLayoutConfig.panelHeight)
             .background(Color.white)
-            .frame(width: panelWidth, height: panelHeight)
             .cornerRadius(SettingsLayoutConfig.cornerRadius)
+            .offset(x: offsetX, y: offsetY)
+            .rotationEffect(.degrees(rotationAngle))
+            .onAppear {
+                // 设置滚动条样式
+                UIScrollView.appearance().indicatorStyle = .black
+            }
+            .onDisappear {
+                // 恢复默认滚动条样式
+                UIScrollView.appearance().indicatorStyle = .default
+            }
         }
         .transition(.opacity)
-    }
-}
-
-public struct HelpItem: View {
-    let title: String
-    let content: String
-    
-    public init(title: String, content: String) {
-        self.title = title
-        self.content = content
-    }
-    
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.headline)
-                .foregroundColor(.black)
-            Text(content)
-                .font(.body)
-                .foregroundColor(.gray)
-                .lineSpacing(5)
-        }
     }
 }
 

@@ -7,6 +7,7 @@ public struct SettingsLayoutConfig {
     public static let cornerRadius: CGFloat = 16
     public static let closeButtonSize: CGFloat = 24
     public static let closeButtonPadding: CGFloat = 12
+    public static let titleBarHeight: CGFloat = 44  // 添加标题栏高度常量
 }
 
 // 设置面板主题
@@ -15,6 +16,7 @@ public struct SettingsTheme {
     static let titleColor = Color(red: 0.3, green: 0.3, blue: 0.3)  // 深灰色替代 UIColor.darkGray
     static let subtitleColor = Color.gray
     static let backgroundColor = Color.white
+    static let backgroundColor2 = Color.gray.opacity(0.2)
     static let panelBackgroundColor = Color(red: 0.95, green: 0.95, blue: 0.97)  // 浅灰色替代 UIColor.systemGray6
     static let borderColor = Color.gray
     static let selectedBorderColor = Color.black
@@ -68,9 +70,41 @@ struct CustomColorPicker: View {
 public struct SettingsPanel: View {
     @Binding var isPresented: Bool
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    @ObservedObject private var borderLightManager = BorderLightManager.shared
+    @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     @State private var showSaveSuccess = false
     @State private var showSaveAlert = false
     @State private var hasUnsavedChanges = false
+    
+    private var isLandscape: Bool {
+        orientationManager.currentOrientation == .landscapeLeft || orientationManager.currentOrientation == .landscapeRight
+    }
+    
+    private var rotationAngle: Double {
+        switch orientationManager.currentOrientation {
+        case .landscapeLeft:
+            return 90
+        case .landscapeRight:
+            return -90
+        default:
+            return 0
+        }
+    }
+    
+    private var offsetX: CGFloat {
+        switch orientationManager.currentOrientation {
+        case .landscapeLeft:
+            return -80
+        case .landscapeRight:
+            return 80
+        default:
+            return 0
+        }
+    }
+    
+    private var offsetY: CGFloat {
+        isLandscape ? 0 : -80
+    }
     
     // 保存初始状态
     @State private var initialState: SettingsState = SettingsState()
@@ -145,16 +179,17 @@ public struct SettingsPanel: View {
                     Button(action: saveSettings) {
                         HStack(spacing: 4) {
                             Image(systemName: "square.and.arrow.down")
-                                .font(.system(size: 14))
+                                .font(.system(size: 15))
                             Text("保存")
-                                .font(.system(size: 14))
+                                .font(.system(size: 15))
                         }
                         .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
                         .background(Color.blue)
-                        .cornerRadius(6)
+                        .cornerRadius(4)
                     }
+                    .scaleEffect(0.9)
                     
                     Button(action: {
                         if checkForChanges() {
@@ -166,28 +201,17 @@ public struct SettingsPanel: View {
                         }
                     }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
+                            .font(.system(size: 20))
                             .foregroundColor(.gray)
                     }
-                    .padding(.leading, 8)
+                    .padding(.leading, 4)
                 }
-                .padding(.horizontal)
-                .padding(.top, 20)
-                .padding(.bottom, 10)
-                .overlay(
-                    Group {
-                        if showSaveSuccess {
-                            Text("已保存")
-                                .font(.system(size: 12))
-                                .foregroundColor(.green)
-                                .transition(.opacity)
-                                .offset(y: 16)
-                        }
-                    }
-                )
+                .padding(.horizontal, 12)
+                .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight : SettingsLayoutConfig.panelWidth, 
+                       height: SettingsLayoutConfig.titleBarHeight)
                 
-                ScrollView {
-                    VStack(spacing: SettingsTheme.itemSpacing) {  // 增加设置项之间的间距
+                ScrollView(showsIndicators: true) {
+                    VStack(spacing: SettingsTheme.itemSpacing) {
                         // 边框灯设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
                             HStack {
@@ -199,13 +223,15 @@ public struct SettingsPanel: View {
                             }
                             
                             // 颜色选择器
-                            VStack(spacing: SettingsTheme.buttonSpacing) {  // 添加垂直布局
+                            VStack(spacing: SettingsTheme.buttonSpacing) {
                                 HStack {
                                     Text("颜色")
                                         .foregroundColor(SettingsTheme.subtitleColor)
                                     Spacer()
                                     CustomColorPicker(selection: $styleManager.selectedColor) {
-                                        styleManager.saveCurrentSettings()
+                                        // 确保边框灯在预览模式下显示
+                                        borderLightManager.showOriginalHighlight = true
+                                        borderLightManager.showMirroredHighlight = true
                                     }
                                 }
                                 
@@ -221,8 +247,8 @@ public struct SettingsPanel: View {
                                         Color(white: 0.2)  // 深灰色替代纯黑
                                     ], id: \.self) { color in
                                         Button(action: {
+                                            // 不再立即保存，只更新显示
                                             styleManager.updateStyle(color: color)
-                                            styleManager.saveCurrentSettings()
                                         }) {
                                             Circle()
                                                 .fill(color)
@@ -249,14 +275,16 @@ public struct SettingsPanel: View {
                                 .pickerStyle(.segmented)
                                 .frame(maxWidth: .infinity)
                                 .onChange(of: styleManager.selectedWidth) { _ in
-                                    styleManager.saveCurrentSettings()
+                                    // 不再立即保存，只更新显示
+                                    styleManager.updateStyle(width: styleManager.selectedWidth)
                                 }
                             }
                         }
-                        .padding(SettingsTheme.padding)  // 统一内边距
+                        .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor)
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
                         // 手势设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
@@ -297,6 +325,7 @@ public struct SettingsPanel: View {
                         .background(SettingsTheme.backgroundColor)
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
                         // 主屏蝴蝶颜色设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
@@ -313,6 +342,8 @@ public struct SettingsPanel: View {
                                 Button(action: {
                                     styleManager.iconColor = .white
                                     styleManager.saveCurrentSettings()
+                                    // 发送通知以更新主屏按钮颜色
+                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
                                 }) {
                                     Image("icon-bf-white")
                                         .resizable()
@@ -333,6 +364,8 @@ public struct SettingsPanel: View {
                                 Button(action: {
                                     styleManager.iconColor = Color(red: 1, green: 0.95, blue: 0.8)
                                     styleManager.saveCurrentSettings()
+                                    // 发送通知以更新主屏按钮颜色
+                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
                                 }) {
                                     Image("icon-bf-white")
                                         .resizable()
@@ -351,6 +384,8 @@ public struct SettingsPanel: View {
                                 Button(action: {
                                     styleManager.iconColor = Color(red: 0.9, green: 1, blue: 0.9)
                                     styleManager.saveCurrentSettings()
+                                    // 发送通知以更新主屏按钮颜色
+                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
                                 }) {
                                     Image("icon-bf-white")
                                         .resizable()
@@ -369,6 +404,8 @@ public struct SettingsPanel: View {
                                 Button(action: {
                                     styleManager.iconColor = Color(red: 0.9, green: 0.95, blue: 1)
                                     styleManager.saveCurrentSettings()
+                                    // 发送通知以更新主屏按钮颜色
+                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
                                 }) {
                                     Image("icon-bf-white")
                                         .resizable()
@@ -387,6 +424,8 @@ public struct SettingsPanel: View {
                                 Button(action: {
                                     styleManager.iconColor = .black
                                     styleManager.saveCurrentSettings()
+                                    // 发送通知以更新主屏按钮颜色
+                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
                                 }) {
                                     Image("icon-bf-white")
                                         .resizable()
@@ -409,6 +448,7 @@ public struct SettingsPanel: View {
                         .background(SettingsTheme.backgroundColor)
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
                         // 分屏蝴蝶颜色设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
@@ -425,6 +465,8 @@ public struct SettingsPanel: View {
                                 Button(action: {
                                     styleManager.splitScreenIconColor = Color(red: 0.8, green: 0.4, blue: 1.0)
                                     styleManager.saveCurrentSettings()
+                                    // 发送通知以更新主屏按钮颜色
+                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
                                 }) {
                                     Image("icon-bf-color-1")
                                         .resizable()
@@ -442,6 +484,8 @@ public struct SettingsPanel: View {
                                 Button(action: {
                                     styleManager.splitScreenIconColor = .white
                                     styleManager.saveCurrentSettings()
+                                    // 发送通知以更新主屏按钮颜色
+                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
                                 }) {
                                     Image("icon-bf-white")
                                         .resizable()
@@ -462,6 +506,8 @@ public struct SettingsPanel: View {
                                 Button(action: {
                                     styleManager.splitScreenIconColor = .black
                                     styleManager.saveCurrentSettings()
+                                    // 发送通知以更新主屏按钮颜色
+                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
                                 }) {
                                     Image("icon-bf-white")
                                         .resizable()
@@ -484,6 +530,7 @@ public struct SettingsPanel: View {
                         .background(SettingsTheme.backgroundColor)
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
                         // 版本信息
                         VStack(spacing: SettingsTheme.buttonSpacing) {
@@ -493,19 +540,125 @@ public struct SettingsPanel: View {
                             Text("Version 1.0.0")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
+                            
+                            // 添加评价按钮
+                            Button(action: {
+                                // App Store 链接占位符
+                                if let url = URL(string: "https://apps.apple.com/app/idXXXXXXXXXX") {
+                                    UIApplication.shared.open(url)
+                                }
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "star.fill")
+                                        .foregroundColor(.yellow)
+                                    Text("评价我们")
+                                        .foregroundColor(.black)
+                                        .fontWeight(.medium)
+                                }
+                                .font(.system(size: 15))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.white)
+                                .cornerRadius(18)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18)
+                                        .stroke(Color.yellow.opacity(0.5), lineWidth: 1.5)
+                                )
+                                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                .padding(.top, 12)
+                            }
+                            
+                            // 添加更多应用栏目
+                            VStack(spacing: 12) {
+                                Text("更多应用")
+                                    .font(.headline)
+                                    .foregroundColor(.gray)
+                                    .padding(.top, 16)
+                                
+                                HStack(spacing: 24) {
+                                    // 第一个应用
+                                    Button(action: {
+                                        if let url = URL(string: "https://apps.apple.com/app/idYYYYYYYYYY") {
+                                            UIApplication.shared.open(url)
+                                        }
+                                    }) {
+                                        VStack(spacing: 4) {
+                                            Image("app-1-icon") // 替换为实际的应用图标
+                                                .resizable()
+                                                .frame(width: 50, height: 50)
+                                                .cornerRadius(12)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                                )
+                                            Text("应用名称1")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(.gray)
+                                        }
+                                    }
+                                    
+                                    // 第二个应用
+                                    Button(action: {
+                                        if let url = URL(string: "https://apps.apple.com/app/idZZZZZZZZZZ") {
+                                            UIApplication.shared.open(url)
+                                        }
+                                    }) {
+                                        VStack(spacing: 4) {
+                                            Image("app-2-icon") // 替换为实际的应用图标
+                                                .resizable()
+                                                .frame(width: 50, height: 50)
+                                                .cornerRadius(12)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                                )
+                                            Text("应用名称2")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(.gray)
+                                        }
+                                    }
+                                }
+                            }
                         }
                         .padding(.top, SettingsTheme.buttonSpacing)
                         .padding(.bottom, SettingsTheme.buttonSpacing)
                     }
-                    .padding(SettingsTheme.padding)  // 整体水平内边距
+                    .padding(SettingsTheme.padding)
                     .padding(.top, SettingsTheme.buttonSpacing)
                 }
-                .background(SettingsTheme.panelBackgroundColor)  // 添加浅灰色背景
+                .background(SettingsTheme.panelBackgroundColor)
+                .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight : SettingsLayoutConfig.panelWidth)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight : SettingsLayoutConfig.panelWidth,
+                   height: isLandscape ? SettingsLayoutConfig.panelWidth : SettingsLayoutConfig.panelHeight)
             .background(Color.white)
-            .frame(width: SettingsLayoutConfig.panelWidth, height: SettingsLayoutConfig.panelHeight)
             .cornerRadius(SettingsLayoutConfig.cornerRadius)
+            .offset(x: offsetX, y: offsetY)
+            .rotationEffect(.degrees(rotationAngle))
+            .onAppear {
+                // 设置滚动条样式
+                UIScrollView.appearance().indicatorStyle = .black
+                
+                // 保存初始状态
+                initialState = SettingsState()
+                // 进入预览模式，显示边框灯
+                borderLightManager.showOriginalHighlight = true
+                borderLightManager.showMirroredHighlight = true
+                // 发送设置页面显示通知
+                NotificationCenter.default.post(name: NSNotification.Name("SettingsPresented"), object: nil)
+            }
+            .onDisappear {
+                // 恢复默认滚动条样式
+                UIScrollView.appearance().indicatorStyle = .default
+                
+                // 退出预览模式，关闭边框灯
+                if !borderLightManager.isControllingBrightness {
+                    borderLightManager.showOriginalHighlight = false
+                    borderLightManager.showMirroredHighlight = false
+                }
+                // 发送设置页面关闭通知
+                NotificationCenter.default.post(name: NSNotification.Name("SettingsDismissed"), object: nil)
+            }
         }
         .transition(.opacity)
         .alert(isPresented: $showSaveAlert) {
@@ -519,21 +672,13 @@ public struct SettingsPanel: View {
                     }
                 },
                 secondaryButton: .destructive(Text("不保存")) {
-                    // 恢复到初始状态
-                    styleManager.selectedColor = initialState.borderLightColor
-                    styleManager.selectedWidth = initialState.borderLightWidth
-                    styleManager.isDefaultGesture = initialState.isDefaultGesture
-                    styleManager.iconColor = initialState.iconColor
-                    styleManager.splitScreenIconColor = initialState.splitScreenIconColor
+                    // 恢复到上次保存的设置
+                    styleManager.restoreSettings()
                     withAnimation {
                         isPresented = false
                     }
                 }
             )
-        }
-        .onAppear {
-            // 保存初始状态
-            initialState = SettingsState()
         }
     }
 }

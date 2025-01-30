@@ -1393,7 +1393,8 @@ struct TwoOfMeScreens: View {
                             dragVerticalOffset: dragVerticalOffset,
                             deviceOrientation: orientationManager.currentOrientation,
                             screenshotManager: screenshotManager,
-                            handleSwapButtonTap: handleSwapButtonTap
+                            handleSwapButtonTap: handleSwapButtonTap,
+                            borderLightManager: borderLightManager
                         )
                     }
                 }
@@ -1540,9 +1541,6 @@ struct TwoOfMeScreens: View {
                 // 进入定格状态
                 isOriginalPaused = true
                 
-                // 关闭边框灯
-                borderLightManager.turnOffAllLights()
-                
                 // 根据设备方向调整定格画面
                 if let image = originalImage {
                     switch orientationManager.currentOrientation {
@@ -1578,9 +1576,6 @@ struct TwoOfMeScreens: View {
             } else {
                 // 进入定格状态
                 isMirroredPaused = true
-                
-                // 关闭边框灯
-                borderLightManager.turnOffAllLights()
                 
                 // 根据设备方向调整定格画面
                 if let image = mirroredImage {

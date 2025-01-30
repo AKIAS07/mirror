@@ -171,6 +171,7 @@ public struct CaptureActionButton: View {
 // 截图操作视图
 public struct CaptureActionsView: View {
     @ObservedObject var captureState: CaptureState
+    @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     @State private var showAlert = false
     @State private var alertType: AlertType = .success
     @State private var showButtons = true
@@ -179,6 +180,19 @@ public struct CaptureActionsView: View {
     private enum AlertType {
         case success
         case error
+    }
+    
+    private var rotationAngle: Double {
+        switch orientationManager.currentOrientation {
+        case .landscapeLeft:
+            return 90
+        case .landscapeRight:
+            return -90
+        case .portraitUpsideDown:
+            return 180
+        default:
+            return 0
+        }
     }
     
     public init(captureState: CaptureState, onDismiss: @escaping () -> Void) {
@@ -243,6 +257,7 @@ public struct CaptureActionsView: View {
                                         systemName: "square.and.arrow.down",
                                         action: captureState.saveToPhotos
                                     )
+                                    .rotationEffect(.degrees(rotationAngle))
                                     .background(GeometryReader { geometry in
                                         Color.clear.onAppear {
                                             let frame = geometry.frame(in: .global)
@@ -255,6 +270,7 @@ public struct CaptureActionsView: View {
                                         systemName: "square.and.arrow.up",
                                         action: captureState.shareImage
                                     )
+                                    .rotationEffect(.degrees(rotationAngle))
                                     .background(GeometryReader { geometry in
                                         Color.clear.onAppear {
                                             let frame = geometry.frame(in: .global)

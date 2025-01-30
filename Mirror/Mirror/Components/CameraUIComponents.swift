@@ -190,6 +190,7 @@ struct DragHintView: View {
 struct CameraBorderView: View {
     let isSelected: Bool
     let isLighted: Bool
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
     var body: some View {
         GeometryReader { geometry in
@@ -201,22 +202,16 @@ struct CameraBorderView: View {
                 height: availableHeight - CameraLayoutConfig.bottomOffset
             )
             
-            RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius)
-                .trim(from: 0, to: 1)
-                .stroke(
-                    isSelected ? BorderStyle.selectedColor : BorderStyle.normalColor,
-                    style: StrokeStyle(
-                        lineWidth: isSelected ? BorderStyle.selectedWidth : BorderStyle.normalWidth,
-                        lineCap: .round,
-                        lineJoin: .round
-                    )
-                )
-                .frame(width: containerFrame.width, height: containerFrame.height)
-                .position(x: geometry.size.width/2, y: geometry.size.height/2)
+            BorderLightView(
+                screenWidth: containerFrame.width,
+                centerY: containerFrame.height,
+                showOriginalHighlight: isSelected,
+                showMirroredHighlight: isSelected
+            )
+            .position(x: geometry.size.width/2, y: geometry.size.height/2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .allowsHitTesting(false)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 } 
