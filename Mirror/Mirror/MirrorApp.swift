@@ -76,23 +76,40 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
     
     private func startOrientationMonitoring() {
-        // 添加设备方向变化通知监听
+        // 设置允许的设备方向
+        let allowedOrientations: [UIDeviceOrientation] = [
+            .portrait,
+            .portraitUpsideDown,
+            .landscapeLeft,
+            .landscapeRight
+        ]
+        
+        // 添加设备方向变化通知监听，使用 block 方式以便过滤方向
         NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(orientationDidChange),
-            name: UIDevice.orientationDidChangeNotification,
-            object: nil
-        )
+            forName: UIDevice.orientationDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            let orientation = UIDevice.current.orientation
+            
+            // 只处理允许的方向
+            guard allowedOrientations.contains(orientation) else {
+                return
+            }
+            
+            self?.handleOrientationChange(orientation)
+        }
         
         // 开启设备方向监测
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         
         // 立即获取一次当前方向
-        orientationDidChange()
+        if allowedOrientations.contains(UIDevice.current.orientation) {
+            handleOrientationChange(UIDevice.current.orientation)
+        }
     }
     
-    @objc func orientationDidChange() {
-        let orientation = UIDevice.current.orientation
+    private func handleOrientationChange(_ orientation: UIDeviceOrientation) {
         print("------------------------")
         print("设备方向发生变化")
         print("时间：\(Date())")
@@ -106,14 +123,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             print("当前方向：向左横屏")
         case .landscapeRight:
             print("当前方向：向右横屏")
-        case .faceUp:
-            print("当前方向：面朝上平放")
-        case .faceDown:
-            print("当前方向：面朝下平放")
-        case .unknown:
-            print("当前方向：未知方向")
-        @unknown default:
-            print("当前方向：其他未知方向")
+        default:
+            break
         }
         
         print("原始值：\(orientation.rawValue)")

@@ -72,6 +72,9 @@ struct ContentView: View {
     @State private var middleAnimationPosition: CGPoint = .zero
     @State private var rightAnimationPosition: CGPoint = .zero
 
+    // 添加设备方向状态
+    @StateObject private var orientationManager = DeviceOrientationManager.shared
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -84,7 +87,7 @@ struct ContentView: View {
                                 session: cameraManager.session,
                                 isMirrored: cameraManager.isMirrored,
                                 isActive: isCameraActive,
-                                deviceOrientation: deviceOrientation,
+                                deviceOrientation: orientationManager.currentOrientation,
                                 restartAction: restartCamera,
                                 cameraManager: cameraManager,
                                 previousBrightness: previousBrightness,
@@ -109,7 +112,7 @@ struct ContentView: View {
                                 session: cameraManager.session,
                                 isMirrored: cameraManager.isMirrored,
                                 isActive: isCameraActive,
-                                deviceOrientation: deviceOrientation,
+                                deviceOrientation: orientationManager.currentOrientation,
                                 restartAction: restartCamera,
                                 cameraManager: cameraManager,
                                 previousBrightness: previousBrightness,
@@ -183,7 +186,7 @@ struct ContentView: View {
                                                                 showSettings = true
                                                             }
                                                         },
-                                                        deviceOrientation: deviceOrientation,
+                                                        deviceOrientation: orientationManager.currentOrientation,
                                                         useCustomColor: true,
                                                         customColor: BorderLightStyleManager.shared.iconColor
                                                     )
@@ -198,7 +201,7 @@ struct ContentView: View {
                                                                 showHelp = true
                                                             }
                                                         },
-                                                        deviceOrientation: deviceOrientation,
+                                                        deviceOrientation: orientationManager.currentOrientation,
                                                         useCustomColor: true,
                                                         customColor: BorderLightStyleManager.shared.iconColor
                                                     )
@@ -222,7 +225,7 @@ struct ContentView: View {
                                 DraggableArrow(isExpanded: !isControlPanelVisible, 
                                              isLighted: isLighted,
                                              screenWidth: geometry.size.width,
-                                             deviceOrientation: deviceOrientation,
+                                             deviceOrientation: orientationManager.currentOrientation,
                                              isControlPanelVisible: $isControlPanelVisible,
                                              showDragHint: $showArrowHint,
                                              dragHintState: $dragHintState,
@@ -311,7 +314,7 @@ struct ContentView: View {
                         .frame(width: 100, height: 100)
                         .opacity(0.25)
                         .transition(.opacity)
-                        .rotationEffect(getIconRotationAngle(deviceOrientation))
+                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .position(leftAnimationPosition)
                 }
                 
@@ -322,7 +325,7 @@ struct ContentView: View {
                         .frame(width: 100, height: 100)
                         .opacity(0.25)
                         .transition(.opacity)
-                        .rotationEffect(getIconRotationAngle(deviceOrientation))
+                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .position(middleAnimationPosition)
                 }
                 
@@ -333,7 +336,7 @@ struct ContentView: View {
                         .frame(width: 100, height: 100)
                         .opacity(0.25)
                         .transition(.opacity)
-                        .rotationEffect(getIconRotationAngle(deviceOrientation))
+                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .position(rightAnimationPosition)
                 }
             }
@@ -359,16 +362,36 @@ struct ContentView: View {
                         }
                     }
                 
+                // 设置允许的设备方向
+                let allowedOrientations: [UIDeviceOrientation] = [
+                    .portrait,
+                    .portraitUpsideDown,
+                    .landscapeLeft,
+                    .landscapeRight
+                ]
+                
+                // 记录最后一个有效方向
+                var lastValidOrientation: UIDeviceOrientation = .portrait
+                
+                // 添加设备方向变化通知监听
                 NotificationCenter.default.addObserver(
                     forName: UIDevice.orientationDidChangeNotification,
                     object: nil,
                     queue: .main) { _ in
                         let newOrientation = UIDevice.current.orientation
-                        deviceOrientation = newOrientation
-                        print("设备方向化：\(newOrientation.rawValue)")
                         
-                        if !cameraManager.isMirrored && newOrientation == .landscapeLeft {
-                            print("正常模式下向左横屏，旋转摄像头画面180度")
+                        // 只处理允许的方向，否则保持最后一个有效方向
+                        if allowedOrientations.contains(newOrientation) {
+                            lastValidOrientation = newOrientation
+                            deviceOrientation = newOrientation
+                            print("设备方向化：\(newOrientation.rawValue)")
+                            
+                            if !cameraManager.isMirrored && newOrientation == .landscapeLeft {
+                                print("正常模式下向左横屏，旋转摄像头画面180度")
+                            }
+                        } else {
+                            // 保持最后一个有效方向
+                            deviceOrientation = lastValidOrientation
                         }
                     }
                 
@@ -522,16 +545,14 @@ struct ContentView: View {
         print("------------------------")
     }
     
-    // 添加获取图标旋转角度的函数
-    private func getIconRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
-        switch orientation {
-        case .landscapeLeft:
-            return .degrees(90)
-        case .landscapeRight:
-            return .degrees(-90)
-        default:
-            return .degrees(0)
-        }
+    // 修改获取旋转角度的方法
+    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        return orientationManager.getRotationAngle(orientation)
+    }
+    
+    // 修改方向描述辅助方法
+    private func getOrientationDescription(_ orientation: UIDeviceOrientation) -> String {
+        return orientationManager.getOrientationDescription(orientation)
     }
     
     // 更新左按钮创建函数
@@ -570,7 +591,7 @@ struct ContentView: View {
                 cameraManager.isMirrored = true
                 ModeBSelected = false
             },
-            deviceOrientation: deviceOrientation,
+            deviceOrientation: orientationManager.currentOrientation,
             isDisabled: cameraManager.isMirrored,
             useCustomColor: true,
             customColor: styleManager.iconColor
@@ -618,7 +639,7 @@ struct ContentView: View {
                     }
                 }
             },
-            deviceOrientation: deviceOrientation,
+            deviceOrientation: orientationManager.currentOrientation,
             useCustomColor: styleManager.splitScreenIconColor == .black || styleManager.splitScreenIconColor == .white,
             customColor: styleManager.splitScreenIconColor
         )
@@ -660,7 +681,7 @@ struct ContentView: View {
                 cameraManager.isMirrored = false
                 ModeASelected = false
             },
-            deviceOrientation: deviceOrientation,
+            deviceOrientation: orientationManager.currentOrientation,
             isDisabled: !cameraManager.isMirrored,
             useCustomColor: true,
             customColor: styleManager.iconColor

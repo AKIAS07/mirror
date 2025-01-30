@@ -30,17 +30,19 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         // 生成镜像画面（根据方向处理）
         var mirroredImage = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
         
-        // 根据设备方向旋转镜像画面
-        let deviceOrientation = UIDevice.current.orientation
-        if deviceOrientation == .landscapeLeft || deviceOrientation == .landscapeRight {
+        // 获取当前有效方向
+        let validOrientation = DeviceOrientationManager.shared.validOrientation
+        
+        // 根据有效方向旋转镜像画面
+        if validOrientation == .landscapeLeft || validOrientation == .landscapeRight {
             let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
                 .rotated(by: .pi)
             mirroredImage = mirroredImage.transformed(by: rotationTransform)
             
-            // 只在方向改变时输出一次日志
-            if deviceOrientation != lastOrientation {
-                print("镜像画面根据设备方向(\(deviceOrientation == .landscapeLeft ? "向左" : "向右"))调整")
-                lastOrientation = deviceOrientation
+            // 只在方向变化时输出日志
+            if validOrientation != lastOrientation {
+                print("镜像画面根据设备方向(\(validOrientation == .landscapeLeft ? "向左" : "向右"))调整")
+                lastOrientation = validOrientation
             }
         }
         
@@ -131,7 +133,6 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
     
     var isMirrored: Bool = false
     private var previousOrientation: UIDeviceOrientation = .unknown
-    private var previousMirrorState: Bool = false
     private var lastLogTime: Date = Date()
     private let logInterval: TimeInterval = 1.0
     private var currentMode: CameraMode = .modeB
@@ -171,29 +172,18 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
         
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
         var processedImage = ciImage
-        let deviceOrientation = UIDevice.current.orientation
+        let validOrientation = DeviceOrientationManager.shared.validOrientation
         let currentTime = Date()
         
-        // 设备方向变化日志
-        if deviceOrientation != previousOrientation && 
+        // 只在有效方向变化时输出日志
+        if validOrientation != previousOrientation && 
            currentTime.timeIntervalSince(lastLogTime) >= logInterval {
             print("------------------------")
             print("设备方向变化")
             print("当前模式：\(currentMode == .modeA ? "模式A" : "模式B")")
-            switch deviceOrientation {
-            case .portrait:
-                print("方向：竖屏(1)")
-            case .portraitUpsideDown:
-                print("方向：倒置竖屏(2)")
-            case .landscapeRight:
-                print("方向：向右横屏(3)")
-            case .landscapeLeft:
-                print("方向：向左横屏(4)")
-            default:
-                print("方向：其他")
-            }
+            print("当前方向：\(DeviceOrientationManager.shared.getOrientationDescription(validOrientation))")
             print("------------------------")
-            previousOrientation = deviceOrientation
+            previousOrientation = validOrientation
             lastLogTime = currentTime
         }
         
@@ -203,7 +193,8 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
             processedImage = processedImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
             
         case .modeB:
-            if deviceOrientation == .landscapeLeft || deviceOrientation == .landscapeRight {
+            // 使用有效方向来决定旋转
+            if validOrientation == .landscapeLeft || validOrientation == .landscapeRight {
                 let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
                     .rotated(by: .pi)
                 processedImage = processedImage.transformed(by: rotationTransform)

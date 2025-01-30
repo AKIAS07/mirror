@@ -220,37 +220,17 @@ public struct CaptureActionsView: View {
                     Color.black.opacity(0.01)
                         .frame(width: screenBounds.width, height: screenBounds.height)
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                        .onTapGesture {
+                        .onTapGesture(count: BorderLightStyleManager.shared.captureGestureCount) {
                             withAnimation {
-                                showButtons.toggle()
+                                captureState.reset {
+                                    onDismiss()
+                                }
                             }
                         }
                     
                     // 按钮控制层
                     if showButtons {
                         VStack(spacing: 0) {
-                            // 顶部关闭按钮
-                            ZStack {
-                                // 关闭按钮
-                                CaptureActionButton(
-                                    systemName: "xmark.circle.fill",
-                                    action: {
-                                        withAnimation {
-                                            captureState.reset {
-                                                onDismiss()
-                                            }
-                                        }
-                                    }
-                                )
-                                .padding(.top, UIApplication.shared.windows.first?.safeAreaInsets.top ?? 0)
-                                .background(GeometryReader { geometry in
-                                    Color.clear.onAppear {
-                                        let frame = geometry.frame(in: .global)
-                                        print("关闭按钮位置: x=\(frame.midX), y=\(frame.midY)")
-                                    }
-                                })
-                            }
-                            
                             Spacer()
                             
                             // 底部操作按钮

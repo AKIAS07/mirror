@@ -21,6 +21,11 @@ class BorderLightStyleManager: ObservableObject {
     @Published var iconColor: Color = .white
     @Published var splitScreenIconColor: Color = Color(red: 0.8, green: 0.4, blue: 1.0) // 默认彩色
     
+    // 添加计算属性，根据手势模式返回对应的点击次数
+    var captureGestureCount: Int {
+        return isDefaultGesture ? 2 : 1  // 默认模式为双击，交换模式为单击
+    }
+    
     private init() {
         // 检查是否有保存的用户配置
         let settings = UserSettingsManager.shared
