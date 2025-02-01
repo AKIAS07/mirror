@@ -675,7 +675,7 @@ struct OverlayView: View {
                 print("------------------------")   
                 imageUploader.uploadImage(for: screenID)
             }) {
-                Image(systemName: "arrow.up.circle.fill")
+                Image(systemName: "plus.circle.fill")
                     .font(.system(size: 80))
                     .rotationEffect(getRotationAngle(deviceOrientation))
                     .frame(width: 80, height: 80)
@@ -710,7 +710,7 @@ struct OverlayView: View {
                 print("------------------------")   
                 imageUploader.downloadImage(for: screenID)
             }) {
-                Image(systemName: "arrow.down.to.line.circle.fill")
+                Image(systemName: "square.and.arrow.down.fill")
                     .font(.system(size: 80))
                     .rotationEffect(getRotationAngle(deviceOrientation))
                     .frame(width: 80, height: 80)

@@ -134,36 +134,31 @@ public struct CaptureActionButton: View {
     let systemName: String
     let action: () -> Void
     let feedbackStyle: UIImpactFeedbackGenerator.FeedbackStyle
+    let color: Color
     
     public init(systemName: String, 
          action: @escaping () -> Void, 
-         feedbackStyle: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+         feedbackStyle: UIImpactFeedbackGenerator.FeedbackStyle = .medium,
+         color: Color) {
         self.systemName = systemName
         self.action = action
         self.feedbackStyle = feedbackStyle
+        self.color = color
     }
     
     public var body: some View {
         Button(action: {
-            // 触发震动反馈
             let generator = UIImpactFeedbackGenerator(style: feedbackStyle)
             generator.prepare()
             generator.impactOccurred()
-            
             action()
         }) {
-            ZStack {
-                Circle()
-                    .fill(Color.black.opacity(0.5))
-                    .frame(width: CaptureButtonStyle.buttonSize, 
-                           height: CaptureButtonStyle.buttonSize)
-                
-                Image(systemName: systemName)
-                    .font(.system(size: 24))
-                    .foregroundColor(.white)
-            }
-            .frame(width: CaptureButtonStyle.buttonSize, 
-                   height: CaptureButtonStyle.buttonSize)
+            Image(systemName: systemName)
+                .font(.system(size: 24))
+                .foregroundColor(color)
+                .frame(width: 50, height: 50)
+                .background(Color.black.opacity(0.2))
+                .clipShape(Circle())
         }
     }
 }
@@ -254,10 +249,12 @@ public struct CaptureActionsView: View {
                                     
                                     // 下载按钮
                                     CaptureActionButton(
-                                        systemName: "square.and.arrow.down",
-                                        action: captureState.saveToPhotos
+                                        systemName: "square.and.arrow.down.fill",
+                                        action: captureState.saveToPhotos,
+                                        color: BorderLightStyleManager.shared.iconColor
                                     )
                                     .rotationEffect(.degrees(rotationAngle))
+                                    .animation(.easeInOut(duration: 0.3), value: rotationAngle)
                                     .background(GeometryReader { geometry in
                                         Color.clear.onAppear {
                                             let frame = geometry.frame(in: .global)
@@ -267,10 +264,12 @@ public struct CaptureActionsView: View {
                                     
                                     // 分享按钮
                                     CaptureActionButton(
-                                        systemName: "square.and.arrow.up",
-                                        action: captureState.shareImage
+                                        systemName: "arrowshape.turn.up.right.fill",
+                                        action: captureState.shareImage,
+                                        color: BorderLightStyleManager.shared.iconColor
                                     )
                                     .rotationEffect(.degrees(rotationAngle))
+                                    .animation(.easeInOut(duration: 0.3), value: rotationAngle)
                                     .background(GeometryReader { geometry in
                                         Color.clear.onAppear {
                                             let frame = geometry.frame(in: .global)

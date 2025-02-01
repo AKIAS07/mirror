@@ -166,9 +166,9 @@ struct ContentView: View {
                                         .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .overlay(
                                             ZStack {
-                                                // 顶部白色长条
+                                                // 顶部长条
                                                 Rectangle()
-                                                    .fill(Color.white.opacity(0.3))
+                                                    .fill(BorderLightStyleManager.shared.iconColor.opacity(0.3))
                                                     .frame(width: 150, height: 2)
                                                     .cornerRadius(4)
                                                     .padding(.top, -60)
@@ -289,7 +289,34 @@ struct ContentView: View {
                 // 添加提示视图到最顶层
                 if showArrowHint {
                     DragHintView(hintState: dragHintState)
-                        .position(x: geometry.size.width/2, y: geometry.size.height/2)
+                        .position(x: geometry.size.width/2, y: {
+                            switch dragHintState {
+                            case .upAndRightLeft, .upOnly:
+                                // 当箭头在底部时，提示显示在上方
+                                return geometry.size.height/2 + 240
+                            case .downAndRightLeft, .downOnly:
+                                // 当箭头在顶部时，提示显示在下方
+                                return geometry.size.height/2 + 120
+                            case .rightOnly:
+                                // 当箭头在左侧时，提示显示在右侧
+                                return geometry.size.height/2 + 240
+                            case .leftOnly:
+                                // 当箭头在右侧时，提示显示在左侧
+                                return geometry.size.height/2 + 240
+                            }
+                        }())
+                        .offset(x: {
+                            switch dragHintState {
+                            case .rightOnly:
+                                // 当箭头在左侧时，提示向右偏移
+                                return -150
+                            case .leftOnly:
+                                // 当箭头在右侧时，提示向左偏移
+                                return 150
+                            default:
+                                return 0
+                            }
+                        }())
                         .transition(.opacity)
                         .zIndex(4)
                 }
@@ -418,17 +445,41 @@ struct ContentView: View {
                 NotificationCenter.default.addObserver(
                     forName: UIApplication.willResignActiveNotification,
                     object: nil,
-                    queue: .main) { _ in
-                        print("应用进后台")
-                        handleAppBackground()
-                    }
+                    queue: .main
+                ) { _ in
+                    print("------------------------")
+                    print("应用即将进入后台")
+                    print("------------------------")
+                    
+                    // 停止相机会话
+                    self.cameraManager.safelyStopSession()
+                    self.isCameraActive = false
+                    self.showRestartHint = true
+                }
                 
                 NotificationCenter.default.addObserver(
                     forName: UIApplication.didBecomeActiveNotification,
                     object: nil,
+                    queue: .main
+                ) { _ in
+                    print("------------------------")
+                    print("应用已返回前台")
+                    print("------------------------")
+                    
+                    // 显示重启提示，等待用户手动点击重启
+                    self.isCameraActive = false
+                    self.showRestartHint = true
+                }
+                
+                // 添加分屏退出通知监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("DismissTwoOfMeView"),
+                    object: nil,
                     queue: .main) { _ in
-                        print("应用回到前台")
-                        handleAppForeground()
+                        print("接收到分屏退出通知")
+                        withAnimation {
+                            showingTwoOfMe = false
+                        }
                     }
                 
                 // 预准备震动反馈
@@ -447,43 +498,28 @@ struct ContentView: View {
             handleTwoOfMeDismiss()
         } content: {
             TwoOfMeScreens()
-                .transition(.move(edge: .trailing))  // 从右边进入
-        }
-    }
-    
-    // 处理应用进入后台
-    private func handleAppBackground() {
-        if cameraManager.permissionGranted {
-            cameraManager.safelyStopSession()
-            isCameraActive = false
-            print("相机会话已停止")
-        }
-    }
-    
-    // 处理应用回到前台
-    private func handleAppForeground() {
-        // 不需要在这里重新检查权限，因为CameraManager会自动处理
-        if !isCameraActive && cameraManager.permissionGranted {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.restartCamera()
-            }
-        } else if !cameraManager.permissionGranted {
-            print("相机权限未授权，显示权限请求界面")
-            isCameraActive = false
-            showRestartHint = false
-        } else {
-            print("显示重启相机提示")
-            showRestartHint = true
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing),
+                    removal: .opacity.combined(with: .move(edge: .leading))
+                ))
+                .animation(.easeInOut(duration: 0.3), value: showingTwoOfMe)
         }
     }
     
     private func handleTwoOfMeDismiss() {
-        if cameraManager.permissionGranted {
-            cameraManager.safelyStopSession()
-            cameraManager.isMirrored = false
-            isCameraActive = false
-            showRestartHint = true
-        }
+        print("------------------------")
+        print("处理分屏页面退出")
+        print("------------------------")
+        
+        // 先停止相机会话
+        cameraManager.safelyStopSession()
+        
+        // 设置相机模式
+        cameraManager.isMirrored = false
+        
+        // 显示重启提示，等待用户点击
+        isCameraActive = false
+        showRestartHint = true
     }
     
     private func restartCamera() {
@@ -493,8 +529,12 @@ struct ContentView: View {
         }
         
         print("重启相机会话")
+        
+        // 在后台线程启动相机会话
         DispatchQueue.global(qos: .userInitiated).async {
-            self.cameraManager.session.startRunning()
+            self.cameraManager.restartCamera()
+            
+            // 在主线程更新 UI 状态
             DispatchQueue.main.async {
                 self.isCameraActive = true
                 self.showRestartHint = false
@@ -506,6 +546,10 @@ struct ContentView: View {
     // 添加放缩处理函数
     private func handlePinchGesture(scale: CGFloat) {
         let newScale = baseScale * scale
+        
+        // 更新缩放提示
+        currentIndicatorScale = currentScale
+        showScaleIndicator = true
         
         if newScale >= maxScale && scale > 1.0 {
             currentScale = maxScale
@@ -528,18 +572,14 @@ struct ContentView: View {
         } else {
             currentScale = min(max(newScale, minScale), maxScale)
             showScaleLimitMessage = false
-            
-            // 更新缩放提示
-            currentIndicatorScale = currentScale
-            showScaleIndicator = true
-            
-            // 打印日志
-            let currentPercentage = Int(currentScale * 100)
-            print("------------------------")
-            print("双指缩放")
-            print("当前比例：\(currentPercentage)%")
-            print("------------------------")
         }
+        
+        // 打印日志
+        let currentPercentage = Int(currentScale * 100)
+        print("------------------------")
+        print("双指缩放")
+        print("当前比例：\(currentPercentage)%")
+        print("------------------------")
     }
     
     private func handlePinchEnd(scale: CGFloat) {
@@ -642,6 +682,10 @@ struct ContentView: View {
                 
                 UIScreen.main.brightness = previousBrightness
                 print("进入 Two of Me 前 - 强制恢复原始亮度：\(previousBrightness)")
+                
+                // 立即停止相机并显示重启提示
+                cameraManager.safelyStopSession()
+                isCameraActive = false
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
                     withAnimation {

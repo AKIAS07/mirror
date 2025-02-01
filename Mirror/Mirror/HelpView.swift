@@ -126,13 +126,13 @@ public struct HelpPanel: View {
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
 
                         // 拖拽操作
-                        VStack(alignment: .center, spacing: SettingsTheme.contentSpacing) {
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
                             Text("拖拽操作")
                                 .font(.headline)
                                 .foregroundColor(SettingsTheme.titleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
-                            VStack(alignment: .center, spacing: 5) {
+                            VStack(alignment: .leading, spacing: 5) {
                                 Text("• 上下拖动：扩展/还原面板")
                                 Text("• 左右拖动：隐藏/显示面板")
                             }
@@ -203,7 +203,7 @@ public struct HelpPanel: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
-                                Text("• 单击：双屏同时拍照/下载")
+                                Text("• 单击：双屏同时拍照/退出")
                                 Text("• 双击：双屏同时开灯/关灯")
                                 Text("• 长按：交换分屏")
                             }

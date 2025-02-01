@@ -75,6 +75,7 @@ public struct SettingsPanel: View {
     @State private var showSaveSuccess = false
     @State private var showSaveAlert = false
     @State private var hasUnsavedChanges = false
+    @State private var previousBrightness: CGFloat = UIScreen.main.brightness
     
     private var isLandscape: Bool {
         orientationManager.currentOrientation == .landscapeLeft || orientationManager.currentOrientation == .landscapeRight
@@ -636,6 +637,15 @@ public struct SettingsPanel: View {
             .offset(x: offsetX, y: offsetY)
             .rotationEffect(.degrees(rotationAngle))
             .onAppear {
+                // 保存当前亮度并设置为最大
+                previousBrightness = UIScreen.main.brightness
+                UIScreen.main.brightness = 1.0
+                print("------------------------")
+                print("设置页面显示")
+                print("保存原始亮度：\(previousBrightness)")
+                print("设置最大亮度：1.0")
+                print("------------------------")
+                
                 // 设置滚动条样式
                 UIScrollView.appearance().indicatorStyle = .black
                 
@@ -648,6 +658,13 @@ public struct SettingsPanel: View {
                 NotificationCenter.default.post(name: NSNotification.Name("SettingsPresented"), object: nil)
             }
             .onDisappear {
+                // 恢复原始亮度
+                UIScreen.main.brightness = previousBrightness
+                print("------------------------")
+                print("设置页面关闭")
+                print("恢复原始亮度：\(previousBrightness)")
+                print("------------------------")
+                
                 // 恢复默认滚动条样式
                 UIScrollView.appearance().indicatorStyle = .default
                 

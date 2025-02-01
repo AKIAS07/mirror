@@ -7,7 +7,15 @@ struct ScaleIndicatorView: View {
     
     private var scaleText: String {
         let scalePercentage = Int(scale * 100)
-        // 将百分比舍入到最接近的50的倍数
+        
+        // 在最小和最大缩放比例时显示固定值
+        if scale <= 1.0 {
+            return "100%"
+        } else if scale >= 10.0 {
+            return "1000%"
+        }
+        
+        // 其他情况将百分比舍入到最接近的50的倍数
         let roundedPercentage = Int(round(Double(scalePercentage) / 50.0) * 50)
         return "\(roundedPercentage)%"
     }

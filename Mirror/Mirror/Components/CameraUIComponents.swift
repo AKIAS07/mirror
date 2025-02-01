@@ -36,6 +36,7 @@ struct CircleButton: View {
             }
             .opacity(isDisabled ? 0.5 : 1.0)
             .rotationEffect(getRotationAngle(deviceOrientation))
+            .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
         }
         .disabled(isDisabled)
     }
@@ -77,15 +78,15 @@ struct RestartCameraView: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: 20) {
-                    Text("摄像头已关闭")
-                        .foregroundColor(.white)
-                        .font(.title2)
+                    // Text("点击唤醒摄像头")
+                    //     .foregroundColor(.white)
+                    //     .font(.title2)
                     
-                    Image(systemName: "camera.circle")
-                        .font(.system(size: 50))
+                    Image(systemName: "camera.circle.fill")
+                        .font(.system(size: 75))
                         .foregroundColor(.white)
                 }
-                .position(x: geometry.size.width/2, y: geometry.size.height/2)
+                .position(x: geometry.size.width/2, y: geometry.size.height/2-25)
             }
             .onTapGesture {
                 action()
@@ -145,44 +146,44 @@ struct DragHintView: View {
             case .upAndRightLeft:
                 Image(systemName: "chevron.left")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
                 Image(systemName: "chevron.up")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
             case .downAndRightLeft:
                 Image(systemName: "chevron.left")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
             case .rightOnly:
                 Image(systemName: "chevron.right")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
             case .leftOnly:
                 Image(systemName: "chevron.left")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
             case .upOnly:
                 Image(systemName: "chevron.up")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
             case .downOnly:
                 Image(systemName: "chevron.down")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(BorderLightStyleManager.shared.iconColor)
             }
         }
-        .padding(.horizontal, 30)
+        .padding(.horizontal, 20)
         .padding(.vertical, 15)
-        .background(Color.black.opacity(0.7))
+        .background(Color.black.opacity(0.35))
         .cornerRadius(15)
     }
 }

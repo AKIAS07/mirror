@@ -224,6 +224,8 @@ struct DraggableArrow: View {
             return .degrees(90)
         case .landscapeRight:
             return .degrees(-90)
+        case .portraitUpsideDown:
+            return .degrees(180)
         default:
             return .degrees(0)
         }
@@ -257,6 +259,8 @@ struct DraggableArrow: View {
                         .frame(width: ArrowLayoutConfig.arrowWidth, height: ArrowLayoutConfig.arrowHeight)
                         .rotationEffect(getIconRotationAngle(deviceOrientation))  // 设备旋转
                         .rotationEffect(.degrees(isExpanded ? 0 : dragRotation))  // 拖动旋转（仅适用于 icon-star）
+                        .animation(.easeInOut(duration: 0.3), value: deviceOrientation) // 添加设备旋转动画
+                        .animation(.easeInOut(duration: 0.2), value: dragRotation) // 添加拖动旋转动画
                         .contentShape(Rectangle())
                         .padding(.leading, isControlPanelVisible ? 
                              geometry.size.width/2 - ArrowLayoutConfig.arrowHalfWidth : 

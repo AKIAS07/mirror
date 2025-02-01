@@ -113,9 +113,10 @@ class CameraManager: ObservableObject {
     func restartCamera() {
         if session.isRunning {
             print("------------------------")
-            print("[相机] 会话正在运行，跳过重启")
+            print("[相机] 会话正在运行，先停止当前会话")
             print("------------------------")
-            return
+            stopSession()
+            Thread.sleep(forTimeInterval: 0.1)
         }
         
         if isSettingUpCamera {
@@ -129,12 +130,9 @@ class CameraManager: ObservableObject {
         print("[相机] 准备重启")
         print("------------------------")
         
+        // 确保在后台线程执行相机操作
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            
-            self.stopSession()
-            
-            Thread.sleep(forTimeInterval: 0.1)
             
             print("------------------------")
             print("[相机] 重启中...")

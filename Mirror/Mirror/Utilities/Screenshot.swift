@@ -6,6 +6,7 @@ import Photos
 // 添加截图动画视图
 struct ScreenshotAnimationView: View {
     @Binding var isVisible: Bool
+    @ObservedObject var screenshotManager = ScreenshotManager.shared
     let screenWidth = UIScreen.main.bounds.width
     let screenHeight = UIScreen.main.bounds.height
     let touchZonePosition: TouchZonePosition  // 添加触控区位置参数
@@ -17,53 +18,134 @@ struct ScreenshotAnimationView: View {
     private let lineWidth: CGFloat = 10      // 线条宽度
     private let padding: CGFloat = 20        // 与触控区的间距
     
+    // 添加全屏动画状态
+    @State private var showFullScreenAnimation = false
+    @State private var fullScreenScale: CGFloat = 1.0
+    @State private var fullScreenOpacity: Double = 0.0
+    @State private var showText = false
+    
     var body: some View {
-        // 触控区1位于屏幕中心，根据位置偏移
-        let centerX = screenWidth/2 + touchZonePosition.xOffset
-        let centerY = screenHeight/2
-        
-        // 计算四个角的位置
-        let left = centerX - touchZoneWidth/2 - padding
-        let right = centerX + touchZoneWidth/2 + padding
-        let top = centerY - touchZoneHeight/2 - padding
-        let bottom = centerY + touchZoneHeight/2 + padding
-        
         ZStack {
-            // 左上角
-            Path { path in
-                path.move(to: CGPoint(x: left, y: top + cornerLength))
-                path.addLine(to: CGPoint(x: left, y: top))
-                path.addLine(to: CGPoint(x: left + cornerLength, y: top))
-            }
-            .stroke(Color.yellow, lineWidth: lineWidth)
+            // 触控区1位于屏幕中心，根据位置偏移
+            let centerX = screenWidth/2 + touchZonePosition.xOffset
+            let centerY = screenHeight/2
             
-            // 右上角
-            Path { path in
-                path.move(to: CGPoint(x: right - cornerLength, y: top))
-                path.addLine(to: CGPoint(x: right, y: top))
-                path.addLine(to: CGPoint(x: right, y: top + cornerLength))
-            }
-            .stroke(Color.yellow, lineWidth: lineWidth)
+            // 计算四个角的位置
+            let left = centerX - touchZoneWidth/2 - padding
+            let right = centerX + touchZoneWidth/2 + padding
+            let top = centerY - touchZoneHeight/2 - padding
+            let bottom = centerY + touchZoneHeight/2 + padding
             
-            // 左下角
-            Path { path in
-                path.move(to: CGPoint(x: left, y: bottom - cornerLength))
-                path.addLine(to: CGPoint(x: left, y: bottom))
-                path.addLine(to: CGPoint(x: left + cornerLength, y: bottom))
+            // 四角L形动画
+            Group {
+                // 左上角
+                Path { path in
+                    path.move(to: CGPoint(x: left, y: top + cornerLength))
+                    path.addLine(to: CGPoint(x: left, y: top))
+                    path.addLine(to: CGPoint(x: left + cornerLength, y: top))
+                }
+                .stroke(Color.yellow, lineWidth: lineWidth)
+                
+                // 右上角
+                Path { path in
+                    path.move(to: CGPoint(x: right - cornerLength, y: top))
+                    path.addLine(to: CGPoint(x: right, y: top))
+                    path.addLine(to: CGPoint(x: right, y: top + cornerLength))
+                }
+                .stroke(Color.yellow, lineWidth: lineWidth)
+                
+                // 左下角
+                Path { path in
+                    path.move(to: CGPoint(x: left, y: bottom - cornerLength))
+                    path.addLine(to: CGPoint(x: left, y: bottom))
+                    path.addLine(to: CGPoint(x: left + cornerLength, y: bottom))
+                }
+                .stroke(Color.yellow, lineWidth: lineWidth)
+                
+                // 右下角
+                Path { path in
+                    path.move(to: CGPoint(x: right - cornerLength, y: bottom))
+                    path.addLine(to: CGPoint(x: right, y: bottom))
+                    path.addLine(to: CGPoint(x: right, y: bottom - cornerLength))
+                }
+                .stroke(Color.yellow, lineWidth: lineWidth)
             }
-            .stroke(Color.yellow, lineWidth: lineWidth)
+            .opacity(isVisible ? 1 : 0)
+            .scaleEffect(isVisible ? 0.98 : 1.0)
             
-            // 右下角
-            Path { path in
-                path.move(to: CGPoint(x: right - cornerLength, y: bottom))
-                path.addLine(to: CGPoint(x: right, y: bottom))
-                path.addLine(to: CGPoint(x: right, y: bottom - cornerLength))
+            // 全屏动画
+            if showFullScreenAnimation, let previewImage = screenshotManager.previewImage {
+                Rectangle()
+                    .fill(Color.black.opacity(0.5))
+                    .frame(width: screenWidth, height: screenHeight)
+                    .opacity(fullScreenOpacity)
+                
+                // 截图预览
+                Image(uiImage: previewImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: screenWidth * 0.8, height: screenHeight * 0.8)
+                    .cornerRadius(20)
+                    .scaleEffect(fullScreenScale)
+                    .opacity(fullScreenOpacity)
+                
+                // 保存提示文本
+                Text("已保存到相册")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .background(Color.black.opacity(0.6))
+                    .cornerRadius(8)
+                    .opacity(showText ? 1 : 0)
+                    .offset(y: screenHeight * 0.3)
+                    .animation(.easeInOut(duration: 0.3), value: showText)
             }
-            .stroke(Color.yellow, lineWidth: lineWidth)
         }
-        .opacity(isVisible ? 1 : 0)
-        .scaleEffect(isVisible ? 0.98 : 1.0)
-        .animation(.easeInOut(duration: 0.15), value: isVisible)
+        .onChange(of: isVisible) { newValue in
+            if newValue {
+                // 延迟执行全屏动画，给图片处理留出更多时间
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    // 使用较慢的动画速度，减少帧率压力
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        showFullScreenAnimation = true
+                        fullScreenOpacity = 0.8  // 降低透明度，减少渲染压力
+                    }
+                    
+                    // 执行缩小动画
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        fullScreenScale = 0.3
+                    }
+                    
+                    // 缩小动画结束后显示文本
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        showText = true
+                        
+                        // 停留1秒后再开始淡出动画
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            // 执行淡出动画
+                            withAnimation(.easeInOut(duration: 0.4)) {
+                                fullScreenOpacity = 0
+                                showText = false
+                            }
+                            
+                            // 重置状态
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                showFullScreenAnimation = false
+                                fullScreenScale = 1.0
+                                isVisible = false
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 重置所有状态
+                showText = false
+                showFullScreenAnimation = false
+                fullScreenScale = 1.0
+                fullScreenOpacity = 0
+            }
+        }
     }
 }
 
@@ -72,6 +154,8 @@ class ScreenshotManager: ObservableObject {
     
     // 添加动画状态
     @Published var isFlashing = false
+    // 添加截图预览
+    @Published var previewImage: UIImage?
     
     // 添加原始图像引用
     private var originalImage: UIImage?
@@ -119,10 +203,17 @@ class ScreenshotManager: ObservableObject {
                                 print("[截图] 双屏截图已保存到相册")
                                 print("------------------------")
                                 
-                                // 显示截图成功动画
-                                self.isFlashing = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    self.isFlashing = false
+                                // 设置预览图片
+                                self.previewImage = finalScreenshot
+                                
+                                // 延长延迟时间，减少动画和图片处理的重叠
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                    self.isFlashing = true
+                                    // 延长动画持续时间
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                        self.isFlashing = false
+                                        self.previewImage = nil  // 清理预览图片
+                                    }
                                 }
                             } else {
                                 print("------------------------")

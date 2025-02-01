@@ -108,28 +108,28 @@ struct EdgeBorderContainer: View {
             // 上边框
             Rectangle()
                 .fill(Color.white)
-                .opacity(edgeDetector.showTopBorder ? 1.0 : 0.0)
+                .opacity(edgeDetector.showTopBorder ? 0.5 : 0.0)
                 .frame(width: screenWidth, height: 20)
                 .position(x: screenWidth/2, y: 10)
             
             // 下边框
             Rectangle()
                 .fill(Color.white)
-                .opacity(edgeDetector.showBottomBorder ? 1.0 : 0.0)
+                .opacity(edgeDetector.showBottomBorder ? 0.5 : 0.0)
                 .frame(width: screenWidth, height: 20)
                 .position(x: screenWidth/2, y: centerY - 10)
             
             // 左边框
             Rectangle()
                 .fill(Color.white)
-                .opacity(edgeDetector.showLeftBorder ? 1.0 : 0.0)
+                .opacity(edgeDetector.showLeftBorder ? 0.5 : 0.0)
                 .frame(width: 20, height: centerY)
                 .position(x: 10, y: centerY/2)
             
             // 右边框
             Rectangle()
                 .fill(Color.white)
-                .opacity(edgeDetector.showRightBorder ? 1.0 : 0.0)
+                .opacity(edgeDetector.showRightBorder ? 0.5 : 0.0)
                 .frame(width: 20, height: centerY)
                 .position(x: screenWidth - 10, y: centerY/2)
         }
