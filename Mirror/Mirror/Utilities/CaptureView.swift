@@ -157,7 +157,7 @@ public struct CaptureActionButton: View {
                 .font(.system(size: 24))
                 .foregroundColor(color)
                 .frame(width: 50, height: 50)
-                .background(Color.black.opacity(0.2))
+                .background(Color.black.opacity(0.35))
                 .clipShape(Circle())
         }
     }
@@ -167,6 +167,7 @@ public struct CaptureActionButton: View {
 public struct CaptureActionsView: View {
     @ObservedObject var captureState: CaptureState
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
     @State private var showAlert = false
     @State private var alertType: AlertType = .success
     @State private var showButtons = true
@@ -251,7 +252,7 @@ public struct CaptureActionsView: View {
                                     CaptureActionButton(
                                         systemName: "square.and.arrow.down.fill",
                                         action: captureState.saveToPhotos,
-                                        color: BorderLightStyleManager.shared.iconColor
+                                        color: styleManager.iconColor
                                     )
                                     .rotationEffect(.degrees(rotationAngle))
                                     .animation(.easeInOut(duration: 0.3), value: rotationAngle)
@@ -266,7 +267,7 @@ public struct CaptureActionsView: View {
                                     CaptureActionButton(
                                         systemName: "arrowshape.turn.up.right.fill",
                                         action: captureState.shareImage,
-                                        color: BorderLightStyleManager.shared.iconColor
+                                        color: styleManager.iconColor
                                     )
                                     .rotationEffect(.degrees(rotationAngle))
                                     .animation(.easeInOut(duration: 0.3), value: rotationAngle)

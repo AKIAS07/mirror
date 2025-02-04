@@ -23,14 +23,14 @@ public struct SettingsTheme {
     
     // 边框
     static let normalBorderWidth: CGFloat = 1
-    static let selectedBorderWidth: CGFloat = 3  // 增加选中边框的粗细
+    static let selectedBorderWidth: CGFloat = 4  // 增加选中边框的粗细
     static let buttonBorderColor = Color.gray.opacity(0.5)  // 统一按钮边框颜色
-    static let selectedButtonBorderColor = Color.black  // 统一选中按钮边框颜色
+    static let selectedButtonBorderColor = Color.gray    // 选中按钮边框颜色
     
     // 间距
     static let itemSpacing: CGFloat = 24  // 设置项之间的间距
     static let contentSpacing: CGFloat = 16  // 设置项内容的间距
-    static let buttonSpacing: CGFloat = 12  // 按钮之间的间距
+    static let buttonSpacing: CGFloat = 10  // 按钮之间的间距
     static let padding: CGFloat = 16  // 内边距
     
     // 阴影
@@ -63,6 +63,74 @@ struct CustomColorPicker: View {
             .onChange(of: selection) { _ in
                 onChange()
             }
+    }
+}
+
+// 颜色选择按钮视图
+private struct ColorButton: View {
+    let option: ColorOption
+    let isSelected: Bool
+    let action: () -> Void
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    
+    // 添加颜色比较辅助方法
+    private func compareColors(_ color1: Color, _ color2: Color) -> Bool {
+        let uiColor1 = UIColor(color1)
+        let uiColor2 = UIColor(color2)
+        var red1: CGFloat = 0, green1: CGFloat = 0, blue1: CGFloat = 0, alpha1: CGFloat = 0
+        var red2: CGFloat = 0, green2: CGFloat = 0, blue2: CGFloat = 0, alpha2: CGFloat = 0
+        
+        uiColor1.getRed(&red1, green: &green1, blue: &blue1, alpha: &alpha1)
+        uiColor2.getRed(&red2, green: &green2, blue: &blue2, alpha: &alpha2)
+        
+        let tolerance: CGFloat = 0.01
+        return abs(red1 - red2) < tolerance && 
+               abs(green1 - green2) < tolerance && 
+               abs(blue1 - blue2) < tolerance
+    }
+    
+    private var isColorSelected: Bool {
+        // 主屏小蝴蝶的选择逻辑
+        if mainScreenColors.contains(where: { $0.image == option.image && compareColors($0.color, option.color) }) {
+            return compareColors(option.color, styleManager.iconColor)
+        }
+        // 分屏蝴蝶的选择逻辑
+        else if splitScreenColors.contains(where: { $0.image == option.image && compareColors($0.color, option.color) }) {
+            return compareColors(option.color, styleManager.splitScreenIconColor)
+        }
+        return false
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            Image(option.image)
+                .resizable()
+                .frame(width: 24, height: 24)
+                .if(!option.useOriginalColor) { view in
+                    view.colorMultiply(option.color)
+                }
+                .background(option.background)
+                .clipShape(Circle())
+                .padding(isColorSelected ? 4 : 0)  // 固定 padding 值
+                .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
+                .overlay(
+                    Circle().stroke(
+                        SettingsTheme.selectedButtonBorderColor,
+                        lineWidth: isColorSelected ? SettingsTheme.selectedBorderWidth : 0
+                    )
+                )
+        }
+    }
+}
+
+// 添加 View 扩展来支持条件修饰符
+extension View {
+    @ViewBuilder func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
     }
 }
 
@@ -239,13 +307,13 @@ public struct SettingsPanel: View {
                                 // 常用颜色快捷选择
                                 HStack(spacing: SettingsTheme.buttonSpacing) {
                                     ForEach([
-                                        Color(red: 1, green: 0.8, blue: 0.8),  // 柔和粉红
-                                        Color(red: 0.9, green: 0.9, blue: 0.6),  // 柔和黄色
-                                        Color(red: 0.8, green: 0.9, blue: 1),  // 柔和蓝色
-                                        Color(red: 0.8, green: 1, blue: 0.8),  // 柔和绿色
-                                        Color(red: 0.9, green: 0.8, blue: 1),  // 柔和紫色
-                                        Color.white,
-                                        Color(white: 0.2)  // 深灰色替代纯黑
+                                        Color(red: 255/255, green: 255/255, blue: 255/255),  //颜色1
+                                        Color(red: 104/255, green: 109/255, blue: 203/255),  //颜色2
+                                        Color(red: 58/255, green: 187/255, blue: 201/255),  //颜色3
+                                        Color(red: 155/255, green: 202/255, blue: 62/255),  //颜色4
+                                        Color(red: 254/255, green: 235/255, blue: 81/255),  //颜色5
+                                        Color(red: 255/255, green: 185/255, blue: 42/255),  //颜色6
+                                        Color(red: 237/255, green: 83/255, blue: 20/255)  //颜色7 
                                     ], id: \.self) { color in
                                         Button(action: {
                                             // 不再立即保存，只更新显示
@@ -254,9 +322,14 @@ public struct SettingsPanel: View {
                                             Circle()
                                                 .fill(color)
                                                 .frame(width: 24, height: 24)
+                                                .padding(styleManager.selectedColor == color ? 4 : 0)
                                                 .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                                .overlay(Circle().stroke(SettingsTheme.selectedButtonBorderColor, 
-                                                    lineWidth: styleManager.selectedColor == color ? SettingsTheme.selectedBorderWidth : 0))
+                                                .overlay(
+                                                    Circle().stroke(
+                                                        SettingsTheme.selectedButtonBorderColor,
+                                                        lineWidth: styleManager.selectedColor == color ? SettingsTheme.selectedBorderWidth : 0
+                                                    )
+                                                )
                                         }
                                     }
                                 }
@@ -298,14 +371,35 @@ public struct SettingsPanel: View {
                             }
                             
                             HStack {
-                                VStack(alignment: .leading, spacing: SettingsTheme.buttonSpacing) {
-                                    Text(styleManager.isDefaultGesture ? "边框灯：单击" : "边框灯：双击")
-                                        .foregroundColor(SettingsTheme.subtitleColor)
-                                    Text(styleManager.isDefaultGesture ? "拍照：双击" : "拍照：单击")
-                                        .foregroundColor(SettingsTheme.subtitleColor)
-                                }
-                                
                                 Spacer()
+                                
+                                VStack(alignment: .center, spacing: SettingsTheme.buttonSpacing) {
+                                    HStack(spacing: 4) {
+                                        Text("边框灯")
+                                            .foregroundColor(SettingsTheme.subtitleColor)
+                                            .frame(width: 75, alignment: .center)
+                                        Text(styleManager.isDefaultGesture ? "单击" : "双击")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 2)
+                                            .background(Color.gray.opacity(0.7))
+                                            .cornerRadius(8)
+                                    }
+                                    
+                                    HStack(spacing: 4) {
+                                        Text("拍照")
+                                            .foregroundColor(SettingsTheme.subtitleColor)
+                                            .frame(width: 75, alignment: .center)
+                                        Text(styleManager.isDefaultGesture ? "双击" : "单击")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 2)
+                                            .background(Color.gray.opacity(0.7))
+                                            .cornerRadius(8)
+                                    }
+                                }
                                 
                                 Button(action: {
                                     withAnimation {
@@ -313,13 +407,18 @@ public struct SettingsPanel: View {
                                         styleManager.saveCurrentSettings()
                                     }
                                 }) {
-                                    Image(systemName: "arrow.up.arrow.down")
-                                        .font(.title3)
-                                        .foregroundColor(.black)
-                                        .padding(SettingsTheme.buttonSpacing)
+                                    Image(systemName: "arrow.up.and.down.circle.fill")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 35, height: 35)
+                                        .foregroundColor(.gray)
+                                        .padding(0)
                                         .background(Color.gray.opacity(0.2))
                                         .clipShape(Circle())
                                 }
+                                .padding(.leading, 20)
+                                
+                                Spacer()
                             }
                         }
                         .padding(SettingsTheme.padding)
@@ -332,118 +431,26 @@ public struct SettingsPanel: View {
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
                             HStack {
                                 Spacer()
-                                Text("主屏蝴蝶颜色")
+                                Text("主屏小蝴蝶")
                                     .font(.headline)
                                     .foregroundColor(SettingsTheme.titleColor)
                                 Spacer()
                             }
                             
                             HStack(spacing: SettingsTheme.buttonSpacing) {
-                                // 白色图标按钮
-                                Button(action: {
-                                    styleManager.iconColor = .white
-                                    styleManager.saveCurrentSettings()
-                                    // 发送通知以更新主屏按钮颜色
-                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                }) {
-                                    Image("icon-bf-white")
-                                        .resizable()
-                                        .frame(width: 24, height: 24)
-                                        .colorMultiply(.white)
-                                        .background(Color.gray.opacity(0.3))
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                        .overlay(
-                                            Circle().stroke(
-                                                SettingsTheme.selectedButtonBorderColor,
-                                                lineWidth: styleManager.iconColor == .white ? SettingsTheme.selectedBorderWidth : 0
-                                            )
-                                        )
+                                ForEach(mainScreenColors) { option in
+                                    ColorButton(
+                                        option: option,
+                                        isSelected: styleManager.iconColor == option.color
+                                    ) {
+                                        styleManager.iconColor = option.color
+                                        styleManager.saveCurrentSettings()
+                                        NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
+                                    }
                                 }
-                                
-                                // 温暖白图标按钮
-                                Button(action: {
-                                    styleManager.iconColor = Color(red: 1, green: 0.95, blue: 0.8)
-                                    styleManager.saveCurrentSettings()
-                                    // 发送通知以更新主屏按钮颜色
-                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                }) {
-                                    Image("icon-bf-white")
-                                        .resizable()
-                                        .frame(width: 24, height: 24)
-                                        .colorMultiply(Color(red: 1, green: 0.95, blue: 0.8))
-                                        .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                        .overlay(
-                                            Circle().stroke(
-                                                SettingsTheme.selectedButtonBorderColor,
-                                                lineWidth: styleManager.iconColor == Color(red: 1, green: 0.95, blue: 0.8) ? SettingsTheme.selectedBorderWidth : 0
-                                            )
-                                        )
-                                }
-                                
-                                // 清新白图标按钮
-                                Button(action: {
-                                    styleManager.iconColor = Color(red: 0.9, green: 1, blue: 0.9)
-                                    styleManager.saveCurrentSettings()
-                                    // 发送通知以更新主屏按钮颜色
-                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                }) {
-                                    Image("icon-bf-white")
-                                        .resizable()
-                                        .frame(width: 24, height: 24)
-                                        .colorMultiply(Color(red: 0.9, green: 1, blue: 0.9))
-                                        .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                        .overlay(
-                                            Circle().stroke(
-                                                SettingsTheme.selectedButtonBorderColor,
-                                                lineWidth: styleManager.iconColor == Color(red: 0.9, green: 1, blue: 0.9) ? SettingsTheme.selectedBorderWidth : 0
-                                            )
-                                        )
-                                }
-                                
-                                // 冷调白图标按钮
-                                Button(action: {
-                                    styleManager.iconColor = Color(red: 0.9, green: 0.95, blue: 1)
-                                    styleManager.saveCurrentSettings()
-                                    // 发送通知以更新主屏按钮颜色
-                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                }) {
-                                    Image("icon-bf-white")
-                                        .resizable()
-                                        .frame(width: 24, height: 24)
-                                        .colorMultiply(Color(red: 0.9, green: 0.95, blue: 1))
-                                        .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                        .overlay(
-                                            Circle().stroke(
-                                                SettingsTheme.selectedButtonBorderColor,
-                                                lineWidth: styleManager.iconColor == Color(red: 0.9, green: 0.95, blue: 1) ? SettingsTheme.selectedBorderWidth : 0
-                                            )
-                                        )
-                                }
-                                
-                                // 黑色图标按钮
-                                Button(action: {
-                                    styleManager.iconColor = .black
-                                    styleManager.saveCurrentSettings()
-                                    // 发送通知以更新主屏按钮颜色
-                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                }) {
-                                    Image("icon-bf-white")
-                                        .resizable()
-                                        .frame(width: 24, height: 24)
-                                        .colorMultiply(.black)
-                                        .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                        .overlay(
-                                            Circle().stroke(
-                                                SettingsTheme.selectedButtonBorderColor,
-                                                lineWidth: styleManager.iconColor == .black ? SettingsTheme.selectedBorderWidth : 0
-                                            )
-                                        )
-                                }
-                                
-                                Spacer()  // 添加这行来填充剩余空间
+                                Spacer()
                             }
-                            .frame(maxWidth: .infinity)  // 添加这行来强制使用最大宽度
+                            .frame(maxWidth: .infinity)
                         }
                         .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor)
@@ -462,70 +469,19 @@ public struct SettingsPanel: View {
                             }
                             
                             HStack(spacing: SettingsTheme.buttonSpacing) {
-                                // 彩色图标按钮
-                                Button(action: {
-                                    styleManager.splitScreenIconColor = Color(red: 0.8, green: 0.4, blue: 1.0)
-                                    styleManager.saveCurrentSettings()
-                                    // 发送通知以更新主屏按钮颜色
-                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                }) {
-                                    Image("icon-bf-color-1")
-                                        .resizable()
-                                        .frame(width: 24, height: 24)
-                                        .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                        .overlay(
-                                            Circle().stroke(
-                                                SettingsTheme.selectedButtonBorderColor,
-                                                lineWidth: styleManager.splitScreenIconColor == Color(red: 0.8, green: 0.4, blue: 1.0) ? SettingsTheme.selectedBorderWidth : 0
-                                            )
-                                        )
+                                ForEach(splitScreenColors) { option in
+                                    ColorButton(
+                                        option: option,
+                                        isSelected: styleManager.splitScreenIconColor == option.color
+                                    ) {
+                                        styleManager.splitScreenIconColor = option.color
+                                        styleManager.saveCurrentSettings()
+                                        NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
+                                    }
                                 }
-                                
-                                // 白色图标按钮
-                                Button(action: {
-                                    styleManager.splitScreenIconColor = .white
-                                    styleManager.saveCurrentSettings()
-                                    // 发送通知以更新主屏按钮颜色
-                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                }) {
-                                    Image("icon-bf-white")
-                                        .resizable()
-                                        .frame(width: 24, height: 24)
-                                        .colorMultiply(.white)
-                                        .background(Color.gray.opacity(0.3))
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                        .overlay(
-                                            Circle().stroke(
-                                                SettingsTheme.selectedButtonBorderColor,
-                                                lineWidth: styleManager.splitScreenIconColor == .white ? SettingsTheme.selectedBorderWidth : 0
-                                            )
-                                        )
-                                }
-                                
-                                // 黑色图标按钮
-                                Button(action: {
-                                    styleManager.splitScreenIconColor = .black
-                                    styleManager.saveCurrentSettings()
-                                    // 发送通知以更新主屏按钮颜色
-                                    NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                }) {
-                                    Image("icon-bf-white")
-                                        .resizable()
-                                        .frame(width: 24, height: 24)
-                                        .colorMultiply(.black)
-                                        .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                        .overlay(
-                                            Circle().stroke(
-                                                SettingsTheme.selectedButtonBorderColor,
-                                                lineWidth: styleManager.splitScreenIconColor == .black ? SettingsTheme.selectedBorderWidth : 0
-                                            )
-                                        )
-                                }
-                                
-                                Spacer()  // 添加这行来填充剩余空间
+                                Spacer()
                             }
-                            .frame(maxWidth: .infinity)  // 添加这行来强制使用最大宽度
+                            .frame(maxWidth: .infinity)
                         }
                         .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor)
@@ -646,8 +602,11 @@ public struct SettingsPanel: View {
                 print("设置最大亮度：1.0")
                 print("------------------------")
                 
-                // 设置滚动条样式
+                // 设置滚动条样式为黑色
                 UIScrollView.appearance().indicatorStyle = .black
+                // 确保滚动条显示
+                UIScrollView.appearance().showsVerticalScrollIndicator = true
+                UIScrollView.appearance().showsHorizontalScrollIndicator = false
                 
                 // 保存初始状态
                 initialState = SettingsState()
@@ -703,4 +662,39 @@ public struct SettingsPanel: View {
 // 预览
 #Preview {
     SettingsPanel(isPresented: .constant(true))
-} 
+}
+
+#if DEBUG
+struct SettingsPanel_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            // 竖屏 iPhone 预览
+            SettingsPanel(isPresented: .constant(true))
+                .previewDevice(PreviewDevice(rawValue: "iPhone 15 Pro"))
+                .previewDisplayName("iPhone 15 Pro")
+            
+            // iPad 预览
+            SettingsPanel(isPresented: .constant(true))
+                .previewDevice(PreviewDevice(rawValue: "iPad Pro (12.9-inch) (6th generation)"))
+                .previewDisplayName("iPad Pro")
+            
+            // 深色模式预览
+            SettingsPanel(isPresented: .constant(true))
+                .previewDevice(PreviewDevice(rawValue: "iPhone 15 Pro"))
+                .previewDisplayName("深色模式")
+                .preferredColorScheme(.dark)
+            
+            // 小屏幕 iPhone 预览
+            SettingsPanel(isPresented: .constant(true))
+                .previewDevice(PreviewDevice(rawValue: "iPhone SE (3rd generation)"))
+                .previewDisplayName("iPhone SE")
+            
+            // 动态字体大小预览
+            SettingsPanel(isPresented: .constant(true))
+                .previewDevice(PreviewDevice(rawValue: "iPhone 15 Pro"))
+                .previewDisplayName("动态字体")
+                .environment(\.sizeCategory, .accessibilityLarge)
+        }
+    }
+}
+#endif 

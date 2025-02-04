@@ -132,6 +132,43 @@ struct ContentView: View {
                             .zIndex(3)
                     }
                     
+                    // 三个动画视图（放在背景和控制面板之间）
+                    Group {
+                        if showLeftIconAnimation {
+                            Image("icon-bf-black")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 75, height: 75)
+                                .opacity(0.3)
+                                .transition(.opacity)
+                                .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                                .position(leftAnimationPosition)
+                        }
+                        
+                        if showMiddleIconAnimation {
+                            Image("icon-bf-white")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 75, height: 75)
+                                .opacity(0.3)
+                                .transition(.opacity)
+                                .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                                .position(middleAnimationPosition)
+                        }
+                        
+                        if showRightIconAnimation {
+                            Image("icon-bf-black")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 75, height: 75)
+                                .opacity(0.3)
+                                .transition(.opacity)
+                                .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                                .position(rightAnimationPosition)
+                        }
+                    }
+                    .zIndex(2)
+                    
                     // 控制面板
                     if isControlAreaVisible {
                         ZStack {
@@ -150,6 +187,12 @@ struct ContentView: View {
                                                     createLeftButton(geometry: geometry)
                                                     createMiddleButton(geometry: geometry)
                                                     createRightButton(geometry: geometry)
+                                                }
+                                                .onAppear {
+                                                    let iconColor = BorderLightStyleManager.shared.iconColor
+                                                    print("------------------------")
+                                                    print("第一个容器按钮颜色：\(getColorDetails(iconColor))")
+                                                    print("容器背景透明度：0.35")
                                                 }
                                             }
                                         )
@@ -176,35 +219,20 @@ struct ContentView: View {
                                                 HStack(spacing: 60) {
                                                     Spacer()
                                                     
-                                                    // 设置按钮
-                                                    CircleButton(
-                                                        imageName: nil,
-                                                        systemName: "gearshape.fill",
-                                                        title: "",
-                                                        action: {
-                                                            withAnimation(.easeInOut(duration: 0.2)) {
-                                                                showSettings = true
-                                                            }
-                                                        },
-                                                        deviceOrientation: orientationManager.currentOrientation,
-                                                        useCustomColor: true,
-                                                        customColor: BorderLightStyleManager.shared.iconColor
-                                                    )
+                                                    // 使用创建函数替换直接创建
+                                                    createSettingsButton(geometry: geometry)
+                                                        .onAppear {
+                                                            let iconColor = BorderLightStyleManager.shared.iconColor
+                                                            print("设置按钮颜色：\(getColorDetails(iconColor))")
+                                                            print("容器背景透明度：0.35")
+                                                        }
                                                     
-                                                    // 帮助按钮
-                                                    CircleButton(
-                                                        imageName: nil,
-                                                        systemName: "questionmark.circle.fill",
-                                                        title: "",
-                                                        action: {
-                                                            withAnimation(.easeInOut(duration: 0.2)) {
-                                                                showHelp = true
-                                                            }
-                                                        },
-                                                        deviceOrientation: orientationManager.currentOrientation,
-                                                        useCustomColor: true,
-                                                        customColor: BorderLightStyleManager.shared.iconColor
-                                                    )
+                                                    createHelpButton(geometry: geometry)
+                                                        .onAppear {
+                                                            let iconColor = BorderLightStyleManager.shared.iconColor
+                                                            print("帮助按钮颜色：\(getColorDetails(iconColor))")
+                                                            print("容器背景透明度：0.35")
+                                                        }
                                                     
                                                     Spacer()
                                                 }
@@ -239,7 +267,7 @@ struct ContentView: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .ignoresSafeArea(.all, edges: .bottom)
-                        .zIndex(1)
+                        .zIndex(4)
                         .animation(.easeInOut(duration: 0.3), value: isControlAreaVisible)
                         .transition(
                             .asymmetric(
@@ -331,40 +359,6 @@ struct ContentView: View {
                 if showHelp {
                     HelpPanel(isPresented: $showHelp)
                         .zIndex(4)  // 确保帮助面板显示在最上层
-                }
-                
-                // 替换原有的动画图标视图为三个独立的动画视图
-                if showLeftIconAnimation {
-                    Image("icon-bf-white-left")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 100, height: 100)
-                        .opacity(0.25)
-                        .transition(.opacity)
-                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
-                        .position(leftAnimationPosition)
-                }
-                
-                if showMiddleIconAnimation {
-                    Image(BorderLightStyleManager.shared.splitScreenIconColor == .black || BorderLightStyleManager.shared.splitScreenIconColor == .white ? "icon-bf-white" : "icon-bf-color-1")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 100, height: 100)
-                        .opacity(0.25)
-                        .transition(.opacity)
-                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
-                        .position(middleAnimationPosition)
-                }
-                
-                if showRightIconAnimation {
-                    Image("icon-bf-white-right")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 100, height: 100)
-                        .opacity(0.25)
-                        .transition(.opacity)
-                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
-                        .position(rightAnimationPosition)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -607,6 +601,33 @@ struct ContentView: View {
         return orientationManager.getOrientationDescription(orientation)
     }
     
+    // 添加颜色比较辅助方法
+    private func compareColors(_ color1: Color, _ color2: Color) -> Bool {
+        let uiColor1 = UIColor(color1)
+        let uiColor2 = UIColor(color2)
+        var red1: CGFloat = 0, green1: CGFloat = 0, blue1: CGFloat = 0, alpha1: CGFloat = 0
+        var red2: CGFloat = 0, green2: CGFloat = 0, blue2: CGFloat = 0, alpha2: CGFloat = 0
+        
+        uiColor1.getRed(&red1, green: &green1, blue: &blue1, alpha: &alpha1)
+        uiColor2.getRed(&red2, green: &green2, blue: &blue2, alpha: &alpha2)
+        
+        let tolerance: CGFloat = 0.01
+        return abs(red1 - red2) < tolerance && 
+               abs(green1 - green2) < tolerance && 
+               abs(blue1 - blue2) < tolerance
+    }
+    
+    // 添加颜色调试辅助函数
+    private func getColorDetails(_ color: Color) -> String {
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return String(format: "RGB(%.3f, %.3f, %.3f) Alpha: %.3f", red, green, blue, alpha)
+    }
+    
     // 更新左按钮创建函数
     private func createLeftButton(geometry: GeometryProxy) -> some View {
         let styleManager = BorderLightStyleManager.shared
@@ -653,8 +674,11 @@ struct ContentView: View {
     // 更新中间按钮创建函数
     private func createMiddleButton(geometry: GeometryProxy) -> some View {
         let styleManager = BorderLightStyleManager.shared
-        let iconName = styleManager.splitScreenIconColor == .black || styleManager.splitScreenIconColor == .white ? "icon-bf-white" : "icon-bf-color-1"
-        
+        // 检查第一个分屏颜色选项
+        let firstSplitScreenColor = splitScreenColors[0]
+        let shouldUseOriginalColor = firstSplitScreenColor.useOriginalColor && compareColors(styleManager.splitScreenIconColor, firstSplitScreenColor.color)
+        let iconName = shouldUseOriginalColor ? "icon-bf-color-1" : "icon-bf-white"
+
         return CircleButton(
             imageName: iconName,
             systemName: nil,
@@ -696,8 +720,8 @@ struct ContentView: View {
                 }
             },
             deviceOrientation: orientationManager.currentOrientation,
-            useCustomColor: styleManager.splitScreenIconColor == .black || styleManager.splitScreenIconColor == .white,
-            customColor: styleManager.splitScreenIconColor
+            useCustomColor: !shouldUseOriginalColor,  // 只在不使用原始颜色时应用自定义颜色
+            customColor: styleManager.splitScreenIconColor  // 应用当前选择的颜色
         )
     }
     
@@ -739,6 +763,44 @@ struct ContentView: View {
             },
             deviceOrientation: orientationManager.currentOrientation,
             isDisabled: !cameraManager.isMirrored,
+            useCustomColor: true,
+            customColor: styleManager.iconColor
+        )
+    }
+    
+    // 添加设置按钮创建函数
+    private func createSettingsButton(geometry: GeometryProxy) -> some View {
+        let styleManager = BorderLightStyleManager.shared
+        return CircleButton(
+            imageName: nil,
+            systemName: "gearshape.fill",
+            title: "",
+            action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showSettings = true
+                }
+            },
+            deviceOrientation: orientationManager.currentOrientation,
+            isDisabled: false,
+            useCustomColor: true,
+            customColor: styleManager.iconColor
+        )
+    }
+    
+    // 添加帮助按钮创建函数
+    private func createHelpButton(geometry: GeometryProxy) -> some View {
+        let styleManager = BorderLightStyleManager.shared
+        return CircleButton(
+            imageName: nil,
+            systemName: "questionmark.circle.fill",
+            title: "",
+            action: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showHelp = true
+                }
+            },
+            deviceOrientation: orientationManager.currentOrientation,
+            isDisabled: false,
             useCustomColor: true,
             customColor: styleManager.iconColor
         )

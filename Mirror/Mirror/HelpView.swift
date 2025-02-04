@@ -1,5 +1,36 @@
 import SwiftUI
 
+// 添加高亮文本组件
+struct HighlightText: View {
+    let text: String
+    
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(Color.gray.opacity(0.7))
+            .cornerRadius(8)
+    }
+}
+
+// 添加带说明的高亮文本行组件
+struct LabeledHighlightRow: View {
+    let highlightText: String
+    let description: String
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            HighlightText(text: highlightText)
+                .frame(width: 85, alignment: .center)
+            Text(description)
+                .foregroundColor(SettingsTheme.subtitleColor)
+                .frame(width: 150, alignment: .center)
+        }
+    }
+}
+
 public struct HelpPanel: View {
     @Binding var isPresented: Bool
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
@@ -90,12 +121,20 @@ public struct HelpPanel: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
-                                Text("• 左侧按钮：正常镜")
-                                Text("• 右侧按钮：翻转镜")
-                                Text("• 中间按钮：进入分屏")
+                                LabeledHighlightRow(
+                                    highlightText: "左侧按钮",
+                                    description: "正常镜"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "右侧按钮",
+                                    description: "翻转镜"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "中间按钮",
+                                    description: "进入分屏"
+                                )
                             }
                             .font(.body)
-                            .foregroundColor(SettingsTheme.subtitleColor)
                         }
                         .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor)
@@ -111,13 +150,24 @@ public struct HelpPanel: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
-                                Text("• 双击：拍照/退出")
-                                Text("• 单击：开启/关闭边框灯")
-                                Text("• 双指：缩放画面大小")
-                                Text("• 下载分享：图片下载/分享")
+                                LabeledHighlightRow(
+                                    highlightText: "双击",
+                                    description: "拍照/退出"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "单击",
+                                    description: "开启/关闭边框灯"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "双指",
+                                    description: "缩放画面大小"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "下载分享",
+                                    description: "图片下载/分享"
+                                )
                             }
                             .font(.body)
-                            .foregroundColor(SettingsTheme.subtitleColor)
                         }
                         .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor)
@@ -133,11 +183,16 @@ public struct HelpPanel: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
-                                Text("• 上下拖动：扩展/还原面板")
-                                Text("• 左右拖动：隐藏/显示面板")
+                                LabeledHighlightRow(
+                                    highlightText: "上下拖动",
+                                    description: "扩展/还原面板"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "左右拖动",
+                                    description: "隐藏/显示面板"
+                                )
                             }
                             .font(.body)
-                            .foregroundColor(SettingsTheme.subtitleColor)
                         }
                         .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor)
@@ -160,11 +215,16 @@ public struct HelpPanel: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
-                                Text("• 上下分屏：正常镜+翻转镜")
-                                Text("• 左右分屏：正常镜+翻转镜")
+                                LabeledHighlightRow(
+                                    highlightText: "上下分屏",
+                                    description: "正常镜+翻转镜"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "左右分屏",
+                                    description: "正常镜+翻转镜"
+                                )
                             }
                             .font(.body)
-                            .foregroundColor(SettingsTheme.subtitleColor)
                         }
                         .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor2)
@@ -180,14 +240,28 @@ public struct HelpPanel: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
-                                Text("• 双击：拍照/退出")
-                                Text("• 单击：开启/关闭边框灯")
-                                Text("• 双指：缩放画面大小")
-                                Text("• 长按上传：图片上传")
-                                Text("• 长按下载：图片下载")
+                                LabeledHighlightRow(
+                                    highlightText: "双击",
+                                    description: "拍照/退出"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "单击",
+                                    description: "开启/关闭边框灯"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "双指",
+                                    description: "缩放画面大小"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "长按上传",
+                                    description: "图片上传"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "长按下载",
+                                    description: "图片下载"
+                                )
                             }
                             .font(.body)
-                            .foregroundColor(SettingsTheme.subtitleColor)
                         }
                         .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor2)
@@ -203,12 +277,20 @@ public struct HelpPanel: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
-                                Text("• 单击：双屏同时拍照/退出")
-                                Text("• 双击：双屏同时开灯/关灯")
-                                Text("• 长按：交换分屏")
+                                LabeledHighlightRow(
+                                    highlightText: "单击",
+                                    description: "双屏拍照/退出"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "双击",
+                                    description: "双屏开灯/关灯"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "长按",
+                                    description: "交换分屏"
+                                )
                             }
                             .font(.body)
-                            .foregroundColor(SettingsTheme.subtitleColor)
                         }
                         .padding(SettingsTheme.padding)
                         .background(SettingsTheme.backgroundColor2)

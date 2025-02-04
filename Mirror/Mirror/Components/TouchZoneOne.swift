@@ -5,8 +5,7 @@ extension View {
     @ViewBuilder
     func apply(colorModifier shouldApply: Bool) -> some View {
         if shouldApply {
-            self.foregroundColor(BorderLightStyleManager.shared.splitScreenIconColor)
-                .colorMultiply(BorderLightStyleManager.shared.splitScreenIconColor)
+            self.colorMultiply(BorderLightStyleManager.shared.splitScreenIconColor)
         } else {
             self
         }
@@ -44,6 +43,11 @@ struct TouchZoneOne: View {
     let handleSwapButtonTap: () -> Void
     let originalImage: UIImage?  // 移动到这里
     let mirroredImage: UIImage?  // 移动到这里
+    
+    @State private var showMiddleIconAnimation: Bool = false
+    @State private var middleAnimationPosition: CGPoint = CGPoint(x: 0, y: 0)
+    @State private var showTapAnimation: Bool = false
+    @State private var showBorderLightTapAnimation: Bool = false  // 添加边框灯动画状态
     
     // MARK: - Init
     init(
@@ -93,13 +97,42 @@ struct TouchZoneOne: View {
     // MARK: - Body
     var body: some View {
         ZStack {
-            Image(getIconName(deviceOrientation))
-                .resizable()
-                .frame(width: 40, height: 40)
-                .contentShape(Rectangle())
-                .rotationEffect(getRotationAngle(deviceOrientation))
-                .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
-                .apply(colorModifier: styleManager.splitScreenIconColor == .black || styleManager.splitScreenIconColor == .white)
+            // 主图标和动画容器
+            ZStack {
+                
+                // 边框灯点击动画（动画a）
+                if showBorderLightTapAnimation {
+                    Image("icon-bf-white")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 75, height: 75)
+                        .opacity(0.2)
+                        .transition(.opacity)
+                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                }
+                
+                // 拍照点击动画（动画b）
+                if showTapAnimation {
+                    Image("icon-bf-white")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 150, height: 150)
+                        .opacity(0.2)
+                        .transition(.opacity)
+                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                }
+
+
+                // 主图标（放在最上层）
+                Image(getIconName(deviceOrientation))
+                    .resizable()
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
+                    .rotationEffect(getRotationAngle(deviceOrientation))
+                    .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
+                    .apply(colorModifier: styleManager.splitScreenIconColor != Color.purple)  // 修改颜色比较方式
+            }
+            .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
             
             // 按钮容器
             if showContainer {
@@ -108,9 +141,9 @@ struct TouchZoneOne: View {
                 }
                 .rotationEffect(getRotationAngle(deviceOrientation))
                 .animation(.linear(duration: 0.5), value: containerWidth)
+                .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
             }
         }
-        .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
         .gesture(
             DragGesture(minimumDistance: 5.0)
                 .onChanged { value in
@@ -186,13 +219,16 @@ struct TouchZoneOne: View {
                     // 延迟处理单击，给双击留出判断时间
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         if self.zone1TapCount == 1 {  // 如果在延迟期间没有发生第二次点击
-                            if !self.styleManager.isDefaultGesture {  // 交换模式下的单击拍照
+                            if !self.styleManager.isDefaultGesture {  // 交换模式：单击拍照
                                 print("------------------------")
-                                print("触控区1单击")
+                                print("触控区1单击拍照（交换模式）")
                                 print("------------------------")
                                 
-                                // 如果两个屏幕都未定格，则执行定格和截图
-                                if !self.isOriginalPaused && !self.isMirroredPaused {
+                                // 显示拍照动画
+                                showPhotoAnimation()
+
+                                // 如果两个屏幕都未定格，则先定格再截图
+                                if !isOriginalPaused && !isMirroredPaused {
                                     print("------------------------")
                                     print("开始定格两个屏幕")
                                     print("------------------------")
@@ -242,6 +278,18 @@ struct TouchZoneOne: View {
                                         mirrored: self.pausedMirroredImage ?? self.mirroredImage
                                     )
                                     self.screenshotManager.captureDoubleScreens()
+                                    
+                                    // 显示动画
+                                    withAnimation {
+                                        showMiddleIconAnimation = true
+                                    }
+                                    
+                                    // 延迟隐藏动画
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                                        withAnimation {
+                                            showMiddleIconAnimation = false
+                                        }
+                                    }
                                     
                                 } else if self.isOriginalPaused && self.isMirroredPaused {
                                     // 如果两个屏幕都已定格，则退出定格状态
@@ -311,13 +359,15 @@ struct TouchZoneOne: View {
                                     )
                                     self.screenshotManager.captureDoubleScreens()
                                 }
-                            } else {
-                                // 默认模式：单击控制边框灯
+                            } else {  // 默认模式：单击控制边框灯
                                 print("------------------------")
                                 print("触控区1被点击")
                                 print("区域：中央透明矩形")
                                 print("可点击状态：已启用")
                                 print("------------------------")
+                                
+                                // 显示边框灯动画
+                                showBorderLightAnimation()
                                 
                                 if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
                                     self.borderLightManager.turnOffAllLights()
@@ -338,12 +388,14 @@ struct TouchZoneOne: View {
                         print("------------------------")
                         
                         // 根据手势设置决定双击功能
-                        if self.styleManager.isDefaultGesture {
-                            // 默认模式：双击拍照
+                        if self.styleManager.isDefaultGesture {  // 默认模式：双击拍照
                             print("------------------------")
                             print("触控区1双击拍照（默认模式）")
                             print("------------------------")
                             
+                            // 显示拍照动画
+                            showPhotoAnimation()
+
                             // 如果两个屏幕都未定格，则先定格再截图
                             if !isOriginalPaused && !isMirroredPaused {
                                 print("------------------------")
@@ -397,6 +449,9 @@ struct TouchZoneOne: View {
                                 
                                 // 执行双屏截图
                                 self.screenshotManager.captureDoubleScreens()
+                                
+                                // 显示拍照动画
+                                showPhotoAnimation()
                                 
                             } else if isOriginalPaused && isMirroredPaused {
                                 // 如果两个屏幕都已定格，则退出定格状态
@@ -466,8 +521,10 @@ struct TouchZoneOne: View {
                                 )
                                 self.screenshotManager.captureDoubleScreens()
                             }
-                        } else {
-                            // 交换模式：双击控制边框灯
+                        } else {  // 交换模式：双击控制边框灯
+                            // 显示边框灯动画
+                            showBorderLightAnimation()
+                            
                             if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
                                 self.borderLightManager.turnOffAllLights()
                                 print("所有边框灯已关闭")
@@ -483,6 +540,20 @@ struct TouchZoneOne: View {
                 print("------------------------")
                 print("触控区1禁用")
                 print("------------------------")
+            }
+        }
+        .onAppear {
+            // 添加按钮颜色更新通知监听
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("UpdateButtonColors"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                // 强制视图刷新
+                withAnimation {
+                    showContainer.toggle()
+                    showContainer.toggle()
+                }
             }
         }
     }
@@ -512,21 +583,21 @@ struct TouchZoneOne: View {
     
     private func getIconName(_ orientation: UIDeviceOrientation) -> String {
         // 根据分屏蝴蝶颜色设置选择图标
-        if styleManager.splitScreenIconColor == .black || styleManager.splitScreenIconColor == .white {
-            return "icon-bf-white"  // 使用白色轮廓的图标
+        if styleManager.splitScreenIconColor == Color.purple {
+            // 选择彩色时使用默认的彩色图标逻辑
+            switch orientation {
+            case .landscapeLeft:
+                return isScreenSwapped ? "icon-bf-color-3" : "icon-bf-color-4"
+            case .landscapeRight:
+                return isScreenSwapped ? "icon-bf-color-4" : "icon-bf-color-3"
+            case .portraitUpsideDown:
+                return isScreenSwapped ? "icon-bf-color-1" : "icon-bf-color-2"
+            default: // 正常竖屏
+                return isScreenSwapped ? "icon-bf-color-2" : "icon-bf-color-1"
+            }
         }
         
-        // 选择彩色时使用默认的彩色图标逻辑
-        switch orientation {
-        case .landscapeLeft:
-            return isScreenSwapped ? "icon-bf-color-3" : "icon-bf-color-4"
-        case .landscapeRight:
-            return isScreenSwapped ? "icon-bf-color-4" : "icon-bf-color-3"
-        case .portraitUpsideDown:
-            return isScreenSwapped ? "icon-bf-color-1" : "icon-bf-color-2"
-        default: // 正常竖屏
-            return isScreenSwapped ? "icon-bf-color-2" : "icon-bf-color-1"
-        }
+        return "icon-bf-white"  // 非紫色时使用白色轮廓的图标
     }
     
     private func getIconColor() -> Color {
@@ -562,5 +633,28 @@ struct TouchZoneOne: View {
         // 取消定时器
         hideContainerTimer?.invalidate()
         hideContainerTimer = nil
+    }
+    
+    // 添加动画触发辅助方法
+    private func showPhotoAnimation() {
+        withAnimation {
+            showTapAnimation = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            withAnimation {
+                showTapAnimation = false
+            }
+        }
+    }
+    
+    private func showBorderLightAnimation() {
+        withAnimation {
+            showBorderLightTapAnimation = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            withAnimation {
+                showBorderLightTapAnimation = false
+            }
+        }
     }
 } 

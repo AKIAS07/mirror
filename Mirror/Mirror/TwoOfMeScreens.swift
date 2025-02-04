@@ -164,6 +164,10 @@ struct TwoOfMeScreens: View {
     @State private var isFirstAppear: Bool = true
     @State private var isRestoringFromBackground: Bool = false  // 添加状态跟踪变量
     
+    // 添加动画相关的状态变量
+    @State private var showMiddleIconAnimation = false
+    @State private var middleAnimationPosition: CGPoint = .zero
+    
     // 添加获取拖动方向的辅助函数
     private func getDragDirection(translation: CGSize) -> String {
         let angle = atan2(translation.height, translation.width)
@@ -849,6 +853,9 @@ struct TwoOfMeScreens: View {
     // 添加截图管理器
     @StateObject private var screenshotManager = ScreenshotManager.shared
     
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    @State private var isScreenSwapped: Bool = false
+    
     init() {
         // 不再需要设置边框灯管理器引用
     }
@@ -1446,6 +1453,20 @@ struct TwoOfMeScreens: View {
                     touchZonePosition: touchZonePosition
                 )
                 .zIndex(4)
+                
+                // 添加动画图标（不受页面偏移影响）
+                if showMiddleIconAnimation {
+                    Image("icon-bf-white")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 100, height: 100)
+                        .colorMultiply(BorderLightStyleManager.shared.splitScreenIconColor)
+                        .opacity(0.25)
+                        .transition(.opacity)
+                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                        .position(middleAnimationPosition)
+                        .zIndex(4)
+                }
             }
             .onAppear {
                 // 确保开启设备方向监听
@@ -1628,6 +1649,25 @@ struct TwoOfMeScreens: View {
                 mirroredEdgeDetector.resetBorders()
                 print("Mirrored画面已定格")
             }
+        }
+    }
+    
+    private func getIconName(_ orientation: UIDeviceOrientation) -> String {
+        // 根据分屏蝴蝶颜色设置选择图标
+        if styleManager.splitScreenIconColor != .purple {
+            return "icon-bf-white"  // 使用白色轮廓的图标
+        }
+        
+        // 选择彩色时使用默认的彩色图标逻辑
+        switch orientation {
+        case .landscapeLeft:
+            return isScreenSwapped ? "icon-bf-color-3" : "icon-bf-color-4"
+        case .landscapeRight:
+            return isScreenSwapped ? "icon-bf-color-4" : "icon-bf-color-3"
+        case .portraitUpsideDown:
+            return isScreenSwapped ? "icon-bf-color-1" : "icon-bf-color-2"
+        default: // 正常竖屏
+            return isScreenSwapped ? "icon-bf-color-2" : "icon-bf-color-1"
         }
     }
 }

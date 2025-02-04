@@ -25,7 +25,7 @@ struct CircleButton: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 30, height: 30)
-                        .apply(colorModifier: useCustomColor, color: customColor)
+                        .foregroundColor(useCustomColor ? customColor : .white)
                 }
                 
                 if !title.isEmpty {

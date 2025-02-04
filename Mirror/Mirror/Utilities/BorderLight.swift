@@ -29,7 +29,24 @@ class BorderLightStyleManager: ObservableObject {
     
     @Published var isDefaultGesture: Bool = true
     @Published var iconColor: Color = .white
-    @Published var splitScreenIconColor: Color = Color(red: 0.8, green: 0.4, blue: 1.0) // 默认彩色
+    @Published var splitScreenIconColor: Color = .purple {
+        didSet {
+            print("分屏蝴蝶颜色已更新：\(splitScreenIconColor)")
+            
+            // 检查是否是第一个分屏颜色选项（原始颜色）
+            if let firstSplitScreenColor = splitScreenColors.first,
+               firstSplitScreenColor.useOriginalColor && compareColors(splitScreenIconColor, firstSplitScreenColor.color) {
+                print("使用原始颜色图标")
+            } else {
+                print("使用白色图标并应用颜色")
+            }
+            
+            // 当颜色改变时发送通知
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
+            }
+        }
+    }
     
     @Published var isPreviewMode: Bool = false  // 添加预览模式状态
     
@@ -70,7 +87,7 @@ class BorderLightStyleManager: ObservableObject {
             self.selectedWidth = self.savedWidth
             self.isDefaultGesture = true
             self.iconColor = .white
-            self.splitScreenIconColor = Color(red: 0.8, green: 0.4, blue: 1.0)
+            self.splitScreenIconColor = .purple  // 使用.purple作为默认值
         }
     }
     
@@ -123,6 +140,22 @@ class BorderLightStyleManager: ObservableObject {
             selectedColor = savedColor
             selectedWidth = savedWidth
         }
+    }
+    
+    // 添加颜色比较辅助方法
+    private func compareColors(_ color1: Color, _ color2: Color) -> Bool {
+        let uiColor1 = UIColor(color1)
+        let uiColor2 = UIColor(color2)
+        var red1: CGFloat = 0, green1: CGFloat = 0, blue1: CGFloat = 0, alpha1: CGFloat = 0
+        var red2: CGFloat = 0, green2: CGFloat = 0, blue2: CGFloat = 0, alpha2: CGFloat = 0
+        
+        uiColor1.getRed(&red1, green: &green1, blue: &blue1, alpha: &alpha1)
+        uiColor2.getRed(&red2, green: &green2, blue: &blue2, alpha: &alpha2)
+        
+        let tolerance: CGFloat = 0.01
+        return abs(red1 - red2) < tolerance && 
+               abs(green1 - green2) < tolerance && 
+               abs(blue1 - blue2) < tolerance
     }
 }
 

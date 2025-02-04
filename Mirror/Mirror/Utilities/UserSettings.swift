@@ -17,6 +17,7 @@ private enum UserSettingsKeys {
     static let splitScreenIconColorBlue = "splitScreenIconColorBlue"
     static let splitScreenIconColorAlpha = "splitScreenIconColorAlpha"
     static let hasUserConfig = "hasUserConfig"  // 新增：是否有用户配置
+    static let splitScreenIconUseOriginal = "splitScreenIconUseOriginal"
 }
 
 // 用户设置管理器
@@ -117,6 +118,23 @@ class UserSettingsManager {
             defaults.set(alpha, forKey: UserSettingsKeys.splitScreenIconColorAlpha)
             defaults.synchronize()
             print("保存分屏蝴蝶颜色设置 - R:\(red) G:\(green) B:\(blue) A:\(alpha)")
+            
+            // 检查是否是第一个分屏颜色选项
+            if let firstSplitScreenColor = splitScreenColors.first,
+               firstSplitScreenColor.useOriginalColor {
+                let firstColor = UIColor(firstSplitScreenColor.color)
+                var firstRed: CGFloat = 0, firstGreen: CGFloat = 0, firstBlue: CGFloat = 0, firstAlpha: CGFloat = 0
+                firstColor.getRed(&firstRed, green: &firstGreen, blue: &firstBlue, alpha: &firstAlpha)
+                
+                if abs(red - firstRed) < 0.01 && abs(green - firstGreen) < 0.01 && abs(blue - firstBlue) < 0.01 {
+                    print("保存原始颜色图标设置")
+                    defaults.set(true, forKey: UserSettingsKeys.splitScreenIconUseOriginal)
+                } else {
+                    defaults.set(false, forKey: UserSettingsKeys.splitScreenIconUseOriginal)
+                }
+            }
+        } else {
+            print("保存分屏蝴蝶颜色失败")
         }
     }
     
@@ -178,11 +196,21 @@ class UserSettingsManager {
            let alpha = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorAlpha) as? CGFloat {
             
             print("加载分屏蝴蝶颜色设置 - R:\(red) G:\(green) B:\(blue) A:\(alpha)")
+            
+            // 检查是否使用原始颜色
+            let useOriginal = defaults.bool(forKey: UserSettingsKeys.splitScreenIconUseOriginal)
+            if useOriginal,
+               let firstSplitScreenColor = splitScreenColors.first,
+               firstSplitScreenColor.useOriginalColor {
+                print("使用原始颜色图标")
+                return firstSplitScreenColor.color
+            }
+            
             return Color(UIColor(red: red, green: green, blue: blue, alpha: alpha))
         }
         
         print("使用分屏蝴蝶默认颜色")
-        return Color(red: 0.8, green: 0.4, blue: 1.0)
+        return .purple
     }
     
     // MARK: - 应用设置
@@ -195,30 +223,21 @@ class UserSettingsManager {
             let styleManager = BorderLightStyleManager.shared
             
             // 应用边框灯颜色
-            let color = self.loadBorderLightColor()
-            styleManager.selectedColor = color
-            BorderStyle.selectedColor = color
-            print("应用边框灯颜色：\(color)")
+            styleManager.selectedColor = self.loadBorderLightColor()
             
             // 应用边框灯宽度
-            let width = self.loadBorderLightWidth()
-            styleManager.selectedWidth = width
-            BorderStyle.selectedWidth = width
-            print("应用边框灯宽度：\(width)")
+            styleManager.selectedWidth = self.loadBorderLightWidth()
             
             // 应用手势模式
             styleManager.isDefaultGesture = self.loadGestureMode()
-            print("应用手势模式：\(styleManager.isDefaultGesture ? "默认" : "交换")")
             
             // 应用图标颜色
             styleManager.iconColor = self.loadIconColor()
-            print("应用图标颜色")
             
             // 应用分屏蝴蝶颜色
             styleManager.splitScreenIconColor = self.loadSplitScreenIconColor()
-            print("应用分屏蝴蝶颜色")
             
-            print("完成应用所有用户设置")
+            print("所有用户设置已应用")
         }
     }
 }

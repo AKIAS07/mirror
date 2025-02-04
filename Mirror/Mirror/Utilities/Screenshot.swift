@@ -44,7 +44,7 @@ struct ScreenshotAnimationView: View {
                     path.addLine(to: CGPoint(x: left, y: top))
                     path.addLine(to: CGPoint(x: left + cornerLength, y: top))
                 }
-                .stroke(Color.yellow, lineWidth: lineWidth)
+                .stroke(Color.white, lineWidth: lineWidth)
                 
                 // 右上角
                 Path { path in
@@ -52,7 +52,7 @@ struct ScreenshotAnimationView: View {
                     path.addLine(to: CGPoint(x: right, y: top))
                     path.addLine(to: CGPoint(x: right, y: top + cornerLength))
                 }
-                .stroke(Color.yellow, lineWidth: lineWidth)
+                .stroke(Color.white, lineWidth: lineWidth)
                 
                 // 左下角
                 Path { path in
@@ -60,7 +60,7 @@ struct ScreenshotAnimationView: View {
                     path.addLine(to: CGPoint(x: left, y: bottom))
                     path.addLine(to: CGPoint(x: left + cornerLength, y: bottom))
                 }
-                .stroke(Color.yellow, lineWidth: lineWidth)
+                .stroke(Color.white, lineWidth: lineWidth)
                 
                 // 右下角
                 Path { path in
@@ -68,7 +68,7 @@ struct ScreenshotAnimationView: View {
                     path.addLine(to: CGPoint(x: right, y: bottom))
                     path.addLine(to: CGPoint(x: right, y: bottom - cornerLength))
                 }
-                .stroke(Color.yellow, lineWidth: lineWidth)
+                .stroke(Color.white, lineWidth: lineWidth)
             }
             .opacity(isVisible ? 1 : 0)
             .scaleEffect(isVisible ? 0.98 : 1.0)
