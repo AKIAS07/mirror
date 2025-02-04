@@ -42,7 +42,10 @@ struct ContentView: View {
     private let verticalDestination: CGFloat = 120.0
     private let verticalDragThreshold: CGFloat = 20.0
     
-    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
+    // 添加震动反馈生成器
+    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
+    private let heavyFeedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
+    private let lightFeedbackGenerator = UIImpactFeedbackGenerator(style: .light)
     
     @State private var showArrowHint = false
     @State private var dragHintState: DragHintState = .upAndRightLeft
@@ -287,6 +290,21 @@ struct ContentView: View {
                             print("遮罩状态更新 - 模式B选中状态：\(ModeBSelected)")
                         }
                         .zIndex(2)
+                        
+                    // 添加闪光动画
+                    if showIconAnimation {
+                        FlashAnimationView()
+                            .zIndex(6)
+                    }
+                        
+                    // 添加独立的边框视图，放在最上层
+                    if cameraManager.isMirrored {
+                        CameraBorderView(isSelected: ModeASelected, isLighted: isLighted)
+                            .zIndex(5)  // 提高边框视图的层级
+                    } else {
+                        CameraBorderView(isSelected: ModeBSelected, isLighted: isLighted)
+                            .zIndex(5)  // 提高边框视图的层级
+                    }
                 } else {
                     // 权限请求视图
                     ZStack {
@@ -636,6 +654,9 @@ struct ContentView: View {
             systemName: nil,
             title: "",
             action: {
+                // 触发震动反馈
+                feedbackGenerator.impactOccurred()
+                
                 // 更新动画逻辑
                 leftAnimationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
@@ -674,7 +695,6 @@ struct ContentView: View {
     // 更新中间按钮创建函数
     private func createMiddleButton(geometry: GeometryProxy) -> some View {
         let styleManager = BorderLightStyleManager.shared
-        // 检查第一个分屏颜色选项
         let firstSplitScreenColor = splitScreenColors[0]
         let shouldUseOriginalColor = firstSplitScreenColor.useOriginalColor && compareColors(styleManager.splitScreenIconColor, firstSplitScreenColor.color)
         let iconName = shouldUseOriginalColor ? "icon-bf-color-1" : "icon-bf-white"
@@ -684,6 +704,9 @@ struct ContentView: View {
             systemName: nil,
             title: "",
             action: {
+                // 触发震动反馈
+                heavyFeedbackGenerator.impactOccurred()
+                
                 // 更新动画逻辑
                 middleAnimationPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
@@ -720,8 +743,8 @@ struct ContentView: View {
                 }
             },
             deviceOrientation: orientationManager.currentOrientation,
-            useCustomColor: !shouldUseOriginalColor,  // 只在不使用原始颜色时应用自定义颜色
-            customColor: styleManager.splitScreenIconColor  // 应用当前选择的颜色
+            useCustomColor: !shouldUseOriginalColor,
+            customColor: styleManager.splitScreenIconColor
         )
     }
     
@@ -733,6 +756,9 @@ struct ContentView: View {
             systemName: nil,
             title: "",
             action: {
+                // 触发震动反馈
+                feedbackGenerator.impactOccurred()
+                
                 // 更新动画逻辑
                 rightAnimationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
@@ -768,7 +794,7 @@ struct ContentView: View {
         )
     }
     
-    // 添加设置按钮创建函数
+    // 更新设置按钮创建函数
     private func createSettingsButton(geometry: GeometryProxy) -> some View {
         let styleManager = BorderLightStyleManager.shared
         return CircleButton(
@@ -776,6 +802,9 @@ struct ContentView: View {
             systemName: "gearshape.fill",
             title: "",
             action: {
+                // 触发震动反馈
+                lightFeedbackGenerator.impactOccurred()
+                
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showSettings = true
                 }
@@ -787,7 +816,7 @@ struct ContentView: View {
         )
     }
     
-    // 添加帮助按钮创建函数
+    // 更新帮助按钮创建函数
     private func createHelpButton(geometry: GeometryProxy) -> some View {
         let styleManager = BorderLightStyleManager.shared
         return CircleButton(
@@ -795,6 +824,9 @@ struct ContentView: View {
             systemName: "questionmark.circle.fill",
             title: "",
             action: {
+                // 触发震动反馈
+                lightFeedbackGenerator.impactOccurred()
+                
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showHelp = true
                 }

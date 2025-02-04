@@ -29,6 +29,9 @@ struct DraggableArrow: View {
     @State private var lastDragTranslation: CGFloat = 0
     @State private var dragRotation: Double = 0  // 添加旋转角度状态
     
+    // 添加震动反馈生成器
+    private let lightFeedbackGenerator = UIImpactFeedbackGenerator(style: .light)
+    
     // 添加拖拽方向枚举
     private enum DragDirection {
         case none
@@ -96,6 +99,9 @@ struct DraggableArrow: View {
                     }
                 }
             }
+            
+            // 触发轻微震动
+            lightFeedbackGenerator.impactOccurred(intensity: 0.5)
         }
     }
     
@@ -181,6 +187,9 @@ struct DraggableArrow: View {
                 handleHiddenPanelDragEnd(value: value)
             }
         }
+        
+        // 触发轻微震动
+        lightFeedbackGenerator.impactOccurred(intensity: 0.5)
     }
     
     // 处理隐藏状态下的拖动结束
@@ -215,6 +224,9 @@ struct DraggableArrow: View {
                 print("保持在右侧隐藏 - 速度:\(velocity), 距离:\(translation)")
             }
         }
+        
+        // 触发轻微震动
+        lightFeedbackGenerator.impactOccurred(intensity: 0.5)
     }
     
     // 添加获取图标旋转角度的函数
@@ -370,5 +382,9 @@ struct DraggableArrow: View {
             }
         }
         .frame(height: 50)
+        .onAppear {
+            // 预准备震动反馈生成器
+            lightFeedbackGenerator.prepare()
+        }
     }
 } 

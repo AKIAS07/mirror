@@ -668,6 +668,11 @@ struct OverlayView: View {
             
             // 上传按钮
             Button(action: {
+                // 触发震动反馈
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.prepare()
+                generator.impactOccurred()
+                
                 print("------------------------")
                 print("[上传按钮] 点击")
                 print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
@@ -703,6 +708,11 @@ struct OverlayView: View {
             
             // 下载按钮
             Button(action: {
+                // 触发震动反馈
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.prepare()
+                generator.impactOccurred()
+                
                 print("------------------------")
                 print("[下载按钮] 点击")
                 print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")

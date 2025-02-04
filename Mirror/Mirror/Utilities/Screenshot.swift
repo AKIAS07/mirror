@@ -7,16 +7,7 @@ import Photos
 struct ScreenshotAnimationView: View {
     @Binding var isVisible: Bool
     @ObservedObject var screenshotManager = ScreenshotManager.shared
-    let screenWidth = UIScreen.main.bounds.width
-    let screenHeight = UIScreen.main.bounds.height
     let touchZonePosition: TouchZonePosition  // 添加触控区位置参数
-    
-    // 定义触控区1的尺寸和位置
-    private let touchZoneWidth: CGFloat = 50
-    private let touchZoneHeight: CGFloat = 20
-    private let cornerLength: CGFloat = 15  // L形标记的长度
-    private let lineWidth: CGFloat = 10      // 线条宽度
-    private let padding: CGFloat = 20        // 与触控区的间距
     
     // 添加全屏动画状态
     @State private var showFullScreenAnimation = false
@@ -26,65 +17,18 @@ struct ScreenshotAnimationView: View {
     
     var body: some View {
         ZStack {
-            // 触控区1位于屏幕中心，根据位置偏移
-            let centerX = screenWidth/2 + touchZonePosition.xOffset
-            let centerY = screenHeight/2
-            
-            // 计算四个角的位置
-            let left = centerX - touchZoneWidth/2 - padding
-            let right = centerX + touchZoneWidth/2 + padding
-            let top = centerY - touchZoneHeight/2 - padding
-            let bottom = centerY + touchZoneHeight/2 + padding
-            
-            // 四角L形动画
-            Group {
-                // 左上角
-                Path { path in
-                    path.move(to: CGPoint(x: left, y: top + cornerLength))
-                    path.addLine(to: CGPoint(x: left, y: top))
-                    path.addLine(to: CGPoint(x: left + cornerLength, y: top))
-                }
-                .stroke(Color.white, lineWidth: lineWidth)
-                
-                // 右上角
-                Path { path in
-                    path.move(to: CGPoint(x: right - cornerLength, y: top))
-                    path.addLine(to: CGPoint(x: right, y: top))
-                    path.addLine(to: CGPoint(x: right, y: top + cornerLength))
-                }
-                .stroke(Color.white, lineWidth: lineWidth)
-                
-                // 左下角
-                Path { path in
-                    path.move(to: CGPoint(x: left, y: bottom - cornerLength))
-                    path.addLine(to: CGPoint(x: left, y: bottom))
-                    path.addLine(to: CGPoint(x: left + cornerLength, y: bottom))
-                }
-                .stroke(Color.white, lineWidth: lineWidth)
-                
-                // 右下角
-                Path { path in
-                    path.move(to: CGPoint(x: right - cornerLength, y: bottom))
-                    path.addLine(to: CGPoint(x: right, y: bottom))
-                    path.addLine(to: CGPoint(x: right, y: bottom - cornerLength))
-                }
-                .stroke(Color.white, lineWidth: lineWidth)
-            }
-            .opacity(isVisible ? 1 : 0)
-            .scaleEffect(isVisible ? 0.98 : 1.0)
-            
             // 全屏动画
             if showFullScreenAnimation, let previewImage = screenshotManager.previewImage {
                 Rectangle()
                     .fill(Color.black.opacity(0.5))
-                    .frame(width: screenWidth, height: screenHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .opacity(fullScreenOpacity)
                 
                 // 截图预览
                 Image(uiImage: previewImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: screenWidth * 0.8, height: screenHeight * 0.8)
+                    .frame(width: UIScreen.main.bounds.width * 0.8, height: UIScreen.main.bounds.height * 0.8)
                     .cornerRadius(20)
                     .scaleEffect(fullScreenScale)
                     .opacity(fullScreenOpacity)
@@ -98,7 +42,7 @@ struct ScreenshotAnimationView: View {
                     .background(Color.black.opacity(0.6))
                     .cornerRadius(8)
                     .opacity(showText ? 1 : 0)
-                    .offset(y: screenHeight * 0.3)
+                    .offset(y: UIScreen.main.bounds.height * 0.3)
                     .animation(.easeInOut(duration: 0.3), value: showText)
             }
         }

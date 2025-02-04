@@ -201,14 +201,15 @@ class BorderLightManager: ObservableObject {
     
     // 切换边框灯状态
     func toggleBorderLight(for screenID: ScreenID) {
+        // 触发震动反馈
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.prepare()
+        generator.impactOccurred()
+        
         switch screenID {
         case .original:
             showOriginalHighlight.toggle()
             handleBrightnessChange(isOn: showOriginalHighlight)
-            // 添加震动反馈（开启和关闭时都触发）
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.prepare()
-            generator.impactOccurred()
             print("------------------------")
             print("Original屏幕被点击")
             print(showOriginalHighlight ? "边框灯已开启" : "边框灯已关闭")
@@ -217,10 +218,6 @@ class BorderLightManager: ObservableObject {
         case .mirrored:
             showMirroredHighlight.toggle()
             handleBrightnessChange(isOn: showMirroredHighlight)
-            // 添加震动反馈（开启和关闭时都触发）
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.prepare()
-            generator.impactOccurred()
             print("------------------------")
             print("Mirrored屏幕被点击")
             print(showMirroredHighlight ? "边框灯已开启" : "边框灯已关闭")
@@ -251,7 +248,7 @@ class BorderLightManager: ObservableObject {
         showOriginalHighlight = false
         showMirroredHighlight = false
         
-        // 添加震动反馈
+        // 触发震动反馈
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.prepare()
         generator.impactOccurred()
@@ -269,7 +266,7 @@ class BorderLightManager: ObservableObject {
         showOriginalHighlight = true
         showMirroredHighlight = true
         
-        // 添加震动反馈
+        // 触发震动反馈
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.prepare()
         generator.impactOccurred()

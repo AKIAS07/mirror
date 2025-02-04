@@ -226,11 +226,20 @@ public struct CaptureActionsView: View {
                             })
                     }
                     
+                    // 添加闪光动画
+                    FlashAnimationView()
+                        .zIndex(3)
+                    
                     // 半透明背景层（用于点击隐藏按钮）
                     Color.black.opacity(0.01)
                         .frame(width: screenBounds.width, height: screenBounds.height)
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
                         .onTapGesture(count: BorderLightStyleManager.shared.captureGestureCount) {
+                            // 触发震动反馈
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.prepare()
+                            generator.impactOccurred()
+                            
                             withAnimation {
                                 captureState.reset {
                                     onDismiss()

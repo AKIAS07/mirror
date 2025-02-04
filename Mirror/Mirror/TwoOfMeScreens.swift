@@ -856,6 +856,10 @@ struct TwoOfMeScreens: View {
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     @State private var isScreenSwapped: Bool = false
     
+    @State private var showOriginalFlash = false  // 添加原始画面闪光状态
+    @State private var showMirroredFlash = false  // 添加镜像画面闪光状态
+    @State private var touchZonePoint: CGPoint = .zero  // 修改变量名
+    
     init() {
         // 不再需要设置边框灯管理器引用
     }
@@ -939,6 +943,17 @@ struct TwoOfMeScreens: View {
                                                 screenHeight: screenHeight,
                                                 imageUploader: imageUploader
                                             )
+                                        }
+                                        
+                                        // Original 屏幕的闪光动画
+                                        if showOriginalFlash {
+                                            FlashAnimationView(frame: CGRect(
+                                                x: 0,
+                                                y: 0,  // 根据屏幕交换状态调整位置
+                                                width: screenWidth,
+                                                height: screenHeight/2
+                                            ))
+                                            .zIndex(4)
                                         }
                                     }
                                 )
@@ -1033,6 +1048,17 @@ struct TwoOfMeScreens: View {
                                                 imageUploader: imageUploader
                                             )
                                         }
+                                        
+                                        // Mirrored 屏幕的闪光动画
+                                        if showMirroredFlash {
+                                            FlashAnimationView(frame: CGRect(
+                                                x: 0,
+                                                y: 0,  // 根据屏幕交换状态调整位置
+                                                width: screenWidth,
+                                                height: screenHeight/2
+                                            ))
+                                            .zIndex(4)
+                                        }
                                     }
                                 )
                             )
@@ -1122,6 +1148,17 @@ struct TwoOfMeScreens: View {
                                                 imageUploader: imageUploader
                                             )
                                         }
+                                        
+                                        // Mirrored 屏幕的闪光动画
+                                        if showMirroredFlash {
+                                            FlashAnimationView(frame: CGRect(
+                                                x: 0,
+                                                y: 0,  // 根据屏幕交换状态调整位置
+                                                width: screenWidth,
+                                                height: screenHeight/2
+                                            ))
+                                            .zIndex(4)
+                                        }
                                     }
                                 )
                             )
@@ -1192,6 +1229,17 @@ struct TwoOfMeScreens: View {
                                                 screenHeight: screenHeight,
                                                 imageUploader: imageUploader
                                             )
+                                        }
+
+                                        // Original 屏幕的闪光动画
+                                        if showOriginalFlash {
+                                            FlashAnimationView(frame: CGRect(
+                                                x: 0,
+                                                y: 0,  // 根据屏幕交换状态调整位置
+                                                width: screenWidth,
+                                                height: screenHeight/2
+                                            ))
+                                            .zIndex(4)
                                         }
                                     }
                                 )
@@ -1434,6 +1482,13 @@ struct TwoOfMeScreens: View {
                 )
                 .zIndex(3)
                 
+                // 添加截图动画（不受页面偏移影响）
+                ScreenshotAnimationView(
+                    isVisible: $screenshotManager.isFlashing,
+                    touchZonePosition: touchZonePosition
+                )
+                .zIndex(4)
+                
                 // 修改缩放提示动画（不受页面偏移影响）
                 if showScaleIndicator, let activeScreen = activeScalingScreen {
                     ScaleIndicatorView(scale: currentIndicatorScale)
@@ -1446,13 +1501,6 @@ struct TwoOfMeScreens: View {
                         .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
                         .zIndex(4)
                 }
-                
-                // 添加截图动画（不受页面偏移影响）
-                ScreenshotAnimationView(
-                    isVisible: $screenshotManager.isFlashing,
-                    touchZonePosition: touchZonePosition
-                )
-                .zIndex(4)
                 
                 // 添加动画图标（不受页面偏移影响）
                 if showMiddleIconAnimation {
@@ -1528,6 +1576,24 @@ struct TwoOfMeScreens: View {
                 print("边框灯：\(isDefaultGesture ? "单击" : "双击")")
                 print("拍照：\(isDefaultGesture ? "双击" : "单击")")
                 print("------------------------")
+            }
+            .onChange(of: isOriginalPaused) { newValue in
+                if newValue {
+                    showOriginalFlash = true
+                    // 动画结束后自动隐藏
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        showOriginalFlash = false
+                    }
+                }
+            }
+            .onChange(of: isMirroredPaused) { newValue in
+                if newValue {
+                    showMirroredFlash = true
+                    // 动画结束后自动隐藏
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        showMirroredFlash = false
+                    }
+                }
             }
         }
         .ignoresSafeArea(.all)

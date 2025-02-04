@@ -48,6 +48,13 @@ struct TouchZoneOne: View {
     @State private var middleAnimationPosition: CGPoint = CGPoint(x: 0, y: 0)
     @State private var showTapAnimation: Bool = false
     @State private var showBorderLightTapAnimation: Bool = false  // 添加边框灯动画状态
+    @State private var showContainerWorkItem: DispatchWorkItem? = nil  // 添加延迟显示任务的引用
+    @State private var hasTriggeredLongPressHaptic: Bool = false  // 添加长按震动触发状态
+    
+    // 添加震动反馈生成器
+    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
+    private let heavyFeedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
+    private let lightFeedbackGenerator = UIImpactFeedbackGenerator(style: .light)
     
     // MARK: - Init
     init(
@@ -109,10 +116,12 @@ struct TouchZoneOne: View {
                         .opacity(0.2)
                         .transition(.opacity)
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                        .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
                 }
                 
                 // 拍照点击动画（动画b）
                 if showTapAnimation {
+                    // 蝴蝶图标动画
                     Image("icon-bf-white")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -120,6 +129,14 @@ struct TouchZoneOne: View {
                         .opacity(0.2)
                         .transition(.opacity)
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                        .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
+                    
+                    // 四角动画（仅在非全定格状态下显示）
+                    if (isOriginalPaused && isMirroredPaused) {
+                        SquareCornerAnimationView()
+                            .opacity(0.8)
+                            .scaleEffect(0.98)
+                    }
                 }
 
 
@@ -131,45 +148,103 @@ struct TouchZoneOne: View {
                     .rotationEffect(getRotationAngle(deviceOrientation))
                     .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
                     .apply(colorModifier: styleManager.splitScreenIconColor != Color.purple)  // 修改颜色比较方式
+                    .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
             }
-            .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
+            
             
             // 按钮容器
             if showContainer {
                 ButtonContainer(width: containerWidth) {
                     handleSwapButtonTapInternal()
                 }
-                .rotationEffect(getRotationAngle(deviceOrientation))
                 .animation(.linear(duration: 0.5), value: containerWidth)
                 .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
             }
         }
         .gesture(
-            DragGesture(minimumDistance: 5.0)
+            LongPressGesture(minimumDuration: 0.5)
+                .sequenced(before: DragGesture(minimumDistance: 0))
                 .onChanged { value in
-                    if isZone1Enabled {
-                        isDraggingTouchZone = true
-                        
-                        // 应用阻尼效果
-                        let rawOffset = value.translation.width
-                        dragOffset = rawOffset
-                        
-                        // 每隔100ms打印一次状态，减少日志输出频率
-                        let now = Date()
-                        if now.timeIntervalSince(lastOutputTime) >= 0.1 {
-                            print("------------------------")
-                            print("触控区1正在拖动")
-                            print("原始偏移：\(Int(rawOffset))pt")
-                            print("阻尼后偏移：\(Int(rawOffset * dragDampingFactor))pt")
-                            print("------------------------")
-                            lastOutputTime = now
+                    switch value {
+                    case .first(_):
+                        // 长按开始，不做任何操作
+                        break
+                    case .second(true, let drag):
+                        if isZone1Enabled {
+                            let translation = drag?.translation ?? .zero
+                            let distance = sqrt(pow(translation.width, 2) + pow(translation.height, 2))
+                            
+                            if distance < 5 && !isDraggingTouchZone {  // 移动距离小于5pt且未处于拖动状态，视为静止，显示交换按钮
+                                // 只有在未触发过震动时才触发
+                                if !hasTriggeredLongPressHaptic {
+                                    // 触发震动反馈
+                                    heavyFeedbackGenerator.impactOccurred()
+                                    hasTriggeredLongPressHaptic = true
+                                    
+                                    print("------------------------")
+                                    print("触控区1被长按")
+                                    print("区域：中央透明矩形")
+                                    print("可点击状态：已启用")
+                                    print("------------------------")
+                                }
+                                
+                                // 取消之前的延迟任务（如果存在）
+                                showContainerWorkItem?.cancel()
+                                
+                                // 创建新的延迟任务
+                                let workItem = DispatchWorkItem {
+                                    handleContainerVisibility(showContainer: true)
+                                }
+                                showContainerWorkItem = workItem
+                                
+                                // 延迟0.3秒执行
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+                                
+                            } else {  // 移动距离大于5pt或已处于拖动状态，视为拖动
+                                // 重置长按震动状态
+                                hasTriggeredLongPressHaptic = false
+                                
+                                // 取消延迟显示任务
+                                showContainerWorkItem?.cancel()
+                                showContainerWorkItem = nil
+                                
+                                // 如果已经显示了交换按钮，立即隐藏
+                                if showContainer {
+                                    showContainer = false
+                                    containerWidth = 0
+                                }
+                                
+                                isDraggingTouchZone = true
+                                
+                                // 应用阻尼效果
+                                let rawOffset = translation.width
+                                dragOffset = rawOffset
+                                
+                                // 每隔100ms打印一次状态，减少日志输出频率
+                                let now = Date()
+                                if now.timeIntervalSince(lastOutputTime) >= 0.1 {
+                                    print("------------------------")
+                                    print("触控区1正在拖动")
+                                    print("原始偏移：\(Int(rawOffset))pt")
+                                    print("阻尼后偏移：\(Int(rawOffset * dragDampingFactor))pt")
+                                    print("------------------------")
+                                    lastOutputTime = now
+                                }
+                            }
                         }
+                    case .second(false, _):
+                        // 长按手势未完成，重置状态
+                        hasTriggeredLongPressHaptic = false
+                        break
                     }
                 }
-                .onEnded { value in
-                    if isZone1Enabled {
+                .onEnded { _ in
+                    // 重置长按震动状态
+                    hasTriggeredLongPressHaptic = false
+                    
+                    if isZone1Enabled && isDraggingTouchZone {
                         isDraggingTouchZone = false
-                        let totalOffset = touchZonePosition.xOffset + (value.translation.width * dragDampingFactor)
+                        let totalOffset = touchZonePosition.xOffset + (dragOffset * dragDampingFactor)
                         
                         // 根据最终位置决定停靠位置
                         withAnimation(
@@ -189,6 +264,9 @@ struct TouchZoneOne: View {
                             dragOffset = 0
                         }
                         
+                        // 触发震动反馈
+                        feedbackGenerator.impactOccurred()
+                        
                         // 打印最终位置
                         print("------------------------")
                         print("触控区1拖动结束")
@@ -197,17 +275,6 @@ struct TouchZoneOne: View {
                     }
                 }
         )
-        .onLongPressGesture(minimumDuration: 0.5) {
-            if isZone1Enabled {
-                print("------------------------")
-                print("触控区1被长按")
-                print("区域：中央透明矩形")
-                print("可点击状态：已启用")
-                print("------------------------")
-                
-                handleContainerVisibility(showContainer: true)
-            }
-        }
         .onTapGesture {
             if isZone1Enabled {
                 let now = Date()
@@ -219,6 +286,9 @@ struct TouchZoneOne: View {
                     // 延迟处理单击，给双击留出判断时间
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         if self.zone1TapCount == 1 {  // 如果在延迟期间没有发生第二次点击
+                            // 触发单击震动反馈
+                            self.feedbackGenerator.impactOccurred()
+                            
                             if !self.styleManager.isDefaultGesture {  // 交换模式：单击拍照
                                 print("------------------------")
                                 print("触控区1单击拍照（交换模式）")
@@ -382,6 +452,12 @@ struct TouchZoneOne: View {
                 } else {  // 300ms内的第二次点击
                     zone1TapCount += 1
                     if zone1TapCount == 2 {  // 双击确认
+                        // 触发双击震动反馈
+                        lightFeedbackGenerator.impactOccurred(intensity: 0.8)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            self.lightFeedbackGenerator.impactOccurred(intensity: 1.0)
+                        }
+                        
                         print("------------------------")
                         print("触控区1被双击")
                         print("区域：中央透明矩形")
@@ -543,6 +619,11 @@ struct TouchZoneOne: View {
             }
         }
         .onAppear {
+            // 预准备震动反馈生成器
+            feedbackGenerator.prepare()
+            heavyFeedbackGenerator.prepare()
+            lightFeedbackGenerator.prepare()
+            
             // 添加按钮颜色更新通知监听
             NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("UpdateButtonColors"),

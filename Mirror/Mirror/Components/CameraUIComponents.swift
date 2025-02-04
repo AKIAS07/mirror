@@ -70,6 +70,8 @@ extension View {
 
 struct RestartCameraView: View {
     let action: () -> Void
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     
     var body: some View {
         GeometryReader { geometry in
@@ -78,13 +80,11 @@ struct RestartCameraView: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: 20) {
-                    // Text("点击唤醒摄像头")
-                    //     .foregroundColor(.white)
-                    //     .font(.title2)
-                    
                     Image(systemName: "camera.circle.fill")
                         .font(.system(size: 75))
-                        .foregroundColor(.white)
+                        .foregroundColor(styleManager.iconColor)
+                        .rotationEffect(orientationManager.getRotationAngle(orientationManager.currentOrientation))
+                        .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                 }
                 .position(x: geometry.size.width/2, y: geometry.size.height/2-25)
             }
@@ -98,6 +98,8 @@ struct RestartCameraView: View {
 struct BackgroundMaskView: View {
     let isSelected: Bool
     let isLighted: Bool
+    @State private var previousIsSelected: Bool = false
+    private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
     
     var body: some View {
         GeometryReader { geometry in
@@ -134,6 +136,16 @@ struct BackgroundMaskView: View {
             }
         }
         .edgesIgnoringSafeArea(.all)
+        .onAppear {
+            previousIsSelected = isSelected
+            feedbackGenerator.prepare()
+        }
+        .onChange(of: isSelected) { newValue in
+            if newValue != previousIsSelected {
+                feedbackGenerator.impactOccurred()
+                previousIsSelected = newValue
+            }
+        }
     }
 }
 

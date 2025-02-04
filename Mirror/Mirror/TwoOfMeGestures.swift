@@ -13,10 +13,16 @@ class TwoOfMeGestureManager {
         togglePauseState: @escaping (ScreenID) -> Void,
         handleSingleTap: @escaping (ScreenID) -> Void
     ) -> some Gesture {
-        ExclusiveGesture(
+        let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
+        feedbackGenerator.prepare()
+        
+        return ExclusiveGesture(
             TapGesture(count: 2)
                 .onEnded {
                     if screenID == .original ? isZone2Enabled : isZone3Enabled {
+                        // 触发震动反馈
+                        feedbackGenerator.impactOccurred()
+                        
                         if isDefaultGesture {
                             print("------------------------")
                             print("触控区\(screenID == .original ? "2" : "3")被双击")
@@ -36,6 +42,9 @@ class TwoOfMeGestureManager {
             TapGesture(count: 1)
                 .onEnded {
                     if screenID == .original ? isZone2Enabled : isZone3Enabled {
+                        // 触发震动反馈
+                        feedbackGenerator.impactOccurred()
+                        
                         if isDefaultGesture {
                             handleSingleTap(screenID)
                         } else {
@@ -171,28 +180,40 @@ class TwoOfMeGestureManager {
         isMirroredPaused: Bool,
         imageUploader: ImageUploader
     ) -> some Gesture {
-        LongPressGesture(minimumDuration: 0.8)
-            .onEnded { _ in
-                if screenID == .original ? isZone2Enabled : isZone3Enabled {
-                    print("------------------------")
-                    print("触控区\(screenID == .original ? "2" : "3")被长按")
-                    print("区域：\(screenID.debugName)屏幕")
-                    print("位置：\(isScreensSwapped ? (screenID == .original ? "下部" : "上部") : (screenID == .original ? "上部" : "下部"))")
-                    print("------------------------")
-                    
-                    if screenID == .original {
-                        if isOriginalPaused {
-                            imageUploader.showDownloadOverlay(for: .original)
+        let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
+        feedbackGenerator.prepare()
+        
+        return LongPressGesture(minimumDuration: 0.8)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .onChanged { value in
+                switch value {
+                case .second(true, _):
+                    if screenID == .original ? isZone2Enabled : isZone3Enabled {
+                        // 触发震动反馈
+                        feedbackGenerator.impactOccurred()
+                        
+                        print("------------------------")
+                        print("触控区\(screenID == .original ? "2" : "3")被长按")
+                        print("区域：\(screenID.debugName)屏幕")
+                        print("位置：\(isScreensSwapped ? (screenID == .original ? "下部" : "上部") : (screenID == .original ? "上部" : "下部"))")
+                        print("------------------------")
+                        
+                        if screenID == .original {
+                            if isOriginalPaused {
+                                imageUploader.showDownloadOverlay(for: .original)
+                            } else {
+                                imageUploader.showRectangle(for: .original)
+                            }
                         } else {
-                            imageUploader.showRectangle(for: .original)
-                        }
-                    } else {
-                        if isMirroredPaused {
-                            imageUploader.showDownloadOverlay(for: .mirrored)
-                        } else {
-                            imageUploader.showRectangle(for: .mirrored)
+                            if isMirroredPaused {
+                                imageUploader.showDownloadOverlay(for: .mirrored)
+                            } else {
+                                imageUploader.showRectangle(for: .mirrored)
+                            }
                         }
                     }
+                default:
+                    break
                 }
             }
     }
@@ -278,6 +299,15 @@ class TwoOfMeGestureManager {
         handleMirroredDragEnd: @escaping () -> Void
     ) -> some Gesture {
         SimultaneousGesture(
+            createLongPressGesture(
+                for: screenID,
+                isZone2Enabled: isZone2Enabled,
+                isZone3Enabled: isZone3Enabled,
+                isScreensSwapped: false,
+                isOriginalPaused: isOriginalPaused,
+                isMirroredPaused: isMirroredPaused,
+                imageUploader: imageUploader
+            ),
             SimultaneousGesture(
                 createPinchGesture(
                     for: screenID,
@@ -298,28 +328,19 @@ class TwoOfMeGestureManager {
                     centerImage: centerImage,
                     centerMirroredImage: centerMirroredImage
                 ),
-                createLongPressGesture(
+                createDragGesture(
                     for: screenID,
                     isZone2Enabled: isZone2Enabled,
                     isZone3Enabled: isZone3Enabled,
-                    isScreensSwapped: false,
                     isOriginalPaused: isOriginalPaused,
                     isMirroredPaused: isMirroredPaused,
-                    imageUploader: imageUploader
+                    currentScale: currentScale.wrappedValue,
+                    currentMirroredScale: currentMirroredScale.wrappedValue,
+                    handleDragGesture: handleDragGesture,
+                    handleMirroredDragGesture: handleMirroredDragGesture,
+                    handleDragEnd: handleDragEnd,
+                    handleMirroredDragEnd: handleMirroredDragEnd
                 )
-            ),
-            createDragGesture(
-                for: screenID,
-                isZone2Enabled: isZone2Enabled,
-                isZone3Enabled: isZone3Enabled,
-                isOriginalPaused: isOriginalPaused,
-                isMirroredPaused: isMirroredPaused,
-                currentScale: currentScale.wrappedValue,
-                currentMirroredScale: currentMirroredScale.wrappedValue,
-                handleDragGesture: handleDragGesture,
-                handleMirroredDragGesture: handleMirroredDragGesture,
-                handleDragEnd: handleDragEnd,
-                handleMirroredDragEnd: handleMirroredDragEnd
             )
         )
     }
