@@ -170,7 +170,7 @@ class BorderLightManager: ObservableObject {
     
     // 添加亮度控制相关属性
     private var originalBrightness: CGFloat = UIScreen.main.brightness
-    var isControllingBrightness = false
+    @Published public private(set) var isControllingBrightness = false
     @Published var isSettingsShowing = false
     
     init() {
@@ -179,6 +179,83 @@ class BorderLightManager: ObservableObject {
         // 监听设置页面的显示状态
         NotificationCenter.default.addObserver(self, selector: #selector(handleSettingsPresented), name: NSNotification.Name("SettingsPresented"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleSettingsDismissed), name: NSNotification.Name("SettingsDismissed"), object: nil)
+        
+        // 添加手电筒状态变化监听
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFlashlightStateChange),
+            name: NSNotification.Name("FlashlightStateDidChange"),
+            object: nil
+        )
+    }
+    
+    // 修改亮度控制方法
+    private func handleBrightnessChange(isOn: Bool) {
+        if isSettingsShowing { return }
+        
+        // 发送通知获取手电筒状态
+        var isAnyFlashlightActive = false
+        NotificationCenter.default.post(
+            name: NSNotification.Name("CheckFlashlightState"),
+            object: nil,
+            userInfo: ["completion": { (active: Bool) in
+                isAnyFlashlightActive = active
+            }]
+        )
+        
+        if isOn && !isControllingBrightness && !isAnyFlashlightActive {
+            isControllingBrightness = true
+            originalBrightness = UIScreen.main.brightness
+            UIScreen.main.brightness = 1.0
+            print("------------------------")
+            print("[边框灯] 亮度控制已激活")
+            print("原始亮度：\(originalBrightness)")
+            print("当前亮度：1.0")
+            print("------------------------")
+        } else if !showOriginalHighlight && !showMirroredHighlight {
+            if isControllingBrightness && !isAnyFlashlightActive {  // 只有在没有手电筒开启时才恢复亮度
+                UIScreen.main.brightness = originalBrightness
+                isControllingBrightness = false
+                print("------------------------")
+                print("[边框灯] 亮度控制已解除")
+                print("亮度已恢复：\(originalBrightness)")
+                print("------------------------")
+            }
+        }
+    }
+    
+    // 修改手电筒状态变化处理方法
+    @objc private func handleFlashlightStateChange(_ notification: Notification) {
+        if let userInfo = notification.userInfo,
+           let originalActive = userInfo["originalActive"] as? Bool,
+           let mirroredActive = userInfo["mirroredActive"] as? Bool {
+            
+            let isAnyFlashlightActive = originalActive || mirroredActive
+            
+            if isAnyFlashlightActive {
+                // 如果有手电筒开启，保存当前亮度并设置为最大
+                if !isControllingBrightness {
+                    originalBrightness = UIScreen.main.brightness
+                    UIScreen.main.brightness = 1.0
+                    isControllingBrightness = true
+                    print("------------------------")
+                    print("[手电筒] 亮度控制已激活")
+                    print("原始亮度：\(originalBrightness)")
+                    print("当前亮度：1.0")
+                    print("------------------------")
+                }
+            } else {
+                // 如果所有手电筒都关闭了，检查是否需要恢复边框灯的亮度控制
+                if isControllingBrightness && !showOriginalHighlight && !showMirroredHighlight {
+                    UIScreen.main.brightness = originalBrightness
+                    isControllingBrightness = false
+                    print("------------------------")
+                    print("[手电筒] 亮度控制已解除")
+                    print("亮度已恢复：\(originalBrightness)")
+                    print("------------------------")
+                }
+            }
+        }
     }
     
     // 处理设置页面显示
@@ -225,24 +302,6 @@ class BorderLightManager: ObservableObject {
         }
     }
     
-    // 处理亮度变化
-    private func handleBrightnessChange(isOn: Bool) {
-        if isSettingsShowing { return }
-        
-        if isOn && !isControllingBrightness {
-            isControllingBrightness = true
-            originalBrightness = UIScreen.main.brightness
-            UIScreen.main.brightness = 1.0
-            print("设备亮度已调至最大")
-        } else if !showOriginalHighlight && !showMirroredHighlight {
-            if isControllingBrightness {
-                UIScreen.main.brightness = originalBrightness
-                isControllingBrightness = false
-                print("设备亮度已恢复")
-            }
-        }
-    }
-    
     // 关闭所有边框灯
     func turnOffAllLights() {
         showOriginalHighlight = false
@@ -277,6 +336,41 @@ class BorderLightManager: ObservableObject {
             UIScreen.main.brightness = 1.0
             isControllingBrightness = true
             print("设备亮度已调至最大")
+        }
+    }
+    
+    // 更新亮度控制逻辑
+    private func updateBrightnessControl() {
+        // 发送通知获取手电筒状态
+        var isAnyFlashlightActive = false
+        NotificationCenter.default.post(
+            name: NSNotification.Name("CheckFlashlightState"),
+            object: nil,
+            userInfo: ["completion": { (active: Bool) in
+                isAnyFlashlightActive = active
+            }]
+        )
+        
+        // 如果有手电筒开启，保持最大亮度
+        if isAnyFlashlightActive {
+            if !isControllingBrightness {
+                originalBrightness = UIScreen.main.brightness
+                UIScreen.main.brightness = 1.0
+                isControllingBrightness = true
+            }
+        } else if showOriginalHighlight || showMirroredHighlight {
+            // 如果有边框灯开启，保持最大亮度
+            if !isControllingBrightness {
+                originalBrightness = UIScreen.main.brightness
+                UIScreen.main.brightness = 1.0
+                isControllingBrightness = true
+            }
+        } else {
+            // 如果既没有手电筒也没有边框灯开启，恢复原始亮度
+            if isControllingBrightness {
+                UIScreen.main.brightness = originalBrightness
+                isControllingBrightness = false
+            }
         }
     }
 }

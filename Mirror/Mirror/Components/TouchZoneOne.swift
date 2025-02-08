@@ -26,12 +26,13 @@ struct TouchZoneOne: View {
     @State private var isScreenSwapped: Bool = false
     @State private var hideContainerTimer: Timer? = nil
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
-    let borderLightManager: BorderLightManager  // 修改为通过参数注入
+    let borderLightManager: BorderLightManager
+    let imageUploader: ImageUploader
     @State private var zone1LastTapTime: Date = Date()
     @State private var zone1TapCount: Int = 0
     @State private var lastOutputTime: Date = Date()
     @State private var isDraggingTouchZone: Bool = false
-    @ObservedObject private var orientationManager = DeviceOrientationManager.shared  // 添加orientationManager
+    @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     
     let dragDampingFactor: CGFloat
     let animationDuration: TimeInterval
@@ -41,15 +42,15 @@ struct TouchZoneOne: View {
     let deviceOrientation: UIDeviceOrientation
     let screenshotManager: ScreenshotManager
     let handleSwapButtonTap: () -> Void
-    let originalImage: UIImage?  // 移动到这里
-    let mirroredImage: UIImage?  // 移动到这里
+    let originalImage: UIImage?
+    let mirroredImage: UIImage?
     
     @State private var showMiddleIconAnimation: Bool = false
     @State private var middleAnimationPosition: CGPoint = CGPoint(x: 0, y: 0)
     @State private var showTapAnimation: Bool = false
-    @State private var showBorderLightTapAnimation: Bool = false  // 添加边框灯动画状态
-    @State private var showContainerWorkItem: DispatchWorkItem? = nil  // 添加延迟显示任务的引用
-    @State private var hasTriggeredLongPressHaptic: Bool = false  // 添加长按震动触发状态
+    @State private var showBorderLightTapAnimation: Bool = false
+    @State private var showContainerWorkItem: DispatchWorkItem? = nil
+    @State private var hasTriggeredLongPressHaptic: Bool = false
     
     // 添加震动反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
@@ -77,7 +78,8 @@ struct TouchZoneOne: View {
         deviceOrientation: UIDeviceOrientation,
         screenshotManager: ScreenshotManager,
         handleSwapButtonTap: @escaping () -> Void,
-        borderLightManager: BorderLightManager
+        borderLightManager: BorderLightManager,
+        imageUploader: ImageUploader
     ) {
         self._showContainer = showContainer
         self._containerWidth = containerWidth
@@ -97,8 +99,9 @@ struct TouchZoneOne: View {
         self.screenshotManager = screenshotManager
         self.handleSwapButtonTap = handleSwapButtonTap
         self.borderLightManager = borderLightManager
-        self.originalImage = originalImage  // 移到最后
-        self.mirroredImage = mirroredImage  // 移到最后
+        self.imageUploader = imageUploader
+        self.originalImage = originalImage
+        self.mirroredImage = mirroredImage
     }
     
     // MARK: - Body
@@ -147,7 +150,7 @@ struct TouchZoneOne: View {
                     .contentShape(Rectangle())
                     .rotationEffect(getRotationAngle(deviceOrientation))
                     .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
-                    .apply(colorModifier: styleManager.splitScreenIconColor != Color.purple)  // 修改颜色比较方式
+                    .apply(colorModifier: styleManager.splitScreenIconColor != Color.purple)
                     .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
             }
             
@@ -367,6 +370,10 @@ struct TouchZoneOne: View {
                                     print("退出定格状态")
                                     print("------------------------")
                                     
+                                    // 先关闭所有手电筒
+                                    imageUploader.closeAllFlashlights()
+                                    
+                                    // 然后退出定格状态
                                     self.isOriginalPaused = false
                                     self.isMirroredPaused = false
                                     self.pausedOriginalImage = nil
@@ -535,6 +542,10 @@ struct TouchZoneOne: View {
                                 print("退出定格状态")
                                 print("------------------------")
                                 
+                                // 先关闭所有手电筒
+                                imageUploader.closeAllFlashlights()
+                                
+                                // 然后退出定格状态
                                 isOriginalPaused = false
                                 isMirroredPaused = false
                                 pausedOriginalImage = nil
@@ -701,6 +712,10 @@ struct TouchZoneOne: View {
     
     private func handleSwapButtonTapInternal() {
         isScreenSwapped.toggle()
+        
+        // 处理手电筒状态交换
+        imageUploader.handleScreenSwap()
+        
         handleSwapButtonTap()
         
         // 点击交换按钮后立即隐藏容器

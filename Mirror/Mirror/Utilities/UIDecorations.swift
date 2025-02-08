@@ -1,4 +1,12 @@
 import SwiftUI
+import Combine
+
+// 添加 Color 转换扩展
+extension Color {
+    var uiColor: UIColor {
+        UIColor(self)
+    }
+}
 
 // 闪光动画视图
 struct FlashAnimationView: View {
@@ -29,6 +37,80 @@ struct FlashAnimationView: View {
                     }
                 }
             }
+    }
+}
+
+// 矩形图片管理器
+class RectangleImageManager: ObservableObject {
+    static let shared = RectangleImageManager()
+    @Published private(set) var originalImage: UIImage?  // Original 屏幕的图片
+    @Published private(set) var mirroredImage: UIImage?  // Mirrored 屏幕的图片
+    private let imageSize = CGSize(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height / 2)  // 修改为屏幕尺寸
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    
+    private init() {
+        print("------------------------")
+        print("[矩形图片管理器] 初始化")
+        print("------------------------")
+        updateRectangleImages()
+        
+        // 监听边框灯颜色变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleBorderColorChange),
+            name: NSNotification.Name("BorderColorDidChange"),
+            object: nil
+        )
+        
+        // 添加对selectedColor的监听
+        styleManager.objectWillChange.sink { [weak self] _ in
+            self?.updateRectangleImages()
+        }.store(in: &cancellables)
+    }
+    
+    private var cancellables = Set<AnyCancellable>()
+    
+    @objc private func handleBorderColorChange() {
+        print("------------------------")
+        print("[矩形图片管理器] 颜色变化")
+        print("------------------------")
+        updateRectangleImages()
+    }
+    
+    private func updateRectangleImages() {
+        print("------------------------")
+        print("[矩形图片管理器] 开始更新图片")
+        print("尺寸: \(imageSize.width)x\(imageSize.height)")
+        print("颜色: \(styleManager.selectedColor)")
+        
+        let renderer = UIGraphicsImageRenderer(size: imageSize)
+        let newImage = renderer.image { context in
+            // 获取当前边框灯颜色
+            let color = styleManager.selectedColor
+            color.uiColor.setFill()
+            
+            // 创建一个矩形路径
+            let rectangle = CGRect(x: 0, y: 0, width: imageSize.width, height: imageSize.height)
+            context.fill(rectangle)
+        }
+        
+        // 为两个屏幕创建独立的图片实例
+        originalImage = newImage.copy() as? UIImage
+        mirroredImage = newImage.copy() as? UIImage
+        
+        print("图片更新完成")
+        print("------------------------")
+    }
+    
+    // 根据屏幕ID获取对应的图片
+    func getImage(for screenID: ScreenID) -> UIImage? {
+        print("------------------------")
+        print("[矩形图片管理器] 获取图片")
+        print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+        let image = screenID == .original ? originalImage : mirroredImage
+        print("结果：\(image != nil ? "成功" : "失败")")
+        print("------------------------")
+        return image
     }
 }
 

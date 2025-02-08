@@ -103,8 +103,8 @@ struct TwoOfMeScreens: View {
     @State private var isScreensSwapped = false
     @State private var isOriginalPaused = false  // Original画面定格状态
     @State private var isMirroredPaused = false  // Mirrored画面定格状态
-    @State private var pausedOriginalImage: UIImage?  // 存储Original定格画面
-    @State private var pausedMirroredImage: UIImage?  // 存储Mirrored定格画面
+    @State private var pausedOriginalImage: UIImage?
+    @State private var pausedMirroredImage: UIImage?
     @State private var dragVerticalOffset: CGFloat = 0  // 添加垂直拖动偏移量
     @State private var pageOffset: CGFloat = 0  // 添加页面偏移状态
     
@@ -641,12 +641,15 @@ struct TwoOfMeScreens: View {
         print("执行交换操作")
         print("当前布局：\(layoutDescription)")
         
+        // 交换手电筒状态和图片
+        imageUploader.handleScreenSwap()
+        
         // 执行交换
         withAnimation {
             isScreensSwapped.toggle()
         }
         
-        // 延迟打印换后状态
+        // 延迟打印交换后状态
         DispatchQueue.main.async {
             print("交换完成")
             print("新布局：\(layoutDescription)")
@@ -718,7 +721,7 @@ struct TwoOfMeScreens: View {
             }
             
             // 关闭边框灯
-            borderLightManager.turnOffAllLights()
+            //borderLightManager.turnOffAllLights()
             
             // 根据设备方向调整定格画面
             switch orientationManager.currentOrientation {
@@ -738,6 +741,7 @@ struct TwoOfMeScreens: View {
             originalOffset = .zero
             originalEdgeDetector.resetBorders()
             
+            
         case .mirrored:
             // 自动进入定格状态
             if !isMirroredPaused {
@@ -745,10 +749,11 @@ struct TwoOfMeScreens: View {
                 print("------------------------")
                 print("Mirrored画面已自动定格")
                 print("------------------------")
+
             }
             
             // 关闭边框灯
-            borderLightManager.turnOffAllLights()
+            //borderLightManager.turnOffAllLights()
             
             // 根据设备方向调整定格画面
             switch orientationManager.currentOrientation {
@@ -887,41 +892,87 @@ struct TwoOfMeScreens: View {
                                 content: AnyView(
                                     ZStack {
                                         if let image = isOriginalPaused ? pausedOriginalImage : originalImage {
-                                            Image(uiImage: image)
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
-                                                       height: centerY)
-                                                .scaleEffect(isOriginalPaused ? currentScale : currentScale)
-                                                .offset(isOriginalPaused ? originalOffset : .zero)
-                                                .rotationEffect(isOriginalPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
-                                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                                .clipped()
-                                                .gesture(isOriginalPaused && currentScale > 1.0 ?
-                                                    DragGesture()
-                                                        .onChanged { value in
-                                                            handleDragGesture(
-                                                                value: value,
-                                                                screenWidth: screenWidth,
-                                                                screenHeight: screenHeight,
-                                                                centerY: centerY
-                                                            )
+                                            ZStack {
+                                                Image(uiImage: image)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
+                                                           height: centerY)
+                                                    .scaleEffect(isOriginalPaused ? currentScale : currentScale)
+                                                    .offset(isOriginalPaused ? originalOffset : .zero)
+                                                    .rotationEffect(isOriginalPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
+                                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                                    .clipped()
+                                                    .gesture(isOriginalPaused && currentScale > 1.0 && !imageUploader.isFlashlightActive(for: .original) ?
+                                                        DragGesture()
+                                                            .onChanged { value in
+                                                                handleDragGesture(
+                                                                    value: value,
+                                                                    screenWidth: screenWidth,
+                                                                    screenHeight: screenHeight,
+                                                                    centerY: centerY
+                                                                )
+                                                            }
+                                                            .onEnded { _ in
+                                                                handleDragEnd()
+                                                            }
+                                                        : nil
+                                                    )
+                                                    .zIndex(1)
+                                                
+                                                // 添加关闭按钮
+                                                if imageUploader.isFlashlightActive(for: .original) {
+                                                    ZStack {
+                                                        Color.clear
+                                                            .frame(width: 80, height: 80)
+                                                        
+                                                        Button(action: {
+                                                            print("------------------------")
+                                                            print("[关闭按钮] 被点击")
+                                                            print("区域：Original屏幕")
+                                                            print("------------------------")
+                                                            
+                                                            // 触发震动反馈
+                                                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                                                            generator.prepare()
+                                                            generator.impactOccurred()
+                                                            
+                                                            imageUploader.closeFlashlight(for: .original)
+                                                        }) {
+                                                            Image(systemName: "xmark.circle.fill")
+                                                                .font(.system(size: 30))
+                                                                .foregroundColor(.black.opacity(0.2))
+                                                                .background(Color.white.opacity(0.3))
+                                                                .clipShape(Circle())
+                                                                .contentShape(Circle())
                                                         }
-                                                        .onEnded { _ in
-                                                            handleDragEnd()
+                                                    }
+                                                    .position(x: screenWidth/2, y: centerY/2)
+                                                    .zIndex(999)
+                                                    .onAppear {
+                                                        // 添加手电筒状态变化通知监听
+                                                        NotificationCenter.default.addObserver(
+                                                            forName: NSNotification.Name("FlashlightStateDidChange"),
+                                                            object: nil,
+                                                            queue: .main
+                                                        ) { notification in
+                                                            // 强制视图刷新
+                                                            withAnimation {
+                                                                if let userInfo = notification.userInfo,
+                                                                   let originalActive = userInfo["originalActive"] as? Bool,
+                                                                   let mirroredActive = userInfo["mirroredActive"] as? Bool {
+                                                                    print("------------------------")
+                                                                    print("[关闭按钮] 收到状态更新")
+                                                                    print("Original手电筒：\(originalActive ? "开启" : "关闭")")
+                                                                    print("Mirrored手电筒：\(mirroredActive ? "开启" : "关闭")")
+                                                                    print("------------------------")
+                                                                }
+                                                            }
                                                         }
-                                                    : nil
-                                                )
-                                                .zIndex(1)
-                                            
-                                            // 添加边框容器
-                                            if isOriginalPaused {
-                                                EdgeBorderContainer(
-                                                    screenWidth: screenWidth,
-                                                    centerY: centerY,
-                                                    edgeDetector: originalEdgeDetector
-                                                )
+                                                    }
+                                                }
                                             }
+                                            .zIndex(1)
                                         }
                                         
                                         // 添加边框灯效果
@@ -969,63 +1020,89 @@ struct TwoOfMeScreens: View {
                                 content: AnyView(
                                     ZStack {
                                         if let image = isMirroredPaused ? pausedMirroredImage : mirroredImage {
-                                            Image(uiImage: image)
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
-                                                       height: centerY)
-                                                .scaleEffect(isMirroredPaused ? currentMirroredScale : currentMirroredScale)
-                                                .offset(isMirroredPaused ? mirroredOffset : .zero)
-                                                .rotationEffect(isMirroredPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
-                                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                                .clipped()
-                                                .gesture(isMirroredPaused && currentMirroredScale > 1.0 ?
-                                                    DragGesture()
-                                                        .onChanged { value in
-                                                            handleMirroredDragGesture(
-                                                                value: value,
-                                                                screenWidth: screenWidth,
-                                                                screenHeight: screenHeight,
-                                                                centerY: centerY
-                                                            )
-                                                        }
-                                                        .onEnded { _ in
-                                                            handleMirroredDragEnd()
-                                                        }
-                                                    : nil
-                                                )
-                                                .simultaneousGesture(  // 双指缩放手势
-                                                    MagnificationGesture()
-                                                        .onChanged { scale in
-                                                            if isZone3Enabled {
-                                                                handlePinchGesture(
-                                                                    scale: scale,
-                                                                    screenID: .mirrored,
-                                                                    baseScale: mirroredScale,
-                                                                    currentScale: &currentMirroredScale
+                                            ZStack {
+                                                Image(uiImage: image)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
+                                                           height: centerY)
+                                                    .scaleEffect(isMirroredPaused ? currentMirroredScale : currentMirroredScale)
+                                                    .offset(isMirroredPaused ? mirroredOffset : .zero)
+                                                    .rotationEffect(isMirroredPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
+                                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                                    .clipped()
+                                                    .gesture(isMirroredPaused && currentMirroredScale > 1.0 ?
+                                                        DragGesture()
+                                                            .onChanged { value in
+                                                                handleMirroredDragGesture(
+                                                                    value: value,
+                                                                    screenWidth: screenWidth,
+                                                                    screenHeight: screenHeight,
+                                                                    centerY: centerY
                                                                 )
                                                             }
+                                                            .onEnded { _ in
+                                                                handleMirroredDragEnd()
+                                                            }
+                                                        : nil
+                                                    )
+                                                    .zIndex(1)
+                                                
+                                                // 添加关闭按钮
+                                                if imageUploader.isFlashlightActive(for: .mirrored) {
+                                                    ZStack {
+                                                        Color.clear
+                                                            .frame(width: 80, height: 80)
+                                                            .contentShape(Circle())
+                                                        
+                                                        Button(action: {
+                                                            print("------------------------")
+                                                            print("[关闭按钮] 被点击")
+                                                            print("区域：Mirrored屏幕")
+                                                            print("位置：\(isScreensSwapped ? "上部" : "下部")")
+                                                            print("------------------------")
+                                                            
+                                                            // 触发震动反馈
+                                                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                                                            generator.prepare()
+                                                            generator.impactOccurred()
+                                                            
+                                                            imageUploader.closeFlashlight(for: .mirrored)
+                                                        }) {
+                                                            Image(systemName: "xmark.circle.fill")
+                                                                .font(.system(size: 30))
+                                                                .foregroundColor(.white.opacity(0.5))
+                                                                .background(Color.black.opacity(0.5))
+                                                                .clipShape(Circle())
+                                                                .contentShape(Circle())
                                                         }
-                                                        .onEnded { scale in
-                                                            if isZone3Enabled {
-                                                                handlePinchEnd(
-                                                                    screenID: .mirrored,
-                                                                    currentScale: currentMirroredScale,
-                                                                    baseScale: &mirroredScale
-                                                                )
+                                                    }
+                                                    .position(x: screenWidth/2, y: centerY/2)
+                                                    .zIndex(999)
+                                                    .onAppear {
+                                                        // 添加手电筒状态变化通知监听
+                                                        NotificationCenter.default.addObserver(
+                                                            forName: NSNotification.Name("FlashlightStateDidChange"),
+                                                            object: nil,
+                                                            queue: .main
+                                                        ) { notification in
+                                                            // 强制视图刷新
+                                                            withAnimation {
+                                                                if let userInfo = notification.userInfo,
+                                                                   let originalActive = userInfo["originalActive"] as? Bool,
+                                                                   let mirroredActive = userInfo["mirroredActive"] as? Bool {
+                                                                    print("------------------------")
+                                                                    print("[关闭按钮] 收到状态更新")
+                                                                    print("Original手电筒：\(originalActive ? "开启" : "关闭")")
+                                                                    print("Mirrored手电筒：\(mirroredActive ? "开启" : "关闭")")
+                                                                    print("------------------------")
+                                                                }
                                                             }
                                                         }
-                                                )
-                                                .zIndex(1)
-                                            
-                                            // 添加边框容器
-                                            if isMirroredPaused {
-                                                EdgeBorderContainer(
-                                                    screenWidth: screenWidth,
-                                                    centerY: centerY,
-                                                    edgeDetector: mirroredEdgeDetector
-                                                )
+                                                    }
+                                                }
                                             }
+                                            .zIndex(1)
                                         }
                                         
                                         // 添加边框灯效果
@@ -1069,63 +1146,89 @@ struct TwoOfMeScreens: View {
                                 content: AnyView(
                                     ZStack {
                                         if let image = isMirroredPaused ? pausedMirroredImage : mirroredImage {
-                                            Image(uiImage: image)
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
-                                                       height: centerY)
-                                                .scaleEffect(isMirroredPaused ? currentMirroredScale : currentMirroredScale)
-                                                .offset(isMirroredPaused ? mirroredOffset : .zero)
-                                                .rotationEffect(isMirroredPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
-                                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                                .clipped()
-                                                .gesture(isMirroredPaused && currentMirroredScale > 1.0 ?
-                                                    DragGesture()
-                                                        .onChanged { value in
-                                                            handleMirroredDragGesture(
-                                                                value: value,
-                                                                screenWidth: screenWidth,
-                                                                screenHeight: screenHeight,
-                                                                centerY: centerY
-                                                            )
-                                                        }
-                                                        .onEnded { _ in
-                                                            handleMirroredDragEnd()
-                                                        }
-                                                    : nil
-                                                )
-                                                .simultaneousGesture(  // 双指缩放手势
-                                                    MagnificationGesture()
-                                                        .onChanged { scale in
-                                                            if isZone3Enabled {
-                                                                handlePinchGesture(
-                                                                    scale: scale,
-                                                                    screenID: .mirrored,
-                                                                    baseScale: mirroredScale,
-                                                                    currentScale: &currentMirroredScale
+                                            ZStack {
+                                                Image(uiImage: image)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
+                                                           height: centerY)
+                                                    .scaleEffect(isMirroredPaused ? currentMirroredScale : currentMirroredScale)
+                                                    .offset(isMirroredPaused ? mirroredOffset : .zero)
+                                                    .rotationEffect(isMirroredPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
+                                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                                    .clipped()
+                                                    .gesture(isMirroredPaused && currentMirroredScale > 1.0 ?
+                                                        DragGesture()
+                                                            .onChanged { value in
+                                                                handleMirroredDragGesture(
+                                                                    value: value,
+                                                                    screenWidth: screenWidth,
+                                                                    screenHeight: screenHeight,
+                                                                    centerY: centerY
                                                                 )
                                                             }
+                                                            .onEnded { _ in
+                                                                handleMirroredDragEnd()
+                                                            }
+                                                        : nil
+                                                    )
+                                                    .zIndex(1)
+                                                
+                                                // 添加关闭按钮
+                                                if imageUploader.isFlashlightActive(for: .mirrored) {
+                                                    ZStack {
+                                                        Color.clear
+                                                            .frame(width: 80, height: 80)
+                                                            .contentShape(Circle())
+                                                        
+                                                        Button(action: {
+                                                            print("------------------------")
+                                                            print("[关闭按钮] 被点击")
+                                                            print("区域：Mirrored屏幕")
+                                                            print("位置：\(isScreensSwapped ? "上部" : "下部")")
+                                                            print("------------------------")
+                                                            
+                                                            // 触发震动反馈
+                                                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                                                            generator.prepare()
+                                                            generator.impactOccurred()
+                                                            
+                                                            imageUploader.closeFlashlight(for: .mirrored)
+                                                        }) {
+                                                            Image(systemName: "xmark.circle.fill")
+                                                                .font(.system(size: 30))
+                                                                .foregroundColor(.white.opacity(0.5))
+                                                                .background(Color.black.opacity(0.5))
+                                                                .clipShape(Circle())
+                                                                .contentShape(Circle())
                                                         }
-                                                        .onEnded { scale in
-                                                            if isZone3Enabled {
-                                                                handlePinchEnd(
-                                                                    screenID: .mirrored,
-                                                                    currentScale: currentMirroredScale,
-                                                                    baseScale: &mirroredScale
-                                                                )
+                                                    }
+                                                    .position(x: screenWidth/2, y: centerY/2)
+                                                    .zIndex(999)
+                                                    .onAppear {
+                                                        // 添加手电筒状态变化通知监听
+                                                        NotificationCenter.default.addObserver(
+                                                            forName: NSNotification.Name("FlashlightStateDidChange"),
+                                                            object: nil,
+                                                            queue: .main
+                                                        ) { notification in
+                                                            // 强制视图刷新
+                                                            withAnimation {
+                                                                if let userInfo = notification.userInfo,
+                                                                   let originalActive = userInfo["originalActive"] as? Bool,
+                                                                   let mirroredActive = userInfo["mirroredActive"] as? Bool {
+                                                                    print("------------------------")
+                                                                    print("[关闭按钮] 收到状态更新")
+                                                                    print("Original手电筒：\(originalActive ? "开启" : "关闭")")
+                                                                    print("Mirrored手电筒：\(mirroredActive ? "开启" : "关闭")")
+                                                                    print("------------------------")
+                                                                }
                                                             }
                                                         }
-                                                )
-                                                .zIndex(1)
-                                            
-                                            // 添加边框容器
-                                            if isMirroredPaused {
-                                                EdgeBorderContainer(
-                                                    screenWidth: screenWidth,
-                                                    centerY: centerY,
-                                                    edgeDetector: mirroredEdgeDetector
-                                                )
+                                                    }
+                                                }
                                             }
+                                            .zIndex(1)
                                         }
                                         
                                         // 添加边框灯效果
@@ -1162,52 +1265,94 @@ struct TwoOfMeScreens: View {
                                     }
                                 )
                             )
-                            
-                            Rectangle()
-                                .fill(Color.gray)
-                                .frame(height: 1)
-                            
-                            // Original 屏幕在下
+                            //Original屏幕在下
                             ScreenContainer(
                                 screenID: .original,
                                 content: AnyView(
                                     ZStack {
                                         if let image = isOriginalPaused ? pausedOriginalImage : originalImage {
-                                            Image(uiImage: image)
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
-                                                       height: centerY)
-                                                .scaleEffect(isOriginalPaused ? currentScale : currentScale)
-                                                .offset(isOriginalPaused ? originalOffset : .zero)
-                                                .rotationEffect(isOriginalPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
-                                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                                .clipped()
-                                                .gesture(isOriginalPaused && currentScale > 1.0 ?
-                                                    DragGesture()
-                                                        .onChanged { value in
-                                                            handleDragGesture(
-                                                                value: value,
-                                                                screenWidth: screenWidth,
-                                                                screenHeight: screenHeight,
-                                                                centerY: centerY
-                                                            )
+                                            ZStack {
+                                                Image(uiImage: image)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
+                                                           height: centerY)
+                                                    .scaleEffect(isOriginalPaused ? currentScale : currentScale)
+                                                    .offset(isOriginalPaused ? originalOffset : .zero)
+                                                    .rotationEffect(isOriginalPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
+                                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                                    .clipped()
+                                                    .gesture(isOriginalPaused && currentScale > 1.0 ?
+                                                        DragGesture()
+                                                            .onChanged { value in
+                                                                handleDragGesture(
+                                                                    value: value,
+                                                                    screenWidth: screenWidth,
+                                                                    screenHeight: screenHeight,
+                                                                    centerY: centerY
+                                                                )
+                                                            }
+                                                            .onEnded { _ in
+                                                                handleDragEnd()
+                                                            }
+                                                        : nil
+                                                    )
+                                                    .zIndex(1)
+                                                // 添加关闭按钮
+                                                if imageUploader.isFlashlightActive(for: .original) {
+                                                    ZStack {
+                                                        Color.clear
+                                                            .frame(width: 80, height: 80)
+                                                            .contentShape(Circle())
+                                                        
+                                                        Button(action: {
+                                                            print("------------------------")
+                                                            print("[关闭按钮] 被点击")
+                                                            print("区域：Original屏幕")
+                                                            print("位置：\(isScreensSwapped ? "上部" : "下部")")
+                                                            print("------------------------")
+                                                            
+                                                            // 触发震动反馈
+                                                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                                                            generator.prepare()
+                                                            generator.impactOccurred()
+                                                            
+                                                            imageUploader.closeFlashlight(for: .original)
+                                                        }) {
+                                                            Image(systemName: "xmark.circle.fill")
+                                                                .font(.system(size: 30))
+                                                                .foregroundColor(.white.opacity(0.5))
+                                                                .background(Color.black.opacity(0.5))
+                                                                .clipShape(Circle())
+                                                                .contentShape(Circle())
                                                         }
-                                                        .onEnded { _ in
-                                                            handleDragEnd()
+                                                    }
+                                                    .position(x: screenWidth/2, y: centerY/2)
+                                                    .zIndex(999)
+                                                    .onAppear {
+                                                        // 添加手电筒状态变化通知监听
+                                                        NotificationCenter.default.addObserver(
+                                                            forName: NSNotification.Name("FlashlightStateDidChange"),
+                                                            object: nil,
+                                                            queue: .main
+                                                        ) { notification in
+                                                            // 强制视图刷新
+                                                            withAnimation {
+                                                                if let userInfo = notification.userInfo,
+                                                                   let originalActive = userInfo["originalActive"] as? Bool,
+                                                                   let mirroredActive = userInfo["mirroredActive"] as? Bool {
+                                                                    print("------------------------")
+                                                                    print("[关闭按钮] 收到状态更新")
+                                                                    print("Original手电筒：\(originalActive ? "开启" : "关闭")")
+                                                                    print("Mirrored手电筒：\(mirroredActive ? "开启" : "关闭")")
+                                                                    print("------------------------")
+                                                                }
+                                                            }
                                                         }
-                                                    : nil
-                                                )
-                                                .zIndex(1)
-                                            
-                                            // 添加边框容器
-                                            if isOriginalPaused {
-                                                EdgeBorderContainer(
-                                                    screenWidth: screenWidth,
-                                                    centerY: centerY,
-                                                    edgeDetector: originalEdgeDetector
-                                                )
+                                                    }
+                                                }
                                             }
+                                            .zIndex(1)
                                         }
                                         
                                         // 添加边框灯效果
@@ -1230,7 +1375,7 @@ struct TwoOfMeScreens: View {
                                                 imageUploader: imageUploader
                                             )
                                         }
-
+                                        
                                         // Original 屏幕的闪光动画
                                         if showOriginalFlash {
                                             FlashAnimationView(frame: CGRect(
@@ -1266,7 +1411,8 @@ struct TwoOfMeScreens: View {
                                             isScreensSwapped: isScreensSwapped,
                                             layoutDescription: layoutDescription,
                                             togglePauseState: togglePauseState,
-                                            handleSingleTap: handleSingleTap
+                                            handleSingleTap: handleSingleTap,
+                                            imageUploader: imageUploader
                                         ))
                                         .gesture(TwoOfMeGestureManager.createCombinedGestures(
                                             for: .original,
@@ -1294,6 +1440,7 @@ struct TwoOfMeScreens: View {
                                             handleDragEnd: handleDragEnd,
                                             handleMirroredDragEnd: handleMirroredDragEnd
                                         ))
+                                        .allowsHitTesting(!imageUploader.isFlashlightActive(for: .original))
                                 } else {
                                     // 触控区2a（定格状态）
                                     Color.clear
@@ -1307,7 +1454,8 @@ struct TwoOfMeScreens: View {
                                             isScreensSwapped: isScreensSwapped,
                                             layoutDescription: layoutDescription,
                                             togglePauseState: togglePauseState,
-                                            handleSingleTap: handleSingleTap
+                                            handleSingleTap: handleSingleTap,
+                                            imageUploader: imageUploader
                                         ))
                                         .gesture(TwoOfMeGestureManager.createCombinedGestures(
                                             for: .original,
@@ -1335,11 +1483,13 @@ struct TwoOfMeScreens: View {
                                             handleDragEnd: handleDragEnd,
                                             handleMirroredDragEnd: handleMirroredDragEnd
                                         ))
+                                        .allowsHitTesting(!imageUploader.isFlashlightActive(for: .original))
                                 }
                                 Spacer()
                             }
                             .frame(height: screenHeight / 2)
                             .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight*3/4 : screenHeight/4)
+                            .zIndex(1)
                             
                             // Mirrored屏的触控区3和3a
                             VStack {
@@ -1356,7 +1506,8 @@ struct TwoOfMeScreens: View {
                                             isScreensSwapped: isScreensSwapped,
                                             layoutDescription: layoutDescription,
                                             togglePauseState: togglePauseState,
-                                            handleSingleTap: handleSingleTap
+                                            handleSingleTap: handleSingleTap,
+                                            imageUploader: imageUploader
                                         ))
                                         .gesture(TwoOfMeGestureManager.createCombinedGestures(
                                             for: .mirrored,
@@ -1384,6 +1535,7 @@ struct TwoOfMeScreens: View {
                                             handleDragEnd: handleDragEnd,
                                             handleMirroredDragEnd: handleMirroredDragEnd
                                         ))
+                                        .allowsHitTesting(!imageUploader.isFlashlightActive(for: .mirrored))
                                 } else {
                                     // 触控区3a（定格状态）
                                     Color.clear
@@ -1397,7 +1549,8 @@ struct TwoOfMeScreens: View {
                                             isScreensSwapped: isScreensSwapped,
                                             layoutDescription: layoutDescription,
                                             togglePauseState: togglePauseState,
-                                            handleSingleTap: handleSingleTap
+                                            handleSingleTap: handleSingleTap,
+                                            imageUploader: imageUploader
                                         ))
                                         .gesture(TwoOfMeGestureManager.createCombinedGestures(
                                             for: .mirrored,
@@ -1425,6 +1578,7 @@ struct TwoOfMeScreens: View {
                                             handleDragEnd: handleDragEnd,
                                             handleMirroredDragEnd: handleMirroredDragEnd
                                         ))
+                                        .allowsHitTesting(!imageUploader.isFlashlightActive(for: .mirrored))
                                 }
                                 Spacer()
                             }
@@ -1451,8 +1605,16 @@ struct TwoOfMeScreens: View {
                                 dragVerticalOffset: dragVerticalOffset,
                                 deviceOrientation: orientationManager.currentOrientation,
                                 screenshotManager: screenshotManager,
-                                handleSwapButtonTap: handleSwapButtonTap,
-                                borderLightManager: borderLightManager
+                                handleSwapButtonTap: {
+                                    // 触发震动反馈
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.prepare()
+                                    generator.impactOccurred()
+                                    
+                                    handleSwapButtonTap()
+                                },
+                                borderLightManager: borderLightManager,
+                                imageUploader: imageUploader
                             )
                         }
                     }
@@ -1525,6 +1687,43 @@ struct TwoOfMeScreens: View {
                     isFirstAppear = false
                     setupVideoProcessing()
                     print("首次显示时初始化视频处理")
+                }
+                
+                // 添加退出定格状态的通知监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("ExitPausedState"),
+                    object: nil,
+                    queue: .main
+                ) { [self] notification in
+                    if let userInfo = notification.userInfo,
+                       let screenID = userInfo["screenID"] as? ScreenID {
+                        print("------------------------")
+                        print("[通知] 收到退出定格状态通知")
+                        print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                        print("------------------------")
+                        
+                        // 退出定格状态
+                        switch screenID {
+                        case .original:
+                            if isOriginalPaused {
+                                isOriginalPaused = false
+                                pausedOriginalImage = nil
+                                originalOffset = .zero
+                                originalScale = 1.0
+                                currentScale = 1.0
+                                print("Original画面已恢复")
+                            }
+                        case .mirrored:
+                            if isMirroredPaused {
+                                isMirroredPaused = false
+                                pausedMirroredImage = nil
+                                mirroredOffset = .zero
+                                mirroredScale = 1.0
+                                currentMirroredScale = 1.0
+                                print("Mirrored画面已恢复")
+                            }
+                        }
+                    }
                 }
                 
                 print("------------------------")

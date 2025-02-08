@@ -44,6 +44,16 @@ class ImageUploader: ObservableObject {
     // 添加一个标志来防止重复操作
     private var isProcessingImage = false
     
+    // 添加手电筒状态追踪
+    @Published private var isFlashlightActiveOriginal = false
+    @Published private var isFlashlightActiveMirrored = false
+    @Published var showFlashlightAlert = false
+    
+    // 添加亮度控制相关属性
+    private var originalBrightness: CGFloat = UIScreen.main.brightness
+    private var isControllingBrightness = false
+    private var flashlightBrightnessActive = false  // 新增：跟踪手电筒亮度控制状态
+    
     // 修改图片处理状态控制方法
     func startImageProcessing() {
         isProcessingImage = true
@@ -367,14 +377,26 @@ class ImageUploader: ObservableObject {
     private var currentOffset: CGSize = .zero  // 添加当前偏移量
     private var maxOffset: CGSize = .zero      // 添加最大偏移量
     
-    // 添加设置定格图片的方法
+    // 修改设置定格图片的方法
     func setPausedImage(_ image: UIImage?, for screenID: ScreenID) {
-        switch screenID {
-        case .original:
-            pausedOriginalImage = image
-        case .mirrored:
-            pausedMirroredImage = image
+        // 设置选中的屏幕ID
+        selectedScreenID = screenID
+        
+        // 设置图片
+        selectedImage = image
+        
+        // 如果是清除图片，重置手电筒状态
+        if image == nil {
+            setFlashlightState(for: screenID, active: false)
         }
+        
+        print("------------------------")
+        print("[定格图片] 已设置")
+        print("屏幕：\(screenID == .original ? "Original" : "Mirrored")")
+        if let image = image {
+            print("图片尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
+        }
+        print("------------------------")
     }
     
     // 添加设置偏移量的方法
@@ -541,6 +563,228 @@ class ImageUploader: ObservableObject {
         print("位置：\(screenID == .original ? "Original" : "Mirrored")屏幕")
         print("------------------------")
     }
+    
+    // 检查手电筒状态
+    private func canActivateFlashlight(for screenID: ScreenID) -> Bool {
+        switch screenID {
+        case .original:
+            if isFlashlightActiveMirrored {
+                showFlashlightAlert = true
+                return false
+            }
+            return true
+        case .mirrored:
+            if isFlashlightActiveOriginal {
+                showFlashlightAlert = true
+                return false
+            }
+            return true
+        }
+    }
+    
+    // 修改设置手电筒状态的方法
+    private func setFlashlightState(for screenID: ScreenID, active: Bool) {
+        switch screenID {
+        case .original:
+            isFlashlightActiveOriginal = active
+        case .mirrored:
+            isFlashlightActiveMirrored = active
+        }
+        
+        // 更新亮度控制
+        updateBrightnessControl()
+    }
+    
+    // 添加亮度控制更新方法
+    private func updateBrightnessControl() {
+        let shouldControlBrightness = isFlashlightActiveOriginal || isFlashlightActiveMirrored
+        
+        if shouldControlBrightness && !flashlightBrightnessActive {
+            // 保存当前亮度并设置为最大
+            originalBrightness = UIScreen.main.brightness
+            UIScreen.main.brightness = 1.0
+            flashlightBrightnessActive = true
+            
+            print("------------------------")
+            print("[手电筒] 亮度控制已激活")
+            print("原始亮度：\(originalBrightness)")
+            print("当前亮度：1.0")
+            print("------------------------")
+            
+        } else if !shouldControlBrightness && flashlightBrightnessActive {
+            // 恢复原始亮度
+            UIScreen.main.brightness = originalBrightness
+            flashlightBrightnessActive = false
+            
+            print("------------------------")
+            print("[手电筒] 亮度控制已解除")
+            print("亮度已恢复：\(originalBrightness)")
+            print("------------------------")
+        }
+    }
+    
+    // 修改直接设置矩形图片的方法
+    func setRectangleImage(for screenID: ScreenID) {
+        print("------------------------")
+        print("[手电筒功能] 开始")
+        print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+        print("------------------------")
+        
+        // 检查是否可以激活手电筒
+        if !canActivateFlashlight(for: screenID) {
+            print("------------------------")
+            print("[手电筒功能] 已被阻止")
+            print("原因：另一个分屏已在使用手电筒")
+            print("------------------------")
+            return
+        }
+        
+        // 获取对应屏幕的矩形图片
+        if let image = RectangleImageManager.shared.getImage(for: screenID) {
+            // 设置选中的屏幕ID
+            selectedScreenID = screenID
+            
+            // 开始图片处理
+            startImageProcessing()
+            
+            // 直接设置定格图片
+            setPausedImage(image, for: screenID)
+            
+            // 设置手电筒状态为激活
+            setFlashlightState(for: screenID, active: true)
+            
+            // 结束图片处理
+            endImageProcessing()
+            
+            print("------------------------")
+            print("[手电筒功能] 完成")
+            print("图片尺寸: \(Int(image.size.width))x\(Int(image.size.height))")
+            print("------------------------")
+        }
+        
+        // 隐藏上传控件
+        hideRectangle()
+    }
+    
+    // 修改关闭手电筒方法
+    func closeFlashlight(for screenID: ScreenID) {
+        print("------------------------")
+        print("[手电筒功能] 开始关闭")
+        print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+        print("当前状态：")
+        print("  Original手电筒：\(isFlashlightActiveOriginal ? "开启" : "关闭")")
+        print("  Mirrored手电筒：\(isFlashlightActiveMirrored ? "开启" : "关闭")")
+        
+        // 清除图片
+        setPausedImage(nil, for: screenID)
+        
+        // 重置手电筒状态
+        setFlashlightState(for: screenID, active: false)
+        
+        // 发送通知以退出定格状态
+        NotificationCenter.default.post(
+            name: NSNotification.Name("ExitPausedState"),
+            object: nil,
+            userInfo: ["screenID": screenID]
+        )
+        
+        print("关闭后状态：")
+        print("  Original手电筒：\(isFlashlightActiveOriginal ? "开启" : "关闭")")
+        print("  Mirrored手电筒：\(isFlashlightActiveMirrored ? "开启" : "关闭")")
+        print("------------------------")
+    }
+    
+    // 检查是否有全屏灯激活
+    func isFlashlightActive(for screenID: ScreenID) -> Bool {
+        switch screenID {
+        case .original:
+            return isFlashlightActiveOriginal
+        case .mirrored:
+            return isFlashlightActiveMirrored
+        }
+    }
+    
+    // 添加分屏交换时的手电筒状态处理方法
+    func handleScreenSwap() {
+        print("------------------------")
+        print("[分屏交换] 开始")
+        print("交换前状态：")
+        print("  Original手电筒：\(isFlashlightActiveOriginal ? "开启" : "关闭")")
+        print("  Mirrored手电筒：\(isFlashlightActiveMirrored ? "开启" : "关闭")")
+        
+        // 交换手电筒状态
+        let tempOriginal = isFlashlightActiveOriginal
+        isFlashlightActiveOriginal = isFlashlightActiveMirrored
+        isFlashlightActiveMirrored = tempOriginal
+        
+        // 交换定格图片
+        let tempOriginalImage = pausedOriginalImage
+        pausedOriginalImage = pausedMirroredImage
+        pausedMirroredImage = tempOriginalImage
+        
+        print("交换后状态：")
+        print("  Original手电筒：\(isFlashlightActiveOriginal ? "开启" : "关闭")")
+        print("  Mirrored手电筒：\(isFlashlightActiveMirrored ? "开启" : "关闭")")
+        print("------------------------")
+        
+        // 发送通知以更新界面
+        NotificationCenter.default.post(
+            name: NSNotification.Name("FlashlightStateDidChange"),
+            object: nil,
+            userInfo: [
+                "originalActive": isFlashlightActiveOriginal,
+                "mirroredActive": isFlashlightActiveMirrored
+            ]
+        )
+    }
+    
+    // 修改关闭所有手电筒的方法
+    func closeAllFlashlights() {
+        print("------------------------")
+        print("[手电筒功能] 开始关闭所有")
+        print("当前状态：")
+        print("  Original手电筒：\(isFlashlightActiveOriginal ? "开启" : "关闭")")
+        print("  Mirrored手电筒：\(isFlashlightActiveMirrored ? "开启" : "关闭")")
+        
+        // 如果有任何手电筒开启，则关闭它们
+        if isFlashlightActiveOriginal {
+            closeFlashlight(for: .original)
+        }
+        if isFlashlightActiveMirrored {
+            closeFlashlight(for: .mirrored)
+        }
+        
+        print("关闭后状态：")
+        print("  Original手电筒：\(isFlashlightActiveOriginal ? "开启" : "关闭")")
+        print("  Mirrored手电筒：\(isFlashlightActiveMirrored ? "开启" : "关闭")")
+        print("------------------------")
+    }
+    
+    init() {
+        // 添加手电筒状态检查通知监听
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("CheckFlashlightState"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            
+            // 检查是否有任一手电筒处于活动状态
+            let isActive = self.isFlashlightActiveOriginal || self.isFlashlightActiveMirrored
+            
+            // 如果通知中包含回调，则执行回调
+            if let userInfo = notification.userInfo,
+               let completion = userInfo["completion"] as? (Bool) -> Void {
+                completion(isActive)
+            }
+            
+            print("------------------------")
+            print("[手电筒] 状态检查")
+            print("Original：\(self.isFlashlightActiveOriginal ? "开启" : "关闭")")
+            print("Mirrored：\(self.isFlashlightActiveMirrored ? "开启" : "关闭")")
+            print("------------------------")
+        }
+    }
 }
 
 // 遮罩视图组件
@@ -622,6 +866,13 @@ struct OverlayView: View {
                             }
                         )
                     }
+                    .alert(isPresented: $imageUploader.showFlashlightAlert) {
+                        Alert(
+                            title: Text("提示"),
+                            message: Text("双屏无法同时开启全屏灯!"),
+                            dismissButton: .default(Text("确定"))
+                        )
+                    }
                 }
             }
             .sheet(isPresented: $imageUploader.showImagePicker) {
@@ -666,27 +917,54 @@ struct OverlayView: View {
                     }
             }
             
-            // 上传按钮
-            Button(action: {
-                // 触发震动反馈
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.prepare()
-                generator.impactOccurred()
+            // 按钮容器
+            HStack(spacing: 50) {
+                // 手电筒按钮
+                Button(action: {
+                    // 触发震动反馈
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.prepare()
+                    generator.impactOccurred()
+                    
+                    print("------------------------")
+                    print("[手电筒按钮] 点击")
+                    print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                    print("当前设备方向：\(getOrientationDescription(deviceOrientation))")
+                    print("------------------------")   
+                    
+                    // 直接设置矩形图片
+                    imageUploader.setRectangleImage(for: screenID)
+                }) {
+                    Image(systemName: "sun.max.fill")
+                        .font(.system(size: 80))
+                        .rotationEffect(getRotationAngle(deviceOrientation))
+                        .frame(width: 80, height: 80)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
                 
-                print("------------------------")
-                print("[上传按钮] 点击")
-                print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
-                print("当前设备方向：\(getOrientationDescription(deviceOrientation))")
-                print("------------------------")   
-                imageUploader.uploadImage(for: screenID)
-            }) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 80))
-                    .rotationEffect(getRotationAngle(deviceOrientation))
-                    .frame(width: 80, height: 80)
-                    .contentShape(Rectangle())
+                // 上传按钮
+                Button(action: {
+                    // 触发震动反馈
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.prepare()
+                    generator.impactOccurred()
+                    
+                    print("------------------------")
+                    print("[上传按钮] 点击")
+                    print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                    print("当前设备方向：\(getOrientationDescription(deviceOrientation))")
+                    print("------------------------")   
+                    imageUploader.uploadImage(for: screenID)
+                }) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 80))
+                        .rotationEffect(getRotationAngle(deviceOrientation))
+                        .frame(width: 80, height: 80)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
             }
-            .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
         }
     }
     

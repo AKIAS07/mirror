@@ -16,7 +16,7 @@ public struct SettingsTheme {
     static let titleColor = Color(red: 0.3, green: 0.3, blue: 0.3)  // 深灰色替代 UIColor.darkGray
     static let subtitleColor = Color.gray
     static let backgroundColor = Color.white
-    static let backgroundColor2 = Color.gray.opacity(0.2)
+    static let backgroundColor2 = Color.yellow.opacity(0.2)
     static let panelBackgroundColor = Color(red: 0.95, green: 0.95, blue: 0.97)  // 浅灰色替代 UIColor.systemGray6
     static let borderColor = Color.gray
     static let selectedBorderColor = Color.black

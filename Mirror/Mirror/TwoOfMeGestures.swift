@@ -11,7 +11,8 @@ class TwoOfMeGestureManager {
         isScreensSwapped: Bool,
         layoutDescription: String,
         togglePauseState: @escaping (ScreenID) -> Void,
-        handleSingleTap: @escaping (ScreenID) -> Void
+        handleSingleTap: @escaping (ScreenID) -> Void,
+        imageUploader: ImageUploader
     ) -> some Gesture {
         let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
         feedbackGenerator.prepare()
@@ -19,6 +20,16 @@ class TwoOfMeGestureManager {
         return ExclusiveGesture(
             TapGesture(count: 2)
                 .onEnded {
+                    // 检查当前分屏的手电筒状态
+                    if imageUploader.isFlashlightActive(for: screenID) {
+                        print("------------------------")
+                        print("[手势] 被禁用")
+                        print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                        print("原因：该分屏手电筒已激活")
+                        print("------------------------")
+                        return
+                    }
+                    
                     if screenID == .original ? isZone2Enabled : isZone3Enabled {
                         // 触发震动反馈
                         feedbackGenerator.impactOccurred()
@@ -41,6 +52,16 @@ class TwoOfMeGestureManager {
                 },
             TapGesture(count: 1)
                 .onEnded {
+                    // 检查当前分屏的手电筒状态
+                    if imageUploader.isFlashlightActive(for: screenID) {
+                        print("------------------------")
+                        print("[手势] 被禁用")
+                        print("区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                        print("原因：该分屏手电筒已激活")
+                        print("------------------------")
+                        return
+                    }
+                    
                     if screenID == .original ? isZone2Enabled : isZone3Enabled {
                         // 触发震动反馈
                         feedbackGenerator.impactOccurred()
@@ -186,6 +207,11 @@ class TwoOfMeGestureManager {
         return LongPressGesture(minimumDuration: 0.8)
             .sequenced(before: DragGesture(minimumDistance: 0))
             .onChanged { value in
+                // 检查是否有全屏灯激活
+                if imageUploader.isFlashlightActive(for: screenID) {
+                    return
+                }
+                
                 switch value {
                 case .second(true, _):
                     if screenID == .original ? isZone2Enabled : isZone3Enabled {
@@ -227,6 +253,7 @@ class TwoOfMeGestureManager {
         isMirroredPaused: Bool,
         currentScale: CGFloat,
         currentMirroredScale: CGFloat,
+        imageUploader: ImageUploader,
         handleDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat) -> Void,
         handleMirroredDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat) -> Void,
         handleDragEnd: @escaping () -> Void,
@@ -234,6 +261,11 @@ class TwoOfMeGestureManager {
     ) -> some Gesture {
         DragGesture()
             .onChanged { value in
+                // 检查当前分屏的手电筒状态
+                if imageUploader.isFlashlightActive(for: screenID) {
+                    return
+                }
+                
                 if screenID == .original ? isZone2Enabled : isZone3Enabled {
                     if screenID == .original {
                         if isOriginalPaused && currentScale > 1.0 {
@@ -257,6 +289,11 @@ class TwoOfMeGestureManager {
                 }
             }
             .onEnded { _ in
+                // 检查当前分屏的手电筒状态
+                if imageUploader.isFlashlightActive(for: screenID) {
+                    return
+                }
+                
                 if screenID == .original ? isZone2Enabled : isZone3Enabled {
                     if screenID == .original {
                         if isOriginalPaused && currentScale > 1.0 {
@@ -336,6 +373,7 @@ class TwoOfMeGestureManager {
                     isMirroredPaused: isMirroredPaused,
                     currentScale: currentScale.wrappedValue,
                     currentMirroredScale: currentMirroredScale.wrappedValue,
+                    imageUploader: imageUploader,
                     handleDragGesture: handleDragGesture,
                     handleMirroredDragGesture: handleMirroredDragGesture,
                     handleDragEnd: handleDragEnd,
