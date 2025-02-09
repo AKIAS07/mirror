@@ -382,12 +382,58 @@ class ImageUploader: ObservableObject {
         // 设置选中的屏幕ID
         selectedScreenID = screenID
         
-        // 设置图片
-        selectedImage = image
-        
-        // 如果是清除图片，重置手电筒状态
-        if image == nil {
+        // 如果有图片，根据设备方向调整
+        if let image = image {
+            let orientation = UIDevice.current.orientation
+            let adjustedImage: UIImage
+            
+            // 只在允许的方向下进行旋转
+            if DeviceOrientationManager.shared.isAllowedOrientation(orientation) {
+                switch orientation {
+                case .landscapeLeft:
+                    adjustedImage = image.rotate(degrees: -90)
+                case .landscapeRight:
+                    adjustedImage = image.rotate(degrees: 90)
+                case .portraitUpsideDown:
+                    adjustedImage = image.rotate(degrees: 180)
+                default:
+                    adjustedImage = image
+                }
+            } else {
+                // 如果不是允许的方向，保持最后一个有效方向
+                let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
+                switch lastValidOrientation {
+                case .landscapeLeft:
+                    adjustedImage = image.rotate(degrees: -90)
+                case .landscapeRight:
+                    adjustedImage = image.rotate(degrees: 90)
+                case .portraitUpsideDown:
+                    adjustedImage = image.rotate(degrees: 180)
+                default:
+                    adjustedImage = image
+                }
+            }
+            
+            // 设置图片
+            selectedImage = adjustedImage
+            
+            // 根据screenID设置对应的定格图片
+            if screenID == .original {
+                pausedOriginalImage = adjustedImage
+            } else {
+                pausedMirroredImage = adjustedImage
+            }
+        } else {
+            // 如果是清除图片，重置手电筒状态
             setFlashlightState(for: screenID, active: false)
+            
+            // 清除对应的定格图片
+            if screenID == .original {
+                pausedOriginalImage = nil
+            } else {
+                pausedMirroredImage = nil
+            }
+            selectedImage = nil
         }
         
         print("------------------------")
@@ -395,6 +441,8 @@ class ImageUploader: ObservableObject {
         print("屏幕：\(screenID == .original ? "Original" : "Mirrored")")
         if let image = image {
             print("图片尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
+            print("设备方向：\(UIDevice.current.orientation.rawValue)")
+            print("有效方向：\(DeviceOrientationManager.shared.validOrientation.rawValue)")
         }
         print("------------------------")
     }
@@ -405,139 +453,18 @@ class ImageUploader: ObservableObject {
         self.maxOffset = maxOffset
     }
     
-    // 添加横屏裁剪方法
-    private func cropImageToScreenSizeLandscape(_ image: UIImage, for screenID: ScreenID) -> UIImage {
-        print("------------------------")
-        print("[横屏裁剪] 开始")
-        print("原始图片尺寸: \(image.size.width) x \(image.size.height)")
-        print("屏幕ID: \(screenID)")
-        
-        let screenBounds = UIScreen.main.bounds
-        // 使用竖屏时的尺寸，因为摄像头捕获的画面尺寸是固定的
-        let screenWidth = screenBounds.width   // 保持竖屏时的宽度
-        let screenHeight = screenBounds.height // 保持竖屏时的高度
-        
-        print("屏幕尺寸: \(screenWidth) x \(screenHeight)")
-        print("设备方向: \(UIDevice.current.orientation.rawValue)")
-        
-        // 计算显示区域的尺寸（与竖屏时相同）
-        let viewportWidth = screenWidth
-        let viewportHeight = screenHeight / 2
-        
-        print("视口尺寸: \(viewportWidth) x \(viewportHeight)")
-        
-        // 计算图片缩放后的实际尺寸
-        let scale = max(viewportWidth / image.size.width, viewportHeight / image.size.height)
-        let scaledImageWidth = image.size.width * scale
-        let scaledImageHeight = image.size.height * scale
-        
-        print("缩放比例: \(scale)")
-        print("缩放后图片尺寸: \(scaledImageWidth) x \(scaledImageHeight)")
-        
-        // 计算基础偏移（图片中心到显示区域中心的距离）
-        let baseOffsetX = (scaledImageWidth - viewportWidth) / 2
-        let baseOffsetY = (scaledImageHeight - viewportHeight) / 2
-        
-        print("基础偏移量: X=\(baseOffsetX), Y=\(baseOffsetY)")
-        print("当前偏移量: X=\(currentOffset.width), Y=\(currentOffset.height)")
-        
-        // 计算可见区域在原始图片中的位置
-        let visibleX = baseOffsetX - currentOffset.width * scale
-        let visibleY = baseOffsetY - currentOffset.height * scale + (screenID == .original ? 0 : viewportHeight)
-        
-        print("可见区域起点: X=\(visibleX), Y=\(visibleY)")
-        
-        // 将缩放后的坐标转换回原始图片坐标
-        let originalX = visibleX / scale
-        let originalY = visibleY / scale
-        let originalWidth = viewportWidth / scale
-        let originalHeight = viewportHeight / scale
-        
-        print("裁剪起始点: X=\(originalX), Y=\(originalY)")
-        print("裁剪尺寸: Width=\(originalWidth), Height=\(originalHeight)")
-        
-        // 确保裁剪区域不超出图片范围
-        let safeCropX = max(0, min(originalX, image.size.width - originalWidth))
-        let safeCropY = max(0, min(originalY, image.size.height - originalHeight))
-        let safeCropWidth = min(originalWidth, image.size.width - safeCropX)
-        let safeCropHeight = min(originalHeight, image.size.height - safeCropY)
-        
-        // 创建裁剪区域
-        let cropRect = CGRect(x: safeCropX,
-                            y: safeCropY,
-                            width: safeCropWidth,
-                            height: safeCropHeight)
-        
-        print("最终裁剪区域: \(cropRect)")
-        
-        // 从原图中裁剪指定区域
-        if let cgImage = image.cgImage?.cropping(to: cropRect) {
-            let croppedImage = UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
-            print("裁剪后图片尺寸: \(croppedImage.size.width) x \(croppedImage.size.height)")
-            print("[横屏裁剪] 完成")
-            print("------------------------")
-            return croppedImage
-        }
-        
-        print("[横屏裁剪] 失败")
-        print("------------------------")
-        return image
-    }
-    
-    // 修改原有的cropImageToScreenSize方法
+    // 修改裁剪图片到屏幕大小的方法
     func cropImageToScreenSize(_ image: UIImage, for screenID: ScreenID) -> UIImage {
         // 获取设备方向
         let orientation = UIDevice.current.orientation
         
-        // 根据设备方向选择不同的裁剪方法
-        if orientation.isLandscape {
-            return cropImageToScreenSizeLandscape(image, for: screenID)
-        }
-        
-        // 以下是原有的竖屏裁剪逻辑
-        let screenBounds = UIScreen.main.bounds
-        let screenWidth = screenBounds.width
-        let screenHeight = screenBounds.height
-        
-        // 计算显示区域的尺寸（屏幕的一半高度）
-        let viewportWidth = screenWidth
-        let viewportHeight = screenHeight / 2
-        
-        // 计算图片缩放后的实际尺寸
-        let scale = max(viewportWidth / image.size.width, viewportHeight / image.size.height)  // 修改缩放比例计算
-        let scaledImageWidth = image.size.width * scale
-        let scaledImageHeight = image.size.height * scale
-        
-        // 计算基础偏移（图片中心到显示区域中心的距离）
-        let baseOffsetX = (scaledImageWidth - viewportWidth) / 2  // 添加水平方向的基础偏移
-        let baseOffsetY = (scaledImageHeight - viewportHeight) / 2
-        
-        // 计算可见区域在原始图片中的位置
-        let visibleX = baseOffsetX - currentOffset.width * scale
-        let visibleY = baseOffsetY - currentOffset.height * scale
-        
-        let visibleWidth = viewportWidth
-        let visibleHeight = viewportHeight
-        
-        // 确保裁剪区域不超出图片范围
-        let safeCropX = max(0, min(visibleX, scaledImageWidth - visibleWidth))
-        let safeCropY = max(0, min(visibleY, scaledImageHeight - visibleHeight))
-        let safeCropWidth = min(visibleWidth, scaledImageWidth - safeCropX)
-        let safeCropHeight = min(visibleHeight, scaledImageHeight - safeCropY)
-        
-        // 创建裁剪区域
-        let cropRect = CGRect(x: safeCropX / scale, 
-                            y: safeCropY / scale, 
-                            width: safeCropWidth / scale, 
-                            height: safeCropHeight / scale)
-        
-        // 从原图中裁剪指定区域
-        if let cgImage = image.cgImage?.cropping(to: cropRect) {
-            let croppedImage = UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
-            return croppedImage
-        }
-        
-        return image
+        // 使用ImageCropUtility进行裁剪，传入当前偏移量
+        return ImageCropUtility.shared.cropImageToScreenSize(
+            image,
+            for: screenID,
+            offset: currentOffset,
+            isLandscape: orientation.isLandscape
+        )
     }
     
     // 显示下载控件

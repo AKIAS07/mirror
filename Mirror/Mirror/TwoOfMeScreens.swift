@@ -726,11 +726,11 @@ struct TwoOfMeScreens: View {
             // 根据设备方向调整定格画面
             switch orientationManager.currentOrientation {
             case .landscapeLeft:
-                pausedOriginalImage = image.rotate(degrees: -90)
+                pausedOriginalImage = image.rotate(degrees: 0)
             case .landscapeRight:
-                pausedOriginalImage = image.rotate(degrees: 90)
+                pausedOriginalImage = image.rotate(degrees: 0)
             case .portraitUpsideDown:
-                pausedOriginalImage = image.rotate(degrees: 180)
+                pausedOriginalImage = image.rotate(degrees: 0)
             default:
                 pausedOriginalImage = image
             }
@@ -758,9 +758,9 @@ struct TwoOfMeScreens: View {
             // 根据设备方向调整定格画面
             switch orientationManager.currentOrientation {
             case .landscapeLeft:
-                pausedMirroredImage = image.rotate(degrees: -90)
+                pausedMirroredImage = image.rotate(degrees: 0)
             case .landscapeRight:
-                pausedMirroredImage = image.rotate(degrees: 90)
+                pausedMirroredImage = image.rotate(degrees: 0)
             case .portraitUpsideDown:
                 pausedMirroredImage = image.rotate(degrees: 180)
             default:
@@ -1861,11 +1861,11 @@ struct TwoOfMeScreens: View {
                 if let image = originalImage {
                     switch orientationManager.currentOrientation {
                     case .landscapeLeft:
-                        pausedOriginalImage = image.rotate(degrees: -90)
+                        pausedOriginalImage = image.rotate(degrees: 0)
                     case .landscapeRight:
-                        pausedOriginalImage = image.rotate(degrees: 90)
+                        pausedOriginalImage = image.rotate(degrees: 0)
                     case .portraitUpsideDown:
-                        pausedOriginalImage = image.rotate(degrees: 180)
+                        pausedOriginalImage = image.rotate(degrees: 0)
                     default:
                         pausedOriginalImage = image
                     }
@@ -1897,11 +1897,11 @@ struct TwoOfMeScreens: View {
                 if let image = mirroredImage {
                     switch orientationManager.currentOrientation {
                     case .landscapeLeft:
-                        pausedMirroredImage = image.rotate(degrees: -90)
+                        pausedMirroredImage = image.rotate(degrees: 0)
                     case .landscapeRight:
-                        pausedMirroredImage = image.rotate(degrees: 90)
+                        pausedMirroredImage = image.rotate(degrees: 0)
                     case .portraitUpsideDown:
-                        pausedMirroredImage = image.rotate(degrees: 180)
+                        pausedMirroredImage = image.rotate(degrees: 0)
                     default:
                         pausedMirroredImage = image
                     }

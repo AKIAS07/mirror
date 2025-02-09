@@ -33,16 +33,19 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         // 获取当前有效方向
         let validOrientation = DeviceOrientationManager.shared.validOrientation
         
-        // 根据有效方向旋转镜像画面
-        if validOrientation == .landscapeLeft || validOrientation == .landscapeRight {
-            let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
-                .rotated(by: .pi)
-            mirroredImage = mirroredImage.transformed(by: rotationTransform)
-            
-            // 只在方向变化时输出日志
-            if validOrientation != lastOrientation {
-                print("镜像画面根据设备方向(\(validOrientation == .landscapeLeft ? "向左" : "向右"))调整")
-                lastOrientation = validOrientation
+        // 只处理允许的方向
+        if DeviceOrientationManager.shared.isAllowedOrientation(validOrientation) {
+            // 根据有效方向旋转镜像画面
+            if validOrientation == .landscapeLeft || validOrientation == .landscapeRight {
+                let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
+                    .rotated(by: .pi)
+                mirroredImage = mirroredImage.transformed(by: rotationTransform)
+                
+                // 只在方向变化时输出日志
+                if validOrientation != lastOrientation {
+                    print("镜像画面根据设备方向(\(validOrientation == .landscapeLeft ? "向左" : "向右"))调整")
+                    lastOrientation = validOrientation
+                }
             }
         }
         

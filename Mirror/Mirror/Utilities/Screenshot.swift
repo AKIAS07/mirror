@@ -121,6 +121,10 @@ class ScreenshotManager: ObservableObject {
             if status == .authorized {
                 // 确保在主线程执行UI操作
                 DispatchQueue.main.async {
+                    // 获取当前设备方向
+                    let isLandscape = UIDevice.current.orientation.isLandscape
+                    print("[截图] 当前设备方向：\(isLandscape ? "横屏" : "竖屏")")
+                    
                     // 获取并裁剪两个屏幕的图像
                     guard let originalImage = self.originalImage,
                           let mirroredImage = self.mirroredImage else {
@@ -130,9 +134,9 @@ class ScreenshotManager: ObservableObject {
                         return
                     }
                     
-                    // 裁剪两个屏幕的图像
-                    let croppedOriginal = self.cropImageToScreenSize(originalImage, for: .original)
-                    let croppedMirrored = self.cropImageToScreenSize(mirroredImage, for: .mirrored)
+                    // 根据实际方向裁剪两个屏幕的图像
+                    let croppedOriginal = self.cropImageToScreenSize(originalImage, for: .original, isLandscape: isLandscape)
+                    let croppedMirrored = self.cropImageToScreenSize(mirroredImage, for: .mirrored, isLandscape: isLandscape)
                     
                     // 创建最终的双屏截图
                     let finalScreenshot = self.combineImages(top: croppedOriginal, bottom: croppedMirrored)
@@ -176,45 +180,13 @@ class ScreenshotManager: ObservableObject {
     }
     
     // 裁剪图片到屏幕大小
-    private func cropImageToScreenSize(_ image: UIImage, for screenID: ScreenID) -> UIImage {
-        let screenBounds = UIScreen.main.bounds
-        let screenWidth = screenBounds.width
-        let screenHeight = screenBounds.height
-        
-        // 计算显示区域的尺寸（屏幕的一半高度）
-        let viewportWidth = screenWidth
-        let viewportHeight = screenHeight / 2
-        
-        // 计算图片缩放后的实际尺寸
-        let scale = image.size.width / screenWidth  // 图片相对于屏幕的缩放比例
-        let scaledImageWidth = image.size.width
-        let scaledImageHeight = image.size.height
-        
-        // 计算基础偏移（图片中心到显示区域中心的距离）
-        let baseOffsetY = (scaledImageHeight - viewportHeight * scale) / 2
-        
-        // 计算可见区域在原始图片中的位置
-        let visibleX = (scaledImageWidth - viewportWidth * scale) / 2
-        let visibleY = baseOffsetY
-        
-        let visibleWidth = viewportWidth * scale
-        let visibleHeight = viewportHeight * scale
-        
-        // 确保裁剪区域不超出图片范围
-        let safeCropX = max(0, min(visibleX, image.size.width - visibleWidth))
-        let safeCropY = max(0, min(visibleY, image.size.height - visibleHeight))
-        let safeCropWidth = min(visibleWidth, image.size.width - safeCropX)
-        let safeCropHeight = min(visibleHeight, image.size.height - safeCropY)
-        
-        // 创建裁剪区域
-        let cropRect = CGRect(x: safeCropX, y: safeCropY, width: safeCropWidth, height: safeCropHeight)
-        
-        // 从原图中裁剪指定区域
-        if let cgImage = image.cgImage?.cropping(to: cropRect) {
-            return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
-        }
-        
-        return image
+    private func cropImageToScreenSize(_ image: UIImage, for screenID: ScreenID, isLandscape: Bool = false) -> UIImage {
+        // 使用ImageCropUtility进行裁剪，使用默认的零偏移量
+        return ImageCropUtility.shared.cropImageToScreenSize(
+            image,
+            for: screenID,
+            isLandscape: isLandscape
+        )
     }
     
     // 合并两个图片
@@ -240,34 +212,22 @@ class ScreenshotManager: ObservableObject {
         // 根据设备方向进行不同的处理
         switch orientation {
         case .landscapeLeft:
-            // 向左横屏：垂直拼接后逆时针旋转90度
-            context.translateBy(x: 0, y: finalSize.height)
-            context.rotate(by: -CGFloat.pi / 2)
-            // 在旋转后的坐标系中绘制
-            let drawHeight = finalSize.height
-            let drawWidth = finalSize.width
-            top.draw(in: CGRect(x: 0, y: 0, width: drawHeight, height: drawWidth/2))
-            bottom.draw(in: CGRect(x: 0, y: drawWidth/2, width: drawHeight, height: drawWidth/2))
+            //向左横屏
+            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width/2, height: finalSize.height))
+            bottom.draw(in: CGRect(x: finalSize.width/2, y: 0, width: finalSize.width/2, height: finalSize.height))
             
         case .landscapeRight:
-            // 向右横屏：垂直拼接后顺时针旋转90度
-            context.translateBy(x: finalSize.width, y: 0)
-            context.rotate(by: CGFloat.pi / 2)
-            // 在旋转后的坐标系中绘制
-            let drawHeight = finalSize.height
-            let drawWidth = finalSize.width
-            top.draw(in: CGRect(x: 0, y: 0, width: drawHeight, height: drawWidth/2))
-            bottom.draw(in: CGRect(x: 0, y: drawWidth/2, width: drawHeight, height: drawWidth/2))
+            // 向右横屏
+            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width/2, height: finalSize.height))
+            bottom.draw(in: CGRect(x: finalSize.width/2, y: 0, width: finalSize.width/2, height: finalSize.height))
             
         case .portraitUpsideDown:
-            // 倒置竖屏：垂直拼接后旋转180度
-            context.translateBy(x: finalSize.width, y: finalSize.height)
-            context.rotate(by: CGFloat.pi)
+            // 倒置竖屏
             top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
             bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
             
         default:
-            // 正常竖屏：直接垂直拼接
+            // 正常竖屏
             top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
             bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
         }
