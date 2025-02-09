@@ -31,7 +31,7 @@ public struct SettingsTheme {
     static let itemSpacing: CGFloat = 24  // 设置项之间的间距
     static let contentSpacing: CGFloat = 16  // 设置项内容的间距
     static let buttonSpacing: CGFloat = 10  // 按钮之间的间距
-    static let padding: CGFloat = 16  // 内边距
+    static let padding: CGFloat = 10  // 内边距
     
     // 阴影
     static let shadowColor = Color.black.opacity(0.05)
@@ -375,19 +375,6 @@ public struct SettingsPanel: View {
                                 
                                 VStack(alignment: .center, spacing: SettingsTheme.buttonSpacing) {
                                     HStack(spacing: 4) {
-                                        Text("边框灯")
-                                            .foregroundColor(SettingsTheme.subtitleColor)
-                                            .frame(width: 75, alignment: .center)
-                                        Text(styleManager.isDefaultGesture ? "单击" : "双击")
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 2)
-                                            .background(Color.gray.opacity(0.7))
-                                            .cornerRadius(8)
-                                    }
-                                    
-                                    HStack(spacing: 4) {
                                         Text("拍照")
                                             .foregroundColor(SettingsTheme.subtitleColor)
                                             .frame(width: 75, alignment: .center)
@@ -399,6 +386,20 @@ public struct SettingsPanel: View {
                                             .background(Color.gray.opacity(0.7))
                                             .cornerRadius(8)
                                     }
+
+                                    HStack(spacing: 4) {
+                                        Text("边框灯")
+                                            .foregroundColor(SettingsTheme.subtitleColor)
+                                            .frame(width: 75, alignment: .center)
+                                        Text(styleManager.isDefaultGesture ? "单击" : "双击")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 2)
+                                            .background(Color.gray.opacity(0.7))
+                                            .cornerRadius(8)
+                                    }
+
                                 }
                                 
                                 Button(action: {
@@ -411,7 +412,7 @@ public struct SettingsPanel: View {
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
                                         .frame(width: 35, height: 35)
-                                        .foregroundColor(.gray)
+                                        .foregroundColor(.blue)
                                         .padding(0)
                                         .background(Color.gray.opacity(0.2))
                                         .clipShape(Circle())
@@ -428,10 +429,10 @@ public struct SettingsPanel: View {
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
                         // 主屏蝴蝶颜色设置
-                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                        VStack(alignment: .center, spacing: SettingsTheme.contentSpacing) {
                             HStack {
                                 Spacer()
-                                Text("主屏小蝴蝶")
+                                Text("主屏陪伴设置")
                                     .font(.headline)
                                     .foregroundColor(SettingsTheme.titleColor)
                                 Spacer()
@@ -458,11 +459,11 @@ public struct SettingsPanel: View {
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
-                        // 分屏蝴蝶颜色设置
+                        // 双屏陪伴设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
                             HStack {
                                 Spacer()
-                                Text("分屏蝴蝶颜色")
+                                Text("双屏陪伴设置")
                                     .font(.headline)
                                     .foregroundColor(SettingsTheme.titleColor)
                                 Spacer()

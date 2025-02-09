@@ -115,9 +115,13 @@ public struct HelpPanel: View {
                         
                         // 模式切换
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            Text("功能切换")
+                            Text("主屏显示")
                                 .font(.headline)
                                 .foregroundColor(SettingsTheme.titleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            Text("（支持旋转）")
+                                .font(.subheadline)
+                                .foregroundColor(SettingsTheme.subtitleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
@@ -144,31 +148,31 @@ public struct HelpPanel: View {
                         
                         // 基本操作
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            Text("屏幕操作")
+                            Text("屏幕功能")
                                 .font(.headline)
                                 .foregroundColor(SettingsTheme.titleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                            Text("（拍照/边框灯手势可切换）")
+                            Text("（拍照/边框灯 手势可切换）")
                                 .font(.subheadline)
                                 .foregroundColor(SettingsTheme.subtitleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
 
                             VStack(alignment: .leading, spacing: 5) {
                                 LabeledHighlightRow(
+                                    highlightText: "双指拖动",
+                                    description: "缩放摄像头"
+                                )
+                                LabeledHighlightRow(
                                     highlightText: "双击",
-                                    description: "拍照/退出"
+                                    description: "拍照 拍摄/退出"
                                 )
                                 LabeledHighlightRow(
                                     highlightText: "单击",
-                                    description: "开启/关闭 边框灯"
-                                )
-                                LabeledHighlightRow(
-                                    highlightText: "双指拖动",
-                                    description: "缩放大小"
+                                    description: "边框灯 开启/关闭"
                                 )
                                 LabeledHighlightRow(
                                     highlightText: "下载/分享",
-                                    description: "图片下载/分享"
+                                    description: "图片 下载/分享"
                                 )
                             }
                             .font(.body)
@@ -181,7 +185,7 @@ public struct HelpPanel: View {
 
                         // 拖拽操作
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            Text("面板拖拽操作")
+                            Text("面板功能")
                                 .font(.headline)
                                 .foregroundColor(SettingsTheme.titleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -189,11 +193,11 @@ public struct HelpPanel: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 LabeledHighlightRow(
                                     highlightText: "上下拖动",
-                                    description: "扩展/还原面板"
+                                    description: "面板 扩展/还原"
                                 )
                                 LabeledHighlightRow(
                                     highlightText: "左右拖动",
-                                    description: "隐藏/显示面板"
+                                    description: "面板 隐藏/显示"
                                 )
                             }
                             .font(.body)
@@ -213,19 +217,23 @@ public struct HelpPanel: View {
                         
                         // 模式切换
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            Text("双屏显示（支持旋转）")
+                            Text("双屏显示")
                                 .font(.headline)
                                 .foregroundColor(SettingsTheme.titleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                            
+                            Text("（支持旋转）")
+                                .font(.subheadline)
+                                .foregroundColor(SettingsTheme.subtitleColor)
+                                .frame(maxWidth: .infinity, alignment: .center)
+
                             VStack(alignment: .leading, spacing: 5) {
                                 LabeledHighlightRow(
                                     highlightText: "上下分屏",
-                                    description: "正常镜+翻转镜"
+                                    description: "正常镜 + 翻转镜"
                                 )
                                 LabeledHighlightRow(
                                     highlightText: "左右分屏",
-                                    description: "正常镜+翻转镜"
+                                    description: "正常镜 + 翻转镜"
                                 )
                             }
                             .font(.body)
@@ -238,11 +246,11 @@ public struct HelpPanel: View {
                         
                         // 基本操作
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            Text("屏幕操作")
+                            Text("单屏功能")
                                 .font(.headline)
                                 .foregroundColor(SettingsTheme.titleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                            Text("（拍照/边框灯手势可切换）")
+                            Text("（拍照/边框灯 手势可切换）")
                                 .font(.subheadline)
                                 .foregroundColor(SettingsTheme.subtitleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -250,19 +258,19 @@ public struct HelpPanel: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 LabeledHighlightRow(
                                     highlightText: "双击",
-                                    description: "拍照/退出"
+                                    description: "拍照 拍摄/退出"
                                 )
                                 LabeledHighlightRow(
                                     highlightText: "单击",
-                                    description: "开启/关闭边框灯"
-                                )
-                                LabeledHighlightRow(
-                                    highlightText: "双指拖动",
-                                    description: "缩放大小"
+                                    description: "边框灯 开启/关闭"
                                 )
                                 LabeledHighlightRow(
                                     highlightText: "长按全屏灯",
-                                    description: "开启分屏全屏灯"
+                                    description: "全屏灯 开启/关闭"
+                                )
+                                LabeledHighlightRow(
+                                    highlightText: "双指拖动",
+                                    description: "缩放 摄像头/图片"
                                 )
                                 LabeledHighlightRow(
                                     highlightText: "长按上传",
@@ -287,27 +295,27 @@ public struct HelpPanel: View {
 
                         // 拖拽操作
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            Text("蝴蝶按钮")
+                            Text("双屏功能")
                                 .font(.headline)
                                 .foregroundColor(SettingsTheme.titleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
-                            Text("（拍照/边框灯手势可切换）")
+                            Text("（拍照/边框灯 手势可切换）")
                                 .font(.subheadline)
                                 .foregroundColor(SettingsTheme.subtitleColor)
                                 .frame(maxWidth: .infinity, alignment: .center)
                             
                             VStack(alignment: .leading, spacing: 5) {
                                 LabeledHighlightRow(
-                                    highlightText: "双击",
-                                    description: "双屏拍照/退出"
+                                    highlightText: "双击蝴蝶",
+                                    description: "拍照 拍摄/退出"
                                 )
                                 LabeledHighlightRow(
-                                    highlightText: "单击",
-                                    description: "双屏开灯/关灯"
+                                    highlightText: "单击蝴蝶",
+                                    description: "边框灯 开启/关闭"
                                 )
                                 LabeledHighlightRow(
-                                    highlightText: "长按",
-                                    description: "交换分屏位置"
+                                    highlightText: "长按蝴蝶",
+                                    description: "分屏位置切换"
                                 )
                             }
                             .font(.body)
