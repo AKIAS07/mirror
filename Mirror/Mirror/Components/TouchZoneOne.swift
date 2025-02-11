@@ -323,6 +323,8 @@ struct TouchZoneOne: View {
                                             self.pausedOriginalImage = originalImg
                                         }
                                         print("Original画面已定格")
+                                        // 同步到ImageUploader
+                                        imageUploader.setPausedImage(self.pausedOriginalImage, for: .original)
                                     }
                                     
                                     if let mirroredImg = self.mirroredImage {
@@ -337,6 +339,8 @@ struct TouchZoneOne: View {
                                             self.pausedMirroredImage = mirroredImg
                                         }
                                         print("Mirrored画面已定格")
+                                        // 同步到ImageUploader
+                                        imageUploader.setPausedImage(self.pausedMirroredImage, for: .mirrored)
                                     }
                                     
                                     print("------------------------")
@@ -402,6 +406,8 @@ struct TouchZoneOne: View {
                                                 self.pausedOriginalImage = originalImg
                                             }
                                             print("Original画面已定格")
+                                            // 同步到ImageUploader
+                                            imageUploader.setPausedImage(self.pausedOriginalImage, for: .original)
                                         }
                                     }
                                     
@@ -420,6 +426,8 @@ struct TouchZoneOne: View {
                                                 self.pausedMirroredImage = mirroredImg
                                             }
                                             print("Mirrored画面已定格")
+                                            // 同步到ImageUploader
+                                            imageUploader.setPausedImage(self.pausedMirroredImage, for: .mirrored)
                                         }
                                     }
                                     
@@ -502,6 +510,8 @@ struct TouchZoneOne: View {
                                         pausedOriginalImage = originalImg
                                     }
                                     print("Original画面已定格")
+                                    // 同步到ImageUploader
+                                    imageUploader.setPausedImage(self.pausedOriginalImage, for: .original)
                                 }
                                 
                                 if let mirroredImg = mirroredImage {
@@ -516,6 +526,8 @@ struct TouchZoneOne: View {
                                         pausedMirroredImage = mirroredImg
                                     }
                                     print("Mirrored画面已定格")
+                                    // 同步到ImageUploader
+                                    imageUploader.setPausedImage(self.pausedMirroredImage, for: .mirrored)
                                 }
                                 
                                 print("------------------------")
@@ -574,6 +586,8 @@ struct TouchZoneOne: View {
                                             pausedOriginalImage = originalImg
                                         }
                                         print("Original画面已定格")
+                                        // 同步到ImageUploader
+                                        imageUploader.setPausedImage(self.pausedOriginalImage, for: .original)
                                     }
                                 }
                                 
@@ -592,6 +606,8 @@ struct TouchZoneOne: View {
                                             pausedMirroredImage = mirroredImg
                                         }
                                         print("Mirrored画面已定格")
+                                        // 同步到ImageUploader
+                                        imageUploader.setPausedImage(self.pausedMirroredImage, for: .mirrored)
                                     }
                                 }
                                 

@@ -158,4 +158,82 @@ class ImageCropUtility {
         print("------------------------")
         return image
     }
+    
+    // 添加定格图片裁剪方法
+    func cropPausedImage(
+        _ image: UIImage,
+        for screenID: ScreenID,
+        targetOrientation: UIDeviceOrientation,
+        pausedOrientation: UIDeviceOrientation,
+        offset: CGSize = .zero
+    ) -> UIImage {
+        print("------------------------")
+        print("[定格图片裁剪] 开始")
+        print("原始图片尺寸: \(image.size.width) x \(image.size.height)")
+        print("目标方向: \(targetOrientation.rawValue)")
+        print("定格方向: \(pausedOrientation.rawValue)")
+        
+        // 如果目标方向和定格方向相同，直接使用现有的裁剪方法
+        if targetOrientation == pausedOrientation {
+            return cropImageToScreenSize(
+                image,
+                for: screenID,
+                offset: offset,
+                isLandscape: targetOrientation.isLandscape,
+                pausedOrientation: pausedOrientation
+            )
+        }
+        
+        // 处理方向不同的情况
+        let screenBounds = UIScreen.main.bounds
+        let screenWidth = screenBounds.width
+        let screenHeight = screenBounds.height
+        
+        // 根据目标方向计算裁剪区域
+        let viewportWidth: CGFloat
+        let viewportHeight: CGFloat
+        
+        if targetOrientation.isLandscape {
+            // 目标是横屏
+            viewportWidth = screenHeight / 2
+            viewportHeight = screenWidth
+        } else {
+            // 目标是竖屏
+            viewportWidth = screenWidth
+            viewportHeight = screenHeight / 2
+        }
+        
+        // 计算缩放比例
+        let scale = max(viewportWidth / image.size.width, viewportHeight / image.size.height)
+        
+        // 计算裁剪区域
+        let cropWidth = viewportWidth / scale
+        let cropHeight = viewportHeight / scale
+        
+        // 确保裁剪区域不超出图片范围
+        let safeCropX = max(0, (image.size.width - cropWidth) / 2)
+        let safeCropY = max(0, (image.size.height - cropHeight) / 2)
+        
+        let cropRect = CGRect(
+            x: safeCropX,
+            y: safeCropY,
+            width: min(cropWidth, image.size.width - safeCropX),
+            height: min(cropHeight, image.size.height - safeCropY)
+        )
+        
+        print("裁剪区域: \(cropRect)")
+        
+        // 执行裁剪
+        if let cgImage = image.cgImage?.cropping(to: cropRect) {
+            let croppedImage = UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
+            print("裁剪后尺寸: \(croppedImage.size.width) x \(croppedImage.size.height)")
+            print("[定格图片裁剪] 完成")
+            print("------------------------")
+            return croppedImage
+        }
+        
+        print("[定格图片裁剪] 失败")
+        print("------------------------")
+        return image
+    }
 } 

@@ -395,54 +395,47 @@ class ImageUploader: ObservableObject {
         // 设置选中的屏幕ID
         selectedScreenID = screenID
         
-        // 如果有图片，根据设备方向调整
+        // 如果有图片，记录当前设备方向
         if let image = image {
             let orientation = UIDevice.current.orientation
-            let adjustedImage: UIImage
             
-            // 只在允许的方向下进行旋转
+            // 只在允许的方向下记录
             if DeviceOrientationManager.shared.isAllowedOrientation(orientation) {
-                // 记录定格时的方向
                 if screenID == .original {
                     pausedOriginalOrientation = orientation
                 } else {
                     pausedMirroredOrientation = orientation
                 }
-                
-                switch orientation {
-                case .landscapeLeft:
-                    adjustedImage = image.rotate(degrees: -90)
-                case .landscapeRight:
-                    adjustedImage = image.rotate(degrees: 90)
-                case .portraitUpsideDown:
-                    adjustedImage = image.rotate(degrees: 180)
-                default:
-                    adjustedImage = image
-                }
             } else {
-                // 如果不是允许的方向，保持最后一个有效方向
+                // 如果不是允许的方向，使用最后一个有效方向
                 let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
-                switch lastValidOrientation {
-                case .landscapeLeft:
-                    adjustedImage = image.rotate(degrees: -90)
-                case .landscapeRight:
-                    adjustedImage = image.rotate(degrees: 90)
-                case .portraitUpsideDown:
-                    adjustedImage = image.rotate(degrees: 180)
-                default:
-                    adjustedImage = image
+                if screenID == .original {
+                    pausedOriginalOrientation = lastValidOrientation
+                } else {
+                    pausedMirroredOrientation = lastValidOrientation
                 }
             }
             
-            // 设置图片
-            selectedImage = adjustedImage
+            // 根据当前方向和定格方向裁剪图片
+            let currentOrientation = DeviceOrientationManager.shared.validOrientation
+            let pausedOrientation = screenID == .original ? 
+                pausedOriginalOrientation : pausedMirroredOrientation
             
-            // 根据screenID设置对应的定格图片
+            let adjustedImage = ImageCropUtility.shared.cropPausedImage(
+                image,
+                for: screenID,
+                targetOrientation: currentOrientation,
+                pausedOrientation: pausedOrientation ?? currentOrientation,
+                offset: currentOffset
+            )
+            
+            // 设置裁剪后的图片
             if screenID == .original {
                 pausedOriginalImage = adjustedImage
             } else {
                 pausedMirroredImage = adjustedImage
             }
+            selectedImage = adjustedImage
         } else {
             // 清除方向记录
             if screenID == .original {
@@ -801,6 +794,11 @@ struct OverlayView: View {
                                     .background(Color.black.opacity(0.7))
                                     .cornerRadius(10)
                                     .padding(.bottom, 50)
+                                    .rotationEffect(getRotationAngle(deviceOrientation))  // 整体旋转
+                                    .frame(width: 210, height: 210)
+                                    .contentShape(Rectangle())
+                                    .animation(.easeInOut(duration: 0.5), value: deviceOrientation)
+
                             }
                         }
                     }
@@ -852,6 +850,8 @@ struct OverlayView: View {
                     .fill(Color.black)
                     .frame(height: centerY)
                     .allowsHitTesting(false)
+                    .contentShape(Rectangle())
+                    .rotationEffect(getRotationAngle(deviceOrientation))  // 整体旋转
                     .onAppear {
                         print("------------------------")
                         print("[Original屏幕] centerY值: \(centerY)")
@@ -863,6 +863,8 @@ struct OverlayView: View {
                     .fill(Color.white)
                     .frame(height: centerY)
                     .allowsHitTesting(false)
+                    .contentShape(Rectangle())
+                    .rotationEffect(getRotationAngle(deviceOrientation))  // 整体旋转
                     .onAppear {
                         print("------------------------")
                         print("[Mirrored屏幕] centerY值: \(centerY)")
@@ -891,7 +893,6 @@ struct OverlayView: View {
                 }) {
                     Image(systemName: "sun.max.fill")
                         .font(.system(size: 80))
-                        .rotationEffect(getRotationAngle(deviceOrientation))
                         .frame(width: 80, height: 80)
                         .contentShape(Rectangle())
                 }
@@ -913,12 +914,12 @@ struct OverlayView: View {
                 }) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 80))
-                        .rotationEffect(getRotationAngle(deviceOrientation))
                         .frame(width: 80, height: 80)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
             }
+            .rotationEffect(getRotationAngle(deviceOrientation))  // 按钮容器整体旋转
         }
     }
     
@@ -1042,9 +1043,9 @@ struct ImagePicker: UIViewControllerRepresentable {
                 if DeviceOrientationManager.shared.isAllowedOrientation(orientation) {
                     switch orientation {
                     case .landscapeLeft:
-                        rotatedImage = image.rotate(degrees: 90)  // 向左横屏时顺时针旋转90度
+                        rotatedImage = image.rotate(degrees: 0)  // 向左横屏时顺时针旋转90度
                     case .landscapeRight:
-                        rotatedImage = image.rotate(degrees: -90) // 向右横屏时逆时针旋转90度
+                        rotatedImage = image.rotate(degrees: 0) // 向右横屏时逆时针旋转90度
                     case .portraitUpsideDown:
                         // 对于倒置方向，两个分屏都保持一致的处理
                         rotatedImage = image.rotate(degrees: 0)
@@ -1056,11 +1057,11 @@ struct ImagePicker: UIViewControllerRepresentable {
                     let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
                     switch lastValidOrientation {
                     case .landscapeLeft:
-                        rotatedImage = image.rotate(degrees: 90)
+                        rotatedImage = image.rotate(degrees: 0)
                     case .landscapeRight:
-                        rotatedImage = image.rotate(degrees: -90)
+                        rotatedImage = image.rotate(degrees: 0)
                     case .portraitUpsideDown:
-                        rotatedImage = image.rotate(degrees: 180)
+                        rotatedImage = image.rotate(degrees: 0)
                     default:
                         rotatedImage = image
                     }

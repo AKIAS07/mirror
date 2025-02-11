@@ -3,93 +3,135 @@ import UIKit
 import Photos
 
 
-// 添加截图动画视图
+// 修改截图动画视图
 struct ScreenshotAnimationView: View {
     @Binding var isVisible: Bool
     @ObservedObject var screenshotManager = ScreenshotManager.shared
-    let touchZonePosition: TouchZonePosition  // 添加触控区位置参数
+    @ObservedObject var orientationManager = DeviceOrientationManager.shared
+    let touchZonePosition: TouchZonePosition
     
-    // 添加全屏动画状态
     @State private var showFullScreenAnimation = false
     @State private var fullScreenScale: CGFloat = 1.0
     @State private var fullScreenOpacity: Double = 0.0
     @State private var showText = false
     
     var body: some View {
-        ZStack {
-            // 全屏动画
-            if showFullScreenAnimation, let previewImage = screenshotManager.previewImage {
-                Rectangle()
-                    .fill(Color.black.opacity(0.5))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .opacity(fullScreenOpacity)
-                
-                // 截图预览
-                Image(uiImage: previewImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: UIScreen.main.bounds.width * 0.8, height: UIScreen.main.bounds.height * 0.8)
-                    .cornerRadius(20)
-                    .scaleEffect(fullScreenScale)
-                    .opacity(fullScreenOpacity)
-                
-                // 保存提示文本
-                Text("已保存到相册")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 16)
-                    .background(Color.black.opacity(0.6))
-                    .cornerRadius(8)
-                    .opacity(showText ? 1 : 0)
-                    .offset(y: UIScreen.main.bounds.height * 0.3)
-                    .animation(.easeInOut(duration: 0.3), value: showText)
-            }
-        }
-        .onChange(of: isVisible) { newValue in
-            if newValue {
-                // 延迟执行全屏动画，给图片处理留出更多时间
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    // 使用较慢的动画速度，减少帧率压力
-                    withAnimation(.easeInOut(duration: 0.4)) {
-                        showFullScreenAnimation = true
-                        fullScreenOpacity = 0.8  // 降低透明度，减少渲染压力
-                    }
+        GeometryReader { geometry in
+            ZStack {
+                // 全屏动画
+                if showFullScreenAnimation, let previewImage = screenshotManager.previewImage {
+                    // 背景遮罩
+                    Rectangle()
+                        .fill(Color.black.opacity(0.5))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .opacity(fullScreenOpacity)
                     
-                    // 执行缩小动画
-                    withAnimation(.easeInOut(duration: 0.6)) {
-                        fullScreenScale = 0.3
-                    }
-                    
-                    // 缩小动画结束后显示文本
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        showText = true
+                    // 截图预览容器
+                    ZStack {
+                        // 截图预览
+                        Image(uiImage: previewImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: getPreviewSize(geometry).width,
+                                   height: getPreviewSize(geometry).height)
+                            .cornerRadius(20)
+                            .scaleEffect(fullScreenScale)
+                            .opacity(fullScreenOpacity)
+                            .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         
-                        // 停留1秒后再开始淡出动画
+                        // 保存提示文本
+                        if showText {
+                            Text("已保存到相册")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 16)
+                                .background(Color.black.opacity(0.6))
+                                .cornerRadius(8)
+                                .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                                .offset(getTextOffset(geometry))
+                        }
+                    }
+                    .position(getContainerPosition(geometry))
+                }
+            }
+            .onChange(of: isVisible) { newValue in
+                if newValue {
+                    // 延迟执行全屏动画
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            showFullScreenAnimation = true
+                            fullScreenOpacity = 0.8
+                        }
+                        
+                        // 执行缩小动画
+                        withAnimation(.easeInOut(duration: 0.6)) {
+                            fullScreenScale = 0.3
+                        }
+                        
+                        // 缩小动画结束后显示文本
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            // 执行淡出动画
-                            withAnimation(.easeInOut(duration: 0.4)) {
-                                fullScreenOpacity = 0
-                                showText = false
-                            }
+                            showText = true
                             
-                            // 重置状态
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                showFullScreenAnimation = false
-                                fullScreenScale = 1.0
-                                isVisible = false
+                            // 停留1秒后再开始淡出动画
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                withAnimation(.easeInOut(duration: 0.4)) {
+                                    fullScreenOpacity = 0
+                                    showText = false
+                                }
+                                
+                                // 重置状态
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                    showFullScreenAnimation = false
+                                    fullScreenScale = 1.0
+                                    isVisible = false
+                                }
                             }
                         }
                     }
                 }
-            } else {
-                // 重置所有状态
-                showText = false
-                showFullScreenAnimation = false
-                fullScreenScale = 1.0
-                fullScreenOpacity = 0
             }
         }
+    }
+    
+    // 获取旋转角度
+    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        case .portraitUpsideDown:
+            return .degrees(180)
+        default:
+            return .degrees(0)
+        }
+    }
+    
+    // 获取预览图片尺寸
+    private func getPreviewSize(_ geometry: GeometryProxy) -> CGSize {
+        let isLandscape = orientationManager.currentOrientation.isLandscape
+        let maxWidth = isLandscape ? geometry.size.height * 0.8 : geometry.size.width * 0.8
+        let maxHeight = isLandscape ? geometry.size.width * 0.8 : geometry.size.height * 0.8
+        return CGSize(width: maxWidth, height: maxHeight)
+    }
+    
+    // 获取容器位置
+    private func getContainerPosition(_ geometry: GeometryProxy) -> CGPoint {
+        let isLandscape = orientationManager.currentOrientation.isLandscape
+        return CGPoint(
+            x: isLandscape ? geometry.size.width / 2 : geometry.size.width / 2,
+            y: isLandscape ? geometry.size.height / 2 : geometry.size.height / 2
+        )
+    }
+    
+    // 获取文本偏移
+    private func getTextOffset(_ geometry: GeometryProxy) -> CGSize {
+        let isLandscape = orientationManager.currentOrientation.isLandscape
+        return CGSize(
+            width: 0,
+            height: isLandscape ? geometry.size.width * 0.3 : geometry.size.height * 0.3
+        )
     }
 }
 
