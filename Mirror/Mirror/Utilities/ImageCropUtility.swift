@@ -8,8 +8,17 @@ class ImageCropUtility {
     private init() {}
     
     // 通用的裁剪方法，支持横竖屏
-    func cropImageToScreenSize(_ image: UIImage, for screenID: ScreenID, offset: CGSize = .zero, isLandscape: Bool = false) -> UIImage {
-        if isLandscape {
+    func cropImageToScreenSize(
+        _ image: UIImage,
+        for screenID: ScreenID,
+        offset: CGSize = .zero,
+        isLandscape: Bool = false,
+        pausedOrientation: UIDeviceOrientation? = nil
+    ) -> UIImage {
+        // 使用定格时的方向来决定裁剪方式
+        let shouldUseLandscape = pausedOrientation?.isLandscape ?? isLandscape
+        
+        if shouldUseLandscape {
             return cropImageToScreenSizeLandscape(image, for: screenID, offset: offset)
         } else {
             return cropImageToScreenSizePortrait(image, for: screenID, offset: offset)
@@ -126,9 +135,22 @@ class ImageCropUtility {
         // 从原图中裁剪指定区域
         if let cgImage = image.cgImage?.cropping(to: cropRect) {
             let croppedImage = UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
-            print("裁剪后图片尺寸: \(croppedImage.size.width) x \(croppedImage.size.height)")
-            print("[横屏裁剪] 完成")
-            print("------------------------")
+            
+            // 再次裁剪，去掉底部2像素
+            let finalHeight = croppedImage.size.height - 2
+            let finalRect = CGRect(x: 0,
+                                 y: 0,
+                                 width: croppedImage.size.width,
+                                 height: finalHeight)
+            
+            if let finalCGImage = croppedImage.cgImage?.cropping(to: finalRect) {
+                let finalImage = UIImage(cgImage: finalCGImage, scale: image.scale, orientation: image.imageOrientation)
+                print("最终图片尺寸: \(finalImage.size.width) x \(finalImage.size.height)")
+                print("[横屏裁剪] 完成")
+                print("------------------------")
+                return finalImage
+            }
+            
             return croppedImage
         }
         

@@ -54,6 +54,10 @@ class ImageUploader: ObservableObject {
     private var isControllingBrightness = false
     private var flashlightBrightnessActive = false  // 新增：跟踪手电筒亮度控制状态
     
+    // 添加记录定格时方向的属性
+    private var pausedOriginalOrientation: UIDeviceOrientation?
+    private var pausedMirroredOrientation: UIDeviceOrientation?
+    
     // 修改图片处理状态控制方法
     func startImageProcessing() {
         isProcessingImage = true
@@ -317,8 +321,17 @@ class ImageUploader: ObservableObject {
             return
         }
         
-        // 裁剪图片为分屏大小
-        let croppedImage = cropImageToScreenSize(imageToSave, for: screenID)
+        // 获取定格时的方向
+        let pausedOrientation = screenID == .original ? pausedOriginalOrientation : pausedMirroredOrientation
+        
+        // 裁剪图片为分屏大小，使用定格时的方向
+        let croppedImage = ImageCropUtility.shared.cropImageToScreenSize(
+            imageToSave,
+            for: screenID,
+            offset: currentOffset,
+            isLandscape: pausedOrientation?.isLandscape ?? false,
+            pausedOrientation: pausedOrientation
+        )
         
         // 检查相册权限并保存图片
         PHPhotoLibrary.requestAuthorization { [weak self] status in
@@ -389,6 +402,13 @@ class ImageUploader: ObservableObject {
             
             // 只在允许的方向下进行旋转
             if DeviceOrientationManager.shared.isAllowedOrientation(orientation) {
+                // 记录定格时的方向
+                if screenID == .original {
+                    pausedOriginalOrientation = orientation
+                } else {
+                    pausedMirroredOrientation = orientation
+                }
+                
                 switch orientation {
                 case .landscapeLeft:
                     adjustedImage = image.rotate(degrees: -90)
@@ -424,7 +444,14 @@ class ImageUploader: ObservableObject {
                 pausedMirroredImage = adjustedImage
             }
         } else {
-            // 如果是清除图片，重置手电筒状态
+            // 清除方向记录
+            if screenID == .original {
+                pausedOriginalOrientation = nil
+            } else {
+                pausedMirroredOrientation = nil
+            }
+            
+            // 清除图片
             setFlashlightState(for: screenID, active: false)
             
             // 清除对应的定格图片
@@ -1007,14 +1034,52 @@ struct ImagePicker: UIViewControllerRepresentable {
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
-                // 裁剪图片
-                let croppedImage = self.parent.imageUploader?.cropImageToScreenSize(image, for: self.parent.screenID) ?? image
+                // 获取当前设备方向
+                let orientation = UIDevice.current.orientation
+                
+                // 根据设备方向调整图片
+                let rotatedImage: UIImage
+                if DeviceOrientationManager.shared.isAllowedOrientation(orientation) {
+                    switch orientation {
+                    case .landscapeLeft:
+                        rotatedImage = image.rotate(degrees: 90)  // 向左横屏时顺时针旋转90度
+                    case .landscapeRight:
+                        rotatedImage = image.rotate(degrees: -90) // 向右横屏时逆时针旋转90度
+                    case .portraitUpsideDown:
+                        // 对于倒置方向，两个分屏都保持一致的处理
+                        rotatedImage = image.rotate(degrees: 0)
+                    default:
+                        rotatedImage = image
+                    }
+                } else {
+                    // 如果不是允许的方向，使用最后一个有效方向
+                    let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
+                    switch lastValidOrientation {
+                    case .landscapeLeft:
+                        rotatedImage = image.rotate(degrees: 90)
+                    case .landscapeRight:
+                        rotatedImage = image.rotate(degrees: -90)
+                    case .portraitUpsideDown:
+                        rotatedImage = image.rotate(degrees: 180)
+                    default:
+                        rotatedImage = image
+                    }
+                }
+                
+                // 裁剪旋转后的图片
+                let croppedImage = self.parent.imageUploader?.cropImageToScreenSize(
+                    rotatedImage,
+                    for: self.parent.screenID
+                ) ?? rotatedImage
+                
                 self.parent.selectedImage = croppedImage
                 
                 print("------------------------")
                 print("[图片选择器] 已选择图片")
                 print("原始尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
+                print("旋转后尺寸：\(Int(rotatedImage.size.width))x\(Int(rotatedImage.size.height))")
                 print("裁剪后尺寸：\(Int(croppedImage.size.width))x\(Int(croppedImage.size.height))")
+                print("设备方向：\(orientation.rawValue)")
                 print("目标区域：\(self.parent.screenID == .original ? "Original" : "Mirrored")屏幕")
                 print("------------------------")
                 

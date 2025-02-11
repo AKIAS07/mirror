@@ -749,11 +749,7 @@ struct TwoOfMeScreens: View {
                 print("------------------------")
                 print("Mirrored画面已自动定格")
                 print("------------------------")
-
             }
-            
-            // 关闭边框灯
-            //borderLightManager.turnOffAllLights()
             
             // 根据设备方向调整定格画面
             switch orientationManager.currentOrientation {
@@ -762,7 +758,7 @@ struct TwoOfMeScreens: View {
             case .landscapeRight:
                 pausedMirroredImage = image.rotate(degrees: 0)
             case .portraitUpsideDown:
-                pausedMirroredImage = image.rotate(degrees: 180)
+                pausedMirroredImage = image.rotate(degrees: 0)  // 修改这里，和 original 保持一致
             default:
                 pausedMirroredImage = image
             }
@@ -1901,7 +1897,7 @@ struct TwoOfMeScreens: View {
                     case .landscapeRight:
                         pausedMirroredImage = image.rotate(degrees: 0)
                     case .portraitUpsideDown:
-                        pausedMirroredImage = image.rotate(degrees: 0)
+                        pausedMirroredImage = image.rotate(degrees: 0)  // 修改这里，和 original 保持一致
                     default:
                         pausedMirroredImage = image
                     }

@@ -207,7 +207,7 @@ class ScreenshotManager: ObservableObject {
         }
         
         UIGraphicsBeginImageContextWithOptions(finalSize, false, 0.0)
-        let context = UIGraphicsGetCurrentContext()!
+        let _ = UIGraphicsGetCurrentContext()!
         
         // 根据设备方向进行不同的处理
         switch orientation {
