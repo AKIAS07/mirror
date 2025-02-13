@@ -717,13 +717,11 @@ struct TwoOfMeScreens: View {
                 isOriginalPaused = true
                 print("------------------------")
                 print("Original画面已自动定格")
+                print("当前缩放比例: \(Int(originalScale * 100))%")
                 print("------------------------")
             }
             
-            // 关闭边框灯
-            //borderLightManager.turnOffAllLights()
-            
-            // 根据设备方向调整定格画面
+            // 根据设备方向调整定格画面，并传入缩放比例
             switch orientationManager.currentOrientation {
             case .landscapeLeft:
                 pausedOriginalImage = image.rotate(degrees: 0)
@@ -735,12 +733,8 @@ struct TwoOfMeScreens: View {
                 pausedOriginalImage = image
             }
             
-            // 重置缩放和偏移
-            originalScale = 1.0
-            currentScale = 1.0
-            originalOffset = .zero
-            originalEdgeDetector.resetBorders()
-            
+            // 更新 ImageUploader 时传入缩放比例
+            imageUploader.setPausedImage(pausedOriginalImage, for: .original, scale: originalScale)
             
         case .mirrored:
             // 自动进入定格状态
@@ -748,26 +742,24 @@ struct TwoOfMeScreens: View {
                 isMirroredPaused = true
                 print("------------------------")
                 print("Mirrored画面已自动定格")
+                print("当前缩放比例: \(Int(mirroredScale * 100))%")
                 print("------------------------")
             }
             
-            // 根据设备方向调整定格画面
+            // 根据设备方向调整定格画面，并传入缩放比例
             switch orientationManager.currentOrientation {
             case .landscapeLeft:
                 pausedMirroredImage = image.rotate(degrees: 0)
             case .landscapeRight:
                 pausedMirroredImage = image.rotate(degrees: 0)
             case .portraitUpsideDown:
-                pausedMirroredImage = image.rotate(degrees: 0)  // 修改这里，和 original 保持一致
+                pausedMirroredImage = image.rotate(degrees: 0)
             default:
                 pausedMirroredImage = image
             }
             
-            // 重置缩放和偏移
-            mirroredScale = 1.0
-            currentMirroredScale = 1.0
-            mirroredOffset = .zero
-            mirroredEdgeDetector.resetBorders()
+            // 更新 ImageUploader 时传入缩放比例
+            imageUploader.setPausedImage(pausedMirroredImage, for: .mirrored, scale: mirroredScale)
             
         case .none:
             break
@@ -1649,15 +1641,18 @@ struct TwoOfMeScreens: View {
                 
                 // 修改缩放提示动画（不受页面偏移影响）
                 if showScaleIndicator, let activeScreen = activeScalingScreen {
-                    ScaleIndicatorView(scale: currentIndicatorScale)
-                        .position(
-                            x: screenWidth/2,
-                            y: activeScreen == .original 
-                                ? (isScreensSwapped ? screenHeight * 3/4 : screenHeight/4)  // Original屏幕中心
-                                : (isScreensSwapped ? screenHeight/4 : screenHeight * 3/4)  // Mirrored屏幕中心
-                        )
-                        .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
-                        .zIndex(4)
+                    ScaleIndicatorView(
+                        scale: currentIndicatorScale,
+                        deviceOrientation: orientationManager.currentOrientation  // 传入设备方向
+                    )
+                    .position(
+                        x: screenWidth/2,
+                        y: activeScreen == .original 
+                            ? (isScreensSwapped ? screenHeight * 3/4 : screenHeight/4)  // Original屏幕中心
+                            : (isScreensSwapped ? screenHeight/4 : screenHeight * 3/4)  // Mirrored屏幕中心
+                    )
+                    .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
+                    .zIndex(4)
                 }
                 
                 // 添加动画图标（不受页面偏移影响）
@@ -1844,16 +1839,19 @@ struct TwoOfMeScreens: View {
                 // 退出定格状态
                 isOriginalPaused = false
                 pausedOriginalImage = nil
-                originalOffset = .zero
-                originalEdgeDetector.resetBorders()
-                // 清除ImageUploader中的定格图片
                 imageUploader.setPausedImage(nil, for: .original)
                 print("Original画面已恢复")
             } else {
                 // 进入定格状态
                 isOriginalPaused = true
                 
-                // 根据设备方向调整定格画面
+                print("------------------------")
+                print("[定格调试] Original屏幕")
+                print("当前缩放比例: \(Int(originalScale * 100))%")
+                print("当前实时比例: \(Int(currentScale * 100))%")
+                print("------------------------")
+                
+                // 根据设备方向调整定格画面，并传入缩放比例
                 if let image = originalImage {
                     switch orientationManager.currentOrientation {
                     case .landscapeLeft:
@@ -1865,14 +1863,10 @@ struct TwoOfMeScreens: View {
                     default:
                         pausedOriginalImage = image
                     }
-                    // 更新ImageUploader中的定格图片
-                    imageUploader.setPausedImage(pausedOriginalImage, for: .original)
+                    // 使用 currentScale 而不是 originalScale
+                    imageUploader.setPausedImage(pausedOriginalImage, for: .original, scale: currentScale)
                 }
-                
-                // 保持当前缩放比例
-                originalOffset = .zero
-                originalEdgeDetector.resetBorders()
-                print("Original画面已定格")
+                print("Original画面已定格，缩放比例: \(Int(currentScale * 100))%")
             }
             
         case .mirrored:
@@ -1880,16 +1874,19 @@ struct TwoOfMeScreens: View {
                 // 退出定格状态
                 isMirroredPaused = false
                 pausedMirroredImage = nil
-                mirroredOffset = .zero
-                mirroredEdgeDetector.resetBorders()
-                // 清除ImageUploader中的定格图片
                 imageUploader.setPausedImage(nil, for: .mirrored)
                 print("Mirrored画面已恢复")
             } else {
                 // 进入定格状态
                 isMirroredPaused = true
                 
-                // 根据设备方向调整定格画面
+                print("------------------------")
+                print("[定格调试] Mirrored屏幕")
+                print("当前缩放比例: \(Int(mirroredScale * 100))%")
+                print("当前实时比例: \(Int(currentMirroredScale * 100))%")
+                print("------------------------")
+                
+                // 根据设备方向调整定格画面，并传入缩放比例
                 if let image = mirroredImage {
                     switch orientationManager.currentOrientation {
                     case .landscapeLeft:
@@ -1897,18 +1894,14 @@ struct TwoOfMeScreens: View {
                     case .landscapeRight:
                         pausedMirroredImage = image.rotate(degrees: 90)
                     case .portraitUpsideDown:
-                        pausedMirroredImage = image.rotate(degrees: 180)  // 修改这里，和 original 保持一致
+                        pausedMirroredImage = image.rotate(degrees: 180)
                     default:
                         pausedMirroredImage = image
                     }
-                    // 更新ImageUploader中的定格图片
-                    imageUploader.setPausedImage(pausedMirroredImage, for: .mirrored)
+                    // 使用 currentMirroredScale 而不是 mirroredScale
+                    imageUploader.setPausedImage(pausedMirroredImage, for: .mirrored, scale: currentMirroredScale)
                 }
-                
-                // 保持当前缩放比例
-                mirroredOffset = .zero
-                mirroredEdgeDetector.resetBorders()
-                print("Mirrored画面已定格")
+                print("Mirrored画面已定格，缩放比例: \(Int(currentMirroredScale * 100))%")
             }
         }
     }

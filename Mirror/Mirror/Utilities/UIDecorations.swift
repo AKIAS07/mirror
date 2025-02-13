@@ -176,9 +176,10 @@ struct SquareCornerAnimationView: View {
     }
 }
 
-// 缩放提示动画视图
+// 修改缩放提示动画视图
 struct ScaleIndicatorView: View {
     let scale: CGFloat
+    let deviceOrientation: UIDeviceOrientation  // 添加设备方向参数
     @State private var opacity: Double = 0
     
     private var scaleText: String {
@@ -196,6 +197,20 @@ struct ScaleIndicatorView: View {
         return "\(roundedPercentage)%"
     }
     
+    // 添加获取旋转角度的方法
+    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        case .portraitUpsideDown:
+            return .degrees(180)
+        default:
+            return .degrees(0)
+        }
+    }
+    
     var body: some View {
         Text(scaleText)
             .font(.system(size: 40, weight: .bold))
@@ -205,6 +220,7 @@ struct ScaleIndicatorView: View {
                 RoundedRectangle(cornerRadius: 15)
                     .fill(Color.black.opacity(0.2))
             )
+            .rotationEffect(getRotationAngle(deviceOrientation))  // 添加旋转效果
             .opacity(opacity)
             .onAppear {
                 withAnimation(.easeInOut(duration: 0.2)) {

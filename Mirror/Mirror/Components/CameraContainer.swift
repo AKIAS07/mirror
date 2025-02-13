@@ -137,9 +137,13 @@ struct CameraContainer: View {
                     
                     // 添加缩放提示
                     if showScaleIndicator {
-                        ScaleIndicatorView(scale: currentIndicatorScale)
-                            .position(x: geometry.size.width/2, y: geometry.size.height/2)
-                            .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
+                        ScaleIndicatorView(
+                            scale: currentScale,
+                            deviceOrientation: deviceOrientation
+                        )
+                        .position(x: geometry.size.width/2, y: geometry.size.height/2)
+                        .animation(.easeInOut(duration: 0.2), value: currentScale)
+                        .zIndex(4)
                     }
                     
                     // 添加截图操作按钮

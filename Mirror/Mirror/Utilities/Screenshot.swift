@@ -14,11 +14,11 @@ struct ScreenshotAnimationView: View {
     @State private var fullScreenScale: CGFloat = 1.0
     @State private var fullScreenOpacity: Double = 0.0
     @State private var showText = false
+    @State private var showButtons = false
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // 全屏动画
                 if showFullScreenAnimation, let previewImage = screenshotManager.previewImage {
                     // 背景遮罩
                     Rectangle()
@@ -51,6 +51,39 @@ struct ScreenshotAnimationView: View {
                                 .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                                 .offset(getTextOffset(geometry))
                         }
+                        
+                        // 确认和取消按钮
+                        if showButtons {
+                            HStack(spacing: 40) {
+                                // 确认按钮
+                                Button(action: {
+                                    screenshotManager.saveScreenshot()
+                                    withAnimation {
+                                        showText = true
+                                        showButtons = false
+                                    }
+                                    // 显示保存文本后淡出
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                        hidePreview()
+                                    }
+                                }) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 44))
+                                        .foregroundColor(.white)
+                                }
+                                
+                                // 取消按钮
+                                Button(action: {
+                                    hidePreview()
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 44))
+                                        .foregroundColor(.black)
+                                }
+                            }
+                            .offset(getButtonsOffset(geometry))
+                            .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                        }
                     }
                     .position(getContainerPosition(geometry))
                 }
@@ -61,31 +94,18 @@ struct ScreenshotAnimationView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         withAnimation(.easeInOut(duration: 0.4)) {
                             showFullScreenAnimation = true
-                            fullScreenOpacity = 0.8
+                            fullScreenOpacity = 1
                         }
                         
                         // 执行缩小动画
                         withAnimation(.easeInOut(duration: 0.6)) {
-                            fullScreenScale = 0.3
+                            fullScreenScale = 0.7
                         }
                         
-                        // 缩小动画结束后显示文本
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            showText = true
-                            
-                            // 停留1秒后再开始淡出动画
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                withAnimation(.easeInOut(duration: 0.4)) {
-                                    fullScreenOpacity = 0
-                                    showText = false
-                                }
-                                
-                                // 重置状态
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                    showFullScreenAnimation = false
-                                    fullScreenScale = 1.0
-                                    isVisible = false
-                                }
+                        // 显示按钮
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            withAnimation {
+                                showButtons = true
                             }
                         }
                     }
@@ -94,60 +114,146 @@ struct ScreenshotAnimationView: View {
         }
     }
     
+    // 隐藏预览的辅助函数
+    private func hidePreview() {
+        withAnimation(.easeInOut(duration: 0.4)) {
+            fullScreenOpacity = 0
+            showText = false
+            showButtons = false
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            showFullScreenAnimation = false
+            fullScreenScale = 1.0
+            isVisible = false
+        }
+    }
+    
     // 获取旋转角度
     private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        let angle: Double
         switch orientation {
         case .landscapeLeft:
-            return .degrees(90)
+            angle = 90
         case .landscapeRight:
-            return .degrees(-90)
+            angle = -90
         case .portraitUpsideDown:
-            return .degrees(180)
+            angle = 180
         default:
-            return .degrees(0)
+            angle = 0
         }
+        print("[Debug] 当前旋转角度: \(angle)度")
+        return .degrees(angle)
     }
     
     // 获取预览图片尺寸
     private func getPreviewSize(_ geometry: GeometryProxy) -> CGSize {
-        let isLandscape = orientationManager.currentOrientation.isLandscape
-        let maxWidth = isLandscape ? geometry.size.height * 0.8 : geometry.size.width * 0.8
-        let maxHeight = isLandscape ? geometry.size.width * 0.8 : geometry.size.height * 0.8
-        return CGSize(width: maxWidth, height: maxHeight)
+        let orientation = orientationManager.currentOrientation
+        let screenSize = geometry.size
+        
+        // 获取实际可用屏幕尺寸（去除安全区域的影响）
+        let safeScreenSize = CGSize(
+            width: UIScreen.main.bounds.width,
+            height: UIScreen.main.bounds.height
+        )
+        
+        // 使用实际屏幕尺寸进行计算
+        let effectiveSize = orientation.isLandscape
+            ? CGSize(width: safeScreenSize.height, height: safeScreenSize.width)
+            : safeScreenSize
+        
+        // 计算最大尺寸和缩放比例
+        let maxDimension = min(effectiveSize.width, effectiveSize.height) * 0.8
+        let aspectRatio = effectiveSize.height / effectiveSize.width
+        
+        let size: CGSize
+        if orientation.isLandscape {
+            size = CGSize(
+                width: maxDimension,
+                height: maxDimension * aspectRatio
+            )
+        } else {
+            size = CGSize(
+                width: maxDimension,
+                height: maxDimension * aspectRatio
+            )
+        }
+        
+        // print("""
+        //     [Debug] 预览尺寸计算:
+        //     - 原始屏幕尺寸: \(screenSize)
+        //     - 实际屏幕尺寸: \(safeScreenSize)
+        //     - 有效尺寸: \(effectiveSize)
+        //     - 最大维度: \(maxDimension)
+        //     - 最终尺寸: \(size)
+        //     - 是否横屏: \(orientation.isLandscape)
+        //     - 旋转角度: \(getRotationAngle(orientation).degrees)
+        //     - 宽高比: \(aspectRatio)
+        //     """)
+        
+        return size
     }
     
     // 获取容器位置
     private func getContainerPosition(_ geometry: GeometryProxy) -> CGPoint {
-        let isLandscape = orientationManager.currentOrientation.isLandscape
-        return CGPoint(
-            x: isLandscape ? geometry.size.width / 2 : geometry.size.width / 2,
-            y: isLandscape ? geometry.size.height / 2 : geometry.size.height / 2
+        let orientation = orientationManager.currentOrientation
+        
+        // 使用实际屏幕尺寸
+        let screenSize = UIScreen.main.bounds.size
+        
+        // 计算中心点（考虑安全区域）
+        let position = CGPoint(
+            x: screenSize.width / 2,
+            y: screenSize.height / 2
         )
+        
+        print("""
+            [Debug] 容器位置:
+            - 位置: \(position)
+            - 实际屏幕尺寸: \(screenSize)
+            - 是否横屏: \(orientation.isLandscape)
+            - 旋转角度: \(getRotationAngle(orientation).degrees)
+            """)
+        
+        return position
     }
     
     // 获取文本偏移
     private func getTextOffset(_ geometry: GeometryProxy) -> CGSize {
-        let isLandscape = orientationManager.currentOrientation.isLandscape
-        return CGSize(
-            width: 0,
-            height: isLandscape ? geometry.size.width * 0.3 : geometry.size.height * 0.3
-        )
+        let offset = CGSize(width: 0, height: 0)
+        print("[Debug] 文本偏移: \(offset)")
+        return offset
+    }
+    
+    // 获取按钮偏移的方法
+    private func getButtonsOffset(_ geometry: GeometryProxy) -> CGSize {
+        let orientation = orientationManager.currentOrientation
+        let previewSize = getPreviewSize(geometry)
+        let verticalOffset = previewSize.height * fullScreenScale / 2 + 50
+        
+        switch orientation {
+        case .landscapeLeft:
+            return CGSize(width: 0, height: verticalOffset)
+        case .landscapeRight:
+            return CGSize(width: 0, height: verticalOffset)
+        case .portraitUpsideDown:
+            return CGSize(width: 0, height: verticalOffset)
+        default: // 正常竖屏
+            return CGSize(width: 0, height: verticalOffset)
+        }
     }
 }
 
 class ScreenshotManager: ObservableObject {
     static let shared = ScreenshotManager()
     
-    // 添加动画状态
     @Published var isFlashing = false
-    // 添加截图预览
     @Published var previewImage: UIImage?
     
-    // 添加原始图像引用
     private var originalImage: UIImage?
     private var mirroredImage: UIImage?
+    private var pendingScreenshot: UIImage?
     
-    // 添加设置图像的方法
     func setImages(original: UIImage?, mirrored: UIImage?) {
         self.originalImage = original
         self.mirroredImage = mirrored
@@ -161,62 +267,87 @@ class ScreenshotManager: ObservableObject {
         // 检查相册权限
         PHPhotoLibrary.requestAuthorization { status in
             if status == .authorized {
-                // 确保在主线程执行UI操作
                 DispatchQueue.main.async {
-                    // 获取当前设备方向
-                    let isLandscape = UIDevice.current.orientation.isLandscape
-                    print("[截图] 当前设备方向：\(isLandscape ? "横屏" : "竖屏")")
+                    // 使用最后的有效方向来决定布局
+                    let lastValidOrientation = DeviceOrientationManager.shared.lastValidDeviceOrientation
+                    let isLandscape = lastValidOrientation.isLandscape
                     
-                    // 获取并裁剪两个屏幕的图像
+                    print("[截图] 使用最后的有效方向：\(lastValidOrientation)")
+                    print("[截图] 是否横屏：\(isLandscape)")
+                    
                     guard let originalImage = self.originalImage,
                           let mirroredImage = self.mirroredImage else {
-                        print("------------------------")
                         print("[截图] 错误：无法获取摄像头画面")
-                        print("------------------------")
                         return
                     }
                     
-                    // 根据实际方向裁剪两个屏幕的图像
                     let croppedOriginal = self.cropImageToScreenSize(originalImage, for: .original, isLandscape: isLandscape)
                     let croppedMirrored = self.cropImageToScreenSize(mirroredImage, for: .mirrored, isLandscape: isLandscape)
                     
-                    // 创建最终的双屏截图
-                    let finalScreenshot = self.combineImages(top: croppedOriginal, bottom: croppedMirrored)
+                    // 创建最终的截图，使用最后的有效方向
+                    let finalScreenshot = self.createCombinedImage(
+                        top: croppedOriginal,
+                        bottom: croppedMirrored,
+                        isLandscape: isLandscape
+                    )
                     
-                    // 保存到相册
-                    PHPhotoLibrary.shared().performChanges({
-                        PHAssetChangeRequest.creationRequestForAsset(from: finalScreenshot)
-                    }) { success, error in
-                        DispatchQueue.main.async {
-                            if success {
-                                print("------------------------")
-                                print("[截图] 双屏截图已保存到相册")
-                                print("------------------------")
-                                
-                                // 设置预览图片
-                                self.previewImage = finalScreenshot
-                                
-                                // 延长延迟时间，减少动画和图片处理的重叠
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                                    self.isFlashing = true
-                                    // 延长动画持续时间
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                                        self.isFlashing = false
-                                        self.previewImage = nil  // 清理预览图片
-                                    }
-                                }
-                            } else {
-                                print("------------------------")
-                                print("[截图] 保存失败：\(error?.localizedDescription ?? "未知错误")")
-                                print("------------------------")
-                            }
-                        }
+                    // 保存预览图片和待保存的截图
+                    self.previewImage = finalScreenshot
+                    self.pendingScreenshot = finalScreenshot
+                    
+                    // 触发闪光动画
+                    self.isFlashing = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        self.isFlashing = false
                     }
                 }
             } else {
-                print("------------------------")
                 print("[截图] 错误：没有相册访问权限")
-                print("------------------------")
+            }
+        }
+    }
+    
+    // 修改 createCombinedImage 方法，添加 isLandscape 参数
+    private func createCombinedImage(top: UIImage, bottom: UIImage, isLandscape: Bool) -> UIImage {
+        let screenBounds = UIScreen.main.bounds
+        
+        // 根据最后的有效方向决定最终图片的尺寸
+        let finalSize = isLandscape 
+            ? CGSize(width: screenBounds.height, height: screenBounds.width)
+            : CGSize(width: screenBounds.width, height: screenBounds.height)
+        
+        UIGraphicsBeginImageContextWithOptions(finalSize, false, 0.0)
+        
+        if isLandscape {
+            // 横屏：左右布局
+            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width/2, height: finalSize.height))
+            bottom.draw(in: CGRect(x: finalSize.width/2, y: 0, width: finalSize.width/2, height: finalSize.height))
+        } else {
+            // 竖屏：上下布局
+            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
+            bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
+        }
+        
+        let combinedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return combinedImage ?? UIImage()
+    }
+    
+    // 保存截图到相册
+    func saveScreenshot() {
+        guard let screenshot = pendingScreenshot else { return }
+        
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetChangeRequest.creationRequestForAsset(from: screenshot)
+        }) { success, error in
+            DispatchQueue.main.async {
+                if success {
+                    print("[截图] 双屏截图已保存到相册")
+                } else {
+                    print("[截图] 保存失败：\(error?.localizedDescription ?? "未知错误")")
+                }
+                self.pendingScreenshot = nil
             }
         }
     }
@@ -229,54 +360,5 @@ class ScreenshotManager: ObservableObject {
             for: screenID,
             isLandscape: isLandscape
         )
-    }
-    
-    // 合并两个图片
-    private func combineImages(top: UIImage, bottom: UIImage) -> UIImage {
-        let screenBounds = UIScreen.main.bounds
-        let orientation = UIDevice.current.orientation
-        
-        // 根据设备方向决定最终图片的尺寸和拼接方式
-        let finalSize: CGSize
-        let isLandscape = orientation.isLandscape
-        
-        if isLandscape {
-            // 横屏时，最终图片的宽度是屏幕高度，高度是屏幕宽度
-            finalSize = CGSize(width: screenBounds.height, height: screenBounds.width)
-        } else {
-            // 竖屏时，最终图片的宽度是屏幕宽度，高度是屏幕高度
-            finalSize = CGSize(width: screenBounds.width, height: screenBounds.height)
-        }
-        
-        UIGraphicsBeginImageContextWithOptions(finalSize, false, 0.0)
-        let _ = UIGraphicsGetCurrentContext()!
-        
-        // 根据设备方向进行不同的处理
-        switch orientation {
-        case .landscapeLeft:
-            //向左横屏
-            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width/2, height: finalSize.height))
-            bottom.draw(in: CGRect(x: finalSize.width/2, y: 0, width: finalSize.width/2, height: finalSize.height))
-            
-        case .landscapeRight:
-            // 向右横屏
-            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width/2, height: finalSize.height))
-            bottom.draw(in: CGRect(x: finalSize.width/2, y: 0, width: finalSize.width/2, height: finalSize.height))
-            
-        case .portraitUpsideDown:
-            // 倒置竖屏
-            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
-            bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
-            
-        default:
-            // 正常竖屏
-            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
-            bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
-        }
-        
-        let combinedImage = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
-        
-        return combinedImage ?? UIImage()
     }
 } 

@@ -391,7 +391,13 @@ class ImageUploader: ObservableObject {
     private var maxOffset: CGSize = .zero      // 添加最大偏移量
     
     // 修改设置定格图片的方法
-    func setPausedImage(_ image: UIImage?, for screenID: ScreenID) {
+    func setPausedImage(_ image: UIImage?, for screenID: ScreenID, scale: CGFloat = 1.0) {
+        print("------------------------")
+        print("[ImageUploader] 设置定格图片")
+        print("屏幕: \(screenID == .original ? "Original" : "Mirrored")")
+        print("传入缩放比例: \(Int(scale * 100))%")
+        print("------------------------")
+        
         // 设置选中的屏幕ID
         selectedScreenID = screenID
         
@@ -426,7 +432,8 @@ class ImageUploader: ObservableObject {
                 for: screenID,
                 targetOrientation: currentOrientation,
                 pausedOrientation: pausedOrientation ?? currentOrientation,
-                offset: currentOffset
+                offset: currentOffset,
+                scale: scale  // 传入缩放比例
             )
             
             // 设置裁剪后的图片
@@ -436,35 +443,26 @@ class ImageUploader: ObservableObject {
                 pausedMirroredImage = adjustedImage
             }
             selectedImage = adjustedImage
+            
+            print("------------------------")
+            print("[定格图片] 已设置")
+            print("屏幕：\(screenID == .original ? "Original" : "Mirrored")")
+            print("缩放比例：\(Int(scale * 100))%")
+            print("图片尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
+            print("设备方向：\(orientation.rawValue)")
+            print("有效方向：\(currentOrientation.rawValue)")
+            print("------------------------")
         } else {
-            // 清除方向记录
+            // 清除相关数据
             if screenID == .original {
                 pausedOriginalOrientation = nil
-            } else {
-                pausedMirroredOrientation = nil
-            }
-            
-            // 清除图片
-            setFlashlightState(for: screenID, active: false)
-            
-            // 清除对应的定格图片
-            if screenID == .original {
                 pausedOriginalImage = nil
             } else {
+                pausedMirroredOrientation = nil
                 pausedMirroredImage = nil
             }
             selectedImage = nil
         }
-        
-        print("------------------------")
-        print("[定格图片] 已设置")
-        print("屏幕：\(screenID == .original ? "Original" : "Mirrored")")
-        if let image = image {
-            print("图片尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
-            print("设备方向：\(UIDevice.current.orientation.rawValue)")
-            print("有效方向：\(DeviceOrientationManager.shared.validOrientation.rawValue)")
-        }
-        print("------------------------")
     }
     
     // 添加设置偏移量的方法
@@ -707,6 +705,16 @@ class ImageUploader: ObservableObject {
         print("------------------------")
     }
     
+    // 在 ImageUploader 类中添加上传成功的提示方法
+    func showUploadSuccessToast() {
+        self.toastMessage = "上传成功"
+        self.showToast = true
+        // 2秒后自动隐藏提示
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.showToast = false
+        }
+    }
+    
     init() {
         // 添加手电筒状态检查通知监听
         NotificationCenter.default.addObserver(
@@ -782,25 +790,6 @@ struct OverlayView: View {
                                 }
                             }
                         }
-                        
-                        // 提示视图
-                        if imageUploader.showToast {
-                            VStack {
-                                Spacer()
-                                Text(imageUploader.toastMessage)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 10)
-                                    .background(Color.black.opacity(0.7))
-                                    .cornerRadius(10)
-                                    .padding(.bottom, 50)
-                                    .rotationEffect(getRotationAngle(deviceOrientation))  // 整体旋转
-                                    .frame(width: 210, height: 210)
-                                    .contentShape(Rectangle())
-                                    .animation(.easeInOut(duration: 0.5), value: deviceOrientation)
-
-                            }
-                        }
                     }
                     .alert(isPresented: $imageUploader.showPermissionAlert) {
                         Alert(
@@ -824,6 +813,41 @@ struct OverlayView: View {
                             message: Text("双屏无法同时开启全屏灯!"),
                             dismissButton: .default(Text("确定"))
                         )
+                    }
+                    
+                    // 提示视图移到这里，确保显示在最上层
+                    if imageUploader.showToast {
+                        ZStack {
+                            if imageUploader.showDownloadOverlay {
+                                // 下载成功提示
+                                VStack {
+                                    Image(systemName: "square.and.arrow.down.fill")
+                                        .font(.system(size: 80))
+                                        .opacity(0)
+                                        .padding(.bottom, 30)
+                                    
+                                    Text(imageUploader.toastMessage)
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 10)
+                                        .background(Color.black.opacity(0.7))
+                                        .cornerRadius(10)
+                                }
+                            } else {
+                                // 上传成功提示
+                                Text(imageUploader.toastMessage)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.black.opacity(0.7))
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .rotationEffect(getRotationAngle(deviceOrientation))
+                        .frame(width: 210, height: 210)
+                        .contentShape(Rectangle())
+                        .animation(.easeInOut(duration: 0.5), value: deviceOrientation)
+                        .zIndex(999) // 确保显示在最上层
                     }
                 }
             }
@@ -1089,6 +1113,9 @@ struct ImagePicker: UIViewControllerRepresentable {
                 
                 // 关闭图片选择器
                 self.parent.presentationMode.wrappedValue.dismiss()
+                
+                // 显示上传成功提示
+                self.parent.imageUploader?.showUploadSuccessToast()
                 
                 // 延迟结束处理状态
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

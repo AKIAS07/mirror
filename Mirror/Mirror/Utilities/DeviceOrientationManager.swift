@@ -40,10 +40,8 @@ class DeviceOrientationManager: ObservableObject {
             print("设备方向改变")
             print("当前方向：\(getOrientationDescription(newOrientation))")
             print("------------------------")
-        } else {
-            // 保持最后一个有效方向
-            currentOrientation = lastValidOrientation
         }
+        // 不再在这里更新 currentOrientation
     }
     
     // 获取当前有效方向
@@ -84,6 +82,11 @@ class DeviceOrientationManager: ObservableObject {
         default:
             return .degrees(0)
         }
+    }
+    
+    // 添加新方法来获取最后的有效方向
+    var lastValidDeviceOrientation: UIDeviceOrientation {
+        return lastValidOrientation
     }
     
     deinit {

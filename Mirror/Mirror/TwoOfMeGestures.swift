@@ -109,8 +109,10 @@ class TwoOfMeGestureManager {
                         showScaleIndicator.wrappedValue = true
                         
                         print("------------------------")
-                        print("触控区2a双指手势：\(scale > 1.0 ? "拉开" : "靠近")")
-                        print("画面比例：\(Int(currentScale.wrappedValue * 100))%")
+                        print("[缩放调试] Original屏幕")
+                        print("基准缩放比例: \(Int(originalScale.wrappedValue * 100))%")
+                        print("当前手势缩放: \(Int(scale * 100))%")
+                        print("最终缩放比例: \(Int(currentScale.wrappedValue * 100))%")
                         print("------------------------")
                     } else {
                         let newScale = mirroredScale.wrappedValue * scale
@@ -122,8 +124,10 @@ class TwoOfMeGestureManager {
                         showScaleIndicator.wrappedValue = true
                         
                         print("------------------------")
-                        print("触控区3a双指手势：\(scale > 1.0 ? "拉开" : "靠近")")
-                        print("画面比例：\(Int(currentMirroredScale.wrappedValue * 100))%")
+                        print("[缩放调试] Mirrored屏幕")
+                        print("基准缩放比例: \(Int(mirroredScale.wrappedValue * 100))%")
+                        print("当前手势缩放: \(Int(scale * 100))%")
+                        print("最终缩放比例: \(Int(currentMirroredScale.wrappedValue * 100))%")
                         print("------------------------")
                     }
                 }
@@ -134,15 +138,16 @@ class TwoOfMeGestureManager {
                         // 更新基准缩放值
                         originalScale.wrappedValue = currentScale.wrappedValue
                         
+                        print("------------------------")
+                        print("[缩放结束] Original屏幕")
+                        print("最终基准缩放: \(Int(originalScale.wrappedValue * 100))%")
+                        print("------------------------")
+                        
                         // 延迟隐藏缩放提示
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             showScaleIndicator.wrappedValue = false
                             activeScalingScreen.wrappedValue = nil
                         }
-                        
-                        print("------------------------")
-                        print("触控区2a双指手势结束")
-                        print("最终画面比例：\(Int(currentScale.wrappedValue * 100))%")
                         
                         // 只在缩小操作且图片超出边界时进行中心位置矫正
                         if scale < 1.0 && isImageOutOfBounds(
@@ -156,21 +161,20 @@ class TwoOfMeGestureManager {
                         } else {
                             print("图片在边界内，保持当前位置")
                         }
-                        
-                        print("------------------------")
                     } else {
                         // 更新基准缩放值
                         mirroredScale.wrappedValue = currentMirroredScale.wrappedValue
+                        
+                        print("------------------------")
+                        print("[缩放结束] Mirrored屏幕")
+                        print("最终基准缩放: \(Int(mirroredScale.wrappedValue * 100))%")
+                        print("------------------------")
                         
                         // 延迟隐藏缩放提示
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             showScaleIndicator.wrappedValue = false
                             activeScalingScreen.wrappedValue = nil
                         }
-                        
-                        print("------------------------")
-                        print("触控区3a双指手势结束")
-                        print("最终画面比例：\(Int(currentMirroredScale.wrappedValue * 100))%")
                         
                         // 添加缩小操作的边界检查和中心矫正
                         if scale < 1.0 && isImageOutOfBounds(
@@ -184,8 +188,6 @@ class TwoOfMeGestureManager {
                         } else {
                             print("图片在边界内，保持当前位置")
                         }
-                        
-                        print("------------------------")
                     }
                 }
             }
