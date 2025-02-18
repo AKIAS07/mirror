@@ -281,11 +281,11 @@ class ScreenshotManager: ObservableObject {
         PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
             if status == .authorized {
                 DispatchQueue.main.async(execute: DispatchWorkItem(block: {
-                    // 使用最后的有效方向来决定布局
-                    let lastValidOrientation = DeviceOrientationManager.shared.lastValidDeviceOrientation
-                    let isLandscape = lastValidOrientation.isLandscape
+                    // 使用当前有效方向来决定布局
+                    let currentOrientation = DeviceOrientationManager.shared.validOrientation
+                    let isLandscape = currentOrientation.isLandscape
                     
-                    print("[截图] 使用最后的有效方向：\(lastValidOrientation)")
+                    print("[截图] 当前设备方向：\(currentOrientation)")
                     print("[截图] 是否横屏：\(isLandscape)")
                     
                     // 获取当前的摄像头缩放比例
@@ -306,11 +306,12 @@ class ScreenshotManager: ObservableObject {
                     print("Original尺寸：\(Int(originalImage.size.width))x\(Int(originalImage.size.height))")
                     print("Mirrored尺寸：\(Int(mirroredImage.size.width))x\(Int(mirroredImage.size.height))")
                     
-                    // 裁剪图片
+                    // 裁剪图片时传入当前方向
                     let croppedOriginal = ImageCropUtility.shared.cropImageToScreenSize(
                         originalImage,
                         for: .original,
                         isLandscape: isLandscape,
+                        pausedOrientation: currentOrientation,
                         scale: 1.0,
                         cameraScale: originalScale
                     )
@@ -319,6 +320,7 @@ class ScreenshotManager: ObservableObject {
                         mirroredImage,
                         for: .mirrored,
                         isLandscape: isLandscape,
+                        pausedOrientation: currentOrientation,
                         scale: 1.0,
                         cameraScale: mirroredScale
                     )

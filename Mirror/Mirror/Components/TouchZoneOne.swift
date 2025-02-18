@@ -334,26 +334,32 @@ struct TouchZoneOne: View {
                                         print("Mirrored图片尺寸: \(Int(mirroredImg.size.width))x\(Int(mirroredImg.size.height))")
                                         
                                         do {
+                                            // 处理图片旋转
+                                            let (rotatedOriginalImg, rotatedMirroredImg) = handleImageRotation(
+                                                originalImg: originalImg,
+                                                mirroredImg: mirroredImg
+                                            )
+                                            
                                             // 先设置 Original 屏幕的定格图片
                                             imageUploader.setPausedImage(
-                                                originalImg,
+                                                rotatedOriginalImg,
                                                 for: .original,
                                                 scale: self.currentCameraScale,
                                                 cameraScale: self.currentCameraScale,
                                                 isDualScreenMode: true,
-                                                otherScreenImage: mirroredImg
+                                                otherScreenImage: rotatedMirroredImg
                                             )
                                             
                                             // 等待一个很短的时间确保 Original 屏幕的设置完成
                                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                                 // 然后设置 Mirrored 屏幕的定格图片
                                                 self.imageUploader.setPausedImage(
-                                                    mirroredImg,
+                                                    rotatedMirroredImg,
                                                     for: .mirrored,
                                                     scale: self.currentMirroredCameraScale,
                                                     cameraScale: self.currentMirroredCameraScale,
                                                     isDualScreenMode: true,
-                                                    otherScreenImage: originalImg
+                                                    otherScreenImage: rotatedOriginalImg
                                                 )
                                                 
                                                 // 验证定格结果
@@ -373,8 +379,8 @@ struct TouchZoneOne: View {
                                                 
                                                 // 更新截图管理器的图像引用并执行截图
                                                 self.screenshotManager.setImages(
-                                                    original: originalImg,  // 使用原始图片
-                                                    mirrored: mirroredImg,  // 使用原始图片
+                                                    original: rotatedOriginalImg,  // 使用旋转后的图片
+                                                    mirrored: rotatedMirroredImg,  // 使用旋转后的图片
                                                     originalCameraScale: self.currentCameraScale,
                                                     mirroredCameraScale: self.currentMirroredCameraScale
                                                 )
@@ -561,26 +567,32 @@ struct TouchZoneOne: View {
                                     print("Mirrored图片尺寸: \(Int(mirroredImg.size.width))x\(Int(mirroredImg.size.height))")
                                     
                                     do {
+                                        // 处理图片旋转
+                                        let (rotatedOriginalImg, rotatedMirroredImg) = handleImageRotation(
+                                            originalImg: originalImg,
+                                            mirroredImg: mirroredImg
+                                        )
+                                        
                                         // 先设置 Original 屏幕的定格图片
                                         imageUploader.setPausedImage(
-                                            originalImg,
+                                            rotatedOriginalImg,
                                             for: .original,
                                             scale: self.currentCameraScale,
                                             cameraScale: self.currentCameraScale,
                                             isDualScreenMode: true,
-                                            otherScreenImage: mirroredImg
+                                            otherScreenImage: rotatedMirroredImg
                                         )
                                         
                                         // 等待一个很短的时间确保 Original 屏幕的设置完成
                                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                             // 然后设置 Mirrored 屏幕的定格图片
                                             self.imageUploader.setPausedImage(
-                                                mirroredImg,
+                                                rotatedMirroredImg,
                                                 for: .mirrored,
                                                 scale: self.currentMirroredCameraScale,
                                                 cameraScale: self.currentMirroredCameraScale,
                                                 isDualScreenMode: true,
-                                                otherScreenImage: originalImg
+                                                otherScreenImage: rotatedOriginalImg
                                             )
                                             
                                             // 验证定格结果
@@ -600,8 +612,8 @@ struct TouchZoneOne: View {
                                             
                                             // 更新截图管理器的图像引用并执行截图
                                             self.screenshotManager.setImages(
-                                                original: originalImg,  // 使用原始图片
-                                                mirrored: mirroredImg,  // 使用原始图片
+                                                original: rotatedOriginalImg,  // 使用旋转后的图片
+                                                mirrored: rotatedMirroredImg,  // 使用旋转后的图片
                                                 originalCameraScale: self.currentCameraScale,
                                                 mirroredCameraScale: self.currentMirroredCameraScale
                                             )
@@ -870,5 +882,34 @@ struct TouchZoneOne: View {
                 showBorderLightTapAnimation = false
             }
         }
+    }
+    
+    // 添加一个辅助方法来处理图片旋转
+    private func handleImageRotation(originalImg: UIImage, mirroredImg: UIImage) -> (UIImage, UIImage) {
+        let currentOrientation = self.orientationManager.currentOrientation
+        var rotatedOriginalImg = originalImg
+        var rotatedMirroredImg = mirroredImg
+        
+        // 根据当前方向旋转图片
+        switch currentOrientation {
+        case .landscapeLeft:
+            rotatedOriginalImg = originalImg.rotate(degrees: -90)
+            rotatedMirroredImg = mirroredImg.rotate(degrees: -90)
+        case .landscapeRight:
+            rotatedOriginalImg = originalImg.rotate(degrees: 90)
+            rotatedMirroredImg = mirroredImg.rotate(degrees: 90)
+        case .portraitUpsideDown:
+            rotatedOriginalImg = originalImg.rotate(degrees: 180)
+            rotatedMirroredImg = mirroredImg.rotate(degrees: 180)
+        default:
+            // 正常竖屏不需要旋转
+            break
+        }
+        
+        print("[双屏定格] 方向处理:")
+        print("当前设备方向: \(currentOrientation.rawValue)")
+        print("已完成图片旋转")
+        
+        return (rotatedOriginalImg, rotatedMirroredImg)
     }
 } 
