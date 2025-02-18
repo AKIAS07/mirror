@@ -93,6 +93,269 @@ enum TouchZonePosition: Int {
     }
 }
 
+// 将复杂的手势处理逻辑拆分成单独的视图组件
+private struct ScreenGestureView: View {
+    let screenID: ScreenID
+    let isZone2Enabled: Bool
+    let isZone3Enabled: Bool
+    let isDefaultGesture: Bool
+    let isScreensSwapped: Bool
+    let layoutDescription: String
+    let isOriginalPaused: Bool
+    let isMirroredPaused: Bool
+    @Binding var originalScale: CGFloat
+    @Binding var mirroredScale: CGFloat
+    @Binding var currentScale: CGFloat
+    @Binding var currentMirroredScale: CGFloat
+    let minScale: CGFloat
+    let maxScale: CGFloat
+    @Binding var currentIndicatorScale: CGFloat
+    @Binding var activeScalingScreen: ScreenID?
+    @Binding var showScaleIndicator: Bool
+    let originalOffset: CGSize
+    let mirroredOffset: CGSize
+    let imageUploader: ImageUploader
+    let togglePauseState: (ScreenID) -> Void
+    let handleSingleTap: (ScreenID) -> Void
+    let isImageOutOfBounds: (CGFloat, CGSize, CGFloat, CGFloat) -> Bool
+    let centerImage: (CGFloat) -> Void
+    let centerMirroredImage: (CGFloat) -> Void
+    let handleDragGesture: (DragGesture.Value, CGFloat, CGFloat, CGFloat, CGSize) -> Void
+    let handleMirroredDragGesture: (DragGesture.Value, CGFloat, CGFloat, CGFloat, CGSize) -> Void
+    let handleDragEnd: () -> Void
+    let handleMirroredDragEnd: () -> Void
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .gesture(TwoOfMeGestureManager.createTapGestures(
+                for: screenID,
+                isZone2Enabled: isZone2Enabled,
+                isZone3Enabled: isZone3Enabled,
+                isDefaultGesture: isDefaultGesture,
+                isScreensSwapped: isScreensSwapped,
+                layoutDescription: layoutDescription,
+                togglePauseState: togglePauseState,
+                handleSingleTap: handleSingleTap,
+                imageUploader: imageUploader
+            ))
+            .gesture(TwoOfMeGestureManager.createCombinedGestures(
+                for: screenID,
+                isZone2Enabled: isZone2Enabled,
+                isZone3Enabled: isZone3Enabled,
+                isOriginalPaused: isOriginalPaused,
+                isMirroredPaused: isMirroredPaused,
+                originalScale: $originalScale,
+                mirroredScale: $mirroredScale,
+                currentScale: $currentScale,
+                currentMirroredScale: $currentMirroredScale,
+                minScale: minScale,
+                maxScale: maxScale,
+                currentIndicatorScale: $currentIndicatorScale,
+                activeScalingScreen: $activeScalingScreen,
+                showScaleIndicator: $showScaleIndicator,
+                originalOffset: originalOffset,
+                mirroredOffset: mirroredOffset,
+                imageUploader: imageUploader,
+                isImageOutOfBounds: isImageOutOfBounds,
+                centerImage: centerImage,
+                centerMirroredImage: centerMirroredImage,
+                handleDragGesture: handleDragGesture,
+                handleMirroredDragGesture: handleMirroredDragGesture,
+                handleDragEnd: handleDragEnd,
+                handleMirroredDragEnd: handleMirroredDragEnd
+            ))
+            .allowsHitTesting(!imageUploader.isFlashlightActive(for: screenID))
+    }
+}
+
+// 添加新的屏幕内容视图组件
+private struct ScreenContentView: View {
+    let screenID: ScreenID
+    let image: UIImage?
+    let isPaused: Bool
+    let pausedImage: UIImage?
+    let scale: CGFloat
+    let offset: CGSize
+    let orientation: UIDeviceOrientation
+    let imageUploader: ImageUploader
+    let borderLightManager: BorderLightManager
+    let showFlash: Bool
+    let screenWidth: CGFloat
+    let screenHeight: CGFloat
+    let centerY: CGFloat
+    
+    var body: some View {
+        ZStack {
+            if let displayImage = isPaused ? pausedImage : image {
+                ZStack {
+                    Image(uiImage: displayImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: orientation.isLandscape ? screenHeight / 2 : screenWidth,
+                               height: centerY)
+                        .scaleEffect(scale)
+                        .offset(isPaused ? offset : .zero)
+                        .rotationEffect(isPaused ? DeviceOrientationManager.shared.getRotationAngle(orientation) : .zero)
+                        .animation(.easeInOut(duration: 0.3), value: orientation)
+                        .clipped()
+                        .zIndex(1)
+                    
+                    // 添加关闭按钮
+                    if imageUploader.isFlashlightActive(for: screenID) {
+                        CloseButtonView(
+                            screenID: screenID,
+                            imageUploader: imageUploader,
+                            screenWidth: screenWidth,
+                            centerY: centerY
+                        )
+                    }
+                }
+                .zIndex(1)
+            }
+            
+            // 添加边框灯效果
+            BorderLightView(
+                screenWidth: screenWidth,
+                centerY: centerY,
+                showOriginalHighlight: screenID == .original ? borderLightManager.showOriginalHighlight : false,
+                showMirroredHighlight: screenID == .mirrored ? borderLightManager.showMirroredHighlight : false
+            )
+            .zIndex(2)
+            
+            // 添加覆盖层视图
+            if (screenID == .original && imageUploader.showOriginalOverlay) || 
+               (screenID == .mirrored && imageUploader.showMirroredOverlay) {
+                OverlayView(
+                    screenID: screenID,
+                    deviceOrientation: orientation,
+                    screenWidth: screenWidth,
+                    centerY: centerY,
+                    screenHeight: screenHeight,
+                    imageUploader: imageUploader
+                )
+            }
+            
+            // 闪光动画
+            if showFlash {
+                FlashAnimationView(frame: CGRect(
+                    x: 0,
+                    y: 0,
+                    width: screenWidth,
+                    height: screenHeight/2
+                ))
+                .zIndex(4)
+            }
+        }
+    }
+}
+
+// 添加关闭按钮视图组件
+private struct CloseButtonView: View {
+    let screenID: ScreenID
+    let imageUploader: ImageUploader
+    let screenWidth: CGFloat
+    let centerY: CGFloat
+    
+    var body: some View {
+        ZStack {
+            Color.clear
+                .frame(width: 80, height: 80)
+                .contentShape(Circle())
+            
+            Button(action: {
+                print("------------------------")
+                print("[关闭按钮] 被点击")
+                print("区域：\(screenID.debugName)屏幕")
+                print("------------------------")
+                
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.prepare()
+                generator.impactOccurred()
+                
+                imageUploader.closeFlashlight(for: screenID)
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundColor(.white.opacity(0.5))
+                    .background(Color.black.opacity(0.5))
+                    .clipShape(Circle())
+                    .contentShape(Circle())
+            }
+        }
+        .position(x: screenWidth/2, y: centerY/2)
+        .zIndex(999)
+    }
+}
+
+// 添加触控区域视图组件
+private struct TouchZoneView: View {
+    let screenID: ScreenID
+    let isPaused: Bool
+    let isZone2Enabled: Bool
+    let isZone3Enabled: Bool
+    let isDefaultGesture: Bool
+    let isScreensSwapped: Bool
+    let layoutDescription: String
+    let screenHeight: CGFloat
+    @Binding var originalScale: CGFloat
+    @Binding var mirroredScale: CGFloat
+    @Binding var currentScale: CGFloat
+    @Binding var currentMirroredScale: CGFloat
+    let minScale: CGFloat
+    let maxScale: CGFloat
+    @Binding var currentIndicatorScale: CGFloat
+    @Binding var activeScalingScreen: ScreenID?
+    @Binding var showScaleIndicator: Bool
+    let originalOffset: CGSize
+    let mirroredOffset: CGSize
+    let imageUploader: ImageUploader
+    let togglePauseState: (ScreenID) -> Void
+    let handleSingleTap: (ScreenID) -> Void
+    let isImageOutOfBounds: (CGFloat, CGSize, CGFloat, CGFloat) -> Bool
+    let centerImage: (CGFloat) -> Void
+    let centerMirroredImage: (CGFloat) -> Void
+    let handleDragGesture: (DragGesture.Value, CGFloat, CGFloat, CGFloat, CGSize) -> Void
+    let handleMirroredDragGesture: (DragGesture.Value, CGFloat, CGFloat, CGFloat, CGSize) -> Void
+    let handleDragEnd: () -> Void
+    let handleMirroredDragEnd: () -> Void
+
+    var body: some View {
+        ScreenGestureView(
+            screenID: screenID,
+            isZone2Enabled: isZone2Enabled,
+            isZone3Enabled: isZone3Enabled,
+            isDefaultGesture: isDefaultGesture,
+            isScreensSwapped: isScreensSwapped,
+            layoutDescription: layoutDescription,
+            isOriginalPaused: isPaused,
+            isMirroredPaused: isPaused,
+            originalScale: $originalScale,
+            mirroredScale: $mirroredScale,
+            currentScale: $currentScale,
+            currentMirroredScale: $currentMirroredScale,
+            minScale: minScale,
+            maxScale: maxScale,
+            currentIndicatorScale: $currentIndicatorScale,
+            activeScalingScreen: $activeScalingScreen,
+            showScaleIndicator: $showScaleIndicator,
+            originalOffset: originalOffset,
+            mirroredOffset: mirroredOffset,
+            imageUploader: imageUploader,
+            togglePauseState: togglePauseState,
+            handleSingleTap: handleSingleTap,
+            isImageOutOfBounds: isImageOutOfBounds,
+            centerImage: centerImage,
+            centerMirroredImage: centerMirroredImage,
+            handleDragGesture: handleDragGesture,
+            handleMirroredDragGesture: handleMirroredDragGesture,
+            handleDragEnd: handleDragEnd,
+            handleMirroredDragEnd: handleMirroredDragEnd
+        )
+        .frame(height: (screenHeight - 20) / 2)
+    }
+}
+
 struct TwoOfMeScreens: View {
     @StateObject private var cameraManager = CameraManager()
     @StateObject private var imageUploader = ImageUploader()
@@ -125,13 +388,21 @@ struct TwoOfMeScreens: View {
         }
     }
     
-    // Original 屏幕的状态
-    @State private var originalScale: CGFloat = 1.0
-    @State private var currentScale: CGFloat = 1.0  // 保持原来的名字
-    
-    // Mirrored 屏幕的状态
-    @State private var mirroredScale: CGFloat = 1.0
-    @State private var currentMirroredScale: CGFloat = 1.0
+    // Original 实时画面的缩放状态
+    @State private var originalCameraScale: CGFloat = 1.0
+    @State private var currentCameraScale: CGFloat = 1.0
+
+    // Original 定格画面的缩放状态
+    @State private var originalImageScale: CGFloat = 1.0
+    @State private var currentImageScale: CGFloat = 1.0
+
+    // Mirrored 实时画面的缩放状态
+    @State private var mirroredCameraScale: CGFloat = 1.0
+    @State private var currentMirroredCameraScale: CGFloat = 1.0
+
+    // Mirrored 定格画面的缩放状态
+    @State private var mirroredImageScale: CGFloat = 1.0
+    @State private var currentMirroredImageScale: CGFloat = 1.0
     
     @State private var lastScale: CGFloat = 1.0  // 添加记录上次缩放值的状态
     @State private var lastOutputTime: Date = Date()  // 添加上次输出时间记录
@@ -140,6 +411,10 @@ struct TwoOfMeScreens: View {
     // 添加缩放限制常量
     private let minScale: CGFloat = 1.0     // 最小100%
     private let maxScale: CGFloat = 10.0    // 最大1000%
+    
+    // 修改定格时的缩放限制
+    private let minPausedScale: CGFloat = 1.0  // 最小100%（相对于定格时的大小）
+    private let maxPausedScale: CGFloat = 10.0 // 最大1000%（相对于定格时的大小）
     
     @State private var showScaleLimitMessage = false  // 添加限制提示状态
     @State private var scaleLimitMessage = ""  // 添加限制提示信息
@@ -354,12 +629,13 @@ struct TwoOfMeScreens: View {
     
     // 修改拖拽处理方法中的边缘检测部分
     private func handleDragGesture(
-        value: DragGesture.Value,
-        screenWidth: CGFloat,
-        screenHeight: CGFloat,
-        centerY: CGFloat
+        _ value: DragGesture.Value,
+        _ screenWidth: CGFloat,
+        _ screenHeight: CGFloat,
+        _ centerY: CGFloat,
+        _ dampedTranslation: CGSize  // 新增参数
     ) {
-        if isZone2Enabled && currentScale > 1.0 {
+        if isZone2Enabled && currentCameraScale > 1.0 {
             // 在拖动开始时记录初始状态和打印日志
             if !dragStarted {
                 dragStarted = true
@@ -371,41 +647,19 @@ struct TwoOfMeScreens: View {
                 print("------------------------")
                 print("Original画面拖动开始")
                 print("手指位置：x=\(Int(value.startLocation.x))pt, y=\(Int(value.startLocation.y))pt")
-                print("画面比例：\(Int(currentScale * 100))%")
+                print("画面比例：\(Int(currentCameraScale * 100))%")
                 print("设备方向：\(getOrientationDescription(orientationManager.currentOrientation))")
                 print("------------------------")
             }
             
-            // 根据设备方向调整移动方向
-            var translation = value.translation
-            switch orientationManager.currentOrientation {
-            case .landscapeLeft:
-                translation = CGSize(
-                    width: value.translation.height,
-                    height: -value.translation.width
-                )
-            case .landscapeRight:
-                translation = CGSize(
-                    width: -value.translation.height,
-                    height: value.translation.width
-                )
-            case .portraitUpsideDown:
-                translation = CGSize(
-                    width: -value.translation.width,
-                    height: -value.translation.height
-                )
-            default:
-                break
-            }
-            
             // 计算和应用新的偏移值
             let newOffset = CGSize(
-                width: initialOffset.width + translation.width,
-                height: initialOffset.height + translation.height
+                width: initialOffset.width + dampedTranslation.width,
+                height: initialOffset.height + dampedTranslation.height
             )
             
             let maxOffset = calculateMaxOffset(
-                for: currentScale,
+                for: currentCameraScale,
                 screenWidth: screenWidth,
                 screenHeight: screenHeight
             )
@@ -442,7 +696,7 @@ struct TwoOfMeScreens: View {
                     imageSize: image.size,
                     screenWidth: screenWidth,
                     screenHeight: screenHeight,
-                    scale: currentScale,
+                    scale: currentCameraScale,
                     offset: originalOffset
                 )
             }
@@ -457,7 +711,7 @@ struct TwoOfMeScreens: View {
         print("------------------------")
         print("Original画面拖动结束")
         print("最终偏：x=\(Int(originalOffset.width))pt, y=\(Int(originalOffset.height))pt")
-        print("画面比例：\(Int(currentScale * 100))%")
+        print("画面比例：\(Int(currentCameraScale * 100))%")
         print("------------------------")
     }
     
@@ -474,12 +728,13 @@ struct TwoOfMeScreens: View {
 
     // 修改 Mirrored 屏幕的拖拽处理方法
     private func handleMirroredDragGesture(
-        value: DragGesture.Value,
-        screenWidth: CGFloat,
-        screenHeight: CGFloat,
-        centerY: CGFloat
+        _ value: DragGesture.Value,
+        _ screenWidth: CGFloat,
+        _ screenHeight: CGFloat,
+        _ centerY: CGFloat,
+        _ dampedTranslation: CGSize  // 新增参数
     ) {
-        if isZone3Enabled && currentMirroredScale > 1.0 {
+        if isZone3Enabled && currentMirroredCameraScale > 1.0 {
             // 在拖动开始时记录初始状态和打印日志
             if !mirroredDragStarted {
                 mirroredDragStarted = true
@@ -491,41 +746,19 @@ struct TwoOfMeScreens: View {
                 print("------------------------")
                 print("Mirrored画面拖动开始")
                 print("手指位置：x=\(Int(value.startLocation.x))pt, y=\(Int(value.startLocation.y))pt")
-                print("画面比例：\(Int(currentMirroredScale * 100))%")
+                print("画面比例：\(Int(currentMirroredCameraScale * 100))%")
                 print("设备方向：\(getOrientationDescription(orientationManager.currentOrientation))")
                 print("------------------------")
             }
             
-            // 根据设备方向调整移动方向
-            var translation = value.translation
-            switch orientationManager.currentOrientation {
-            case .landscapeLeft:
-                translation = CGSize(
-                    width: value.translation.height,
-                    height: -value.translation.width
-                )
-            case .landscapeRight:
-                translation = CGSize(
-                    width: -value.translation.height,
-                    height: value.translation.width
-                )
-            case .portraitUpsideDown:
-                translation = CGSize(
-                    width: -value.translation.width,
-                    height: -value.translation.height
-                )
-            default:
-                break
-            }
-            
             // 计算和应用新的偏移值
             let newOffset = CGSize(
-                width: mirroredInitialOffset.width + translation.width,
-                height: mirroredInitialOffset.height + translation.height
+                width: mirroredInitialOffset.width + dampedTranslation.width,
+                height: mirroredInitialOffset.height + dampedTranslation.height
             )
             
             let maxOffset = calculateMaxOffset(
-                for: currentMirroredScale,
+                for: currentMirroredCameraScale,
                 screenWidth: screenWidth,
                 screenHeight: screenHeight
             )
@@ -562,7 +795,7 @@ struct TwoOfMeScreens: View {
                     imageSize: image.size,
                     screenWidth: screenWidth,
                     screenHeight: screenHeight,
-                    scale: currentMirroredScale,
+                    scale: currentMirroredCameraScale,
                     offset: mirroredOffset
                 )
             }
@@ -577,7 +810,7 @@ struct TwoOfMeScreens: View {
         print("------------------------")
         print("Mirrored画面拖动结束")
         print("最终偏移：x=\(Int(mirroredOffset.width))pt, y=\(Int(mirroredOffset.height))pt")
-        print("画面比例：\(Int(currentMirroredScale * 100))%")
+        print("画面比例：\(Int(currentMirroredCameraScale * 100))%")
         print("------------------------")
     }
     
@@ -717,7 +950,7 @@ struct TwoOfMeScreens: View {
                 isOriginalPaused = true
                 print("------------------------")
                 print("Original画面已自动定格")
-                print("当前缩放比例: \(Int(originalScale * 100))%")
+                print("当前缩放比例: \(Int(originalImageScale * 100))%")
                 print("------------------------")
             }
             
@@ -734,7 +967,7 @@ struct TwoOfMeScreens: View {
             }
             
             // 更新 ImageUploader 时传入缩放比例
-            imageUploader.setPausedImage(pausedOriginalImage, for: .original, scale: originalScale)
+            imageUploader.setPausedImage(pausedOriginalImage, for: .original, scale: currentImageScale)
             
         case .mirrored:
             // 自动进入定格状态
@@ -742,7 +975,7 @@ struct TwoOfMeScreens: View {
                 isMirroredPaused = true
                 print("------------------------")
                 print("Mirrored画面已自动定格")
-                print("当前缩放比例: \(Int(mirroredScale * 100))%")
+                print("当前缩放比例: \(Int(mirroredImageScale * 100))%")
                 print("------------------------")
             }
             
@@ -759,7 +992,7 @@ struct TwoOfMeScreens: View {
             }
             
             // 更新 ImageUploader 时传入缩放比例
-            imageUploader.setPausedImage(pausedMirroredImage, for: .mirrored, scale: mirroredScale)
+            imageUploader.setPausedImage(pausedMirroredImage, for: .mirrored, scale: currentMirroredImageScale)
             
         case .none:
             break
@@ -862,7 +1095,7 @@ struct TwoOfMeScreens: View {
             let screenBounds = UIScreen.main.bounds
             let screenHeight = screenBounds.height
             let screenWidth = screenBounds.width
-            let centerY = screenHeight / 2
+            let _ = screenHeight / 2
             
             ZStack {
                 // 背景
@@ -878,123 +1111,21 @@ struct TwoOfMeScreens: View {
                             ScreenContainer(
                                 screenID: .original,
                                 content: AnyView(
-                                    ZStack {
-                                        if let image = isOriginalPaused ? pausedOriginalImage : originalImage {
-                                            ZStack {
-                                                Image(uiImage: image)
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                                    .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
-                                                           height: centerY)
-                                                    .scaleEffect(isOriginalPaused ? currentScale : currentScale)
-                                                    .offset(isOriginalPaused ? originalOffset : .zero)
-                                                    .rotationEffect(isOriginalPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
-                                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                                    .clipped()
-                                                    .gesture(isOriginalPaused && currentScale > 1.0 && !imageUploader.isFlashlightActive(for: .original) ?
-                                                        DragGesture()
-                                                            .onChanged { value in
-                                                                handleDragGesture(
-                                                                    value: value,
-                                                                    screenWidth: screenWidth,
-                                                                    screenHeight: screenHeight,
-                                                                    centerY: centerY
-                                                                )
-                                                            }
-                                                            .onEnded { _ in
-                                                                handleDragEnd()
-                                                            }
-                                                        : nil
-                                                    )
-                                                    .zIndex(1)
-                                                
-                                                // 添加关闭按钮
-                                                if imageUploader.isFlashlightActive(for: .original) {
-                                                    ZStack {
-                                                        Color.clear
-                                                            .frame(width: 80, height: 80)
-                                                        
-                                                        Button(action: {
-                                                            print("------------------------")
-                                                            print("[关闭按钮] 被点击")
-                                                            print("区域：Original屏幕")
-                                                            print("------------------------")
-                                                            
-                                                            // 触发震动反馈
-                                                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                                                            generator.prepare()
-                                                            generator.impactOccurred()
-                                                            
-                                                            imageUploader.closeFlashlight(for: .original)
-                                                        }) {
-                                                            Image(systemName: "xmark.circle.fill")
-                                                                .font(.system(size: 30))
-                                                                .foregroundColor(.black.opacity(0.2))
-                                                                .background(Color.white.opacity(0.3))
-                                                                .clipShape(Circle())
-                                                                .contentShape(Circle())
-                                                        }
-                                                    }
-                                                    .position(x: screenWidth/2, y: centerY/2)
-                                                    .zIndex(999)
-                                                    .onAppear {
-                                                        // 添加手电筒状态变化通知监听
-                                                        NotificationCenter.default.addObserver(
-                                                            forName: NSNotification.Name("FlashlightStateDidChange"),
-                                                            object: nil,
-                                                            queue: .main
-                                                        ) { notification in
-                                                            // 强制视图刷新
-                                                            withAnimation {
-                                                                if let userInfo = notification.userInfo,
-                                                                   let originalActive = userInfo["originalActive"] as? Bool,
-                                                                   let mirroredActive = userInfo["mirroredActive"] as? Bool {
-                                                                    print("------------------------")
-                                                                    print("[关闭按钮] 收到状态更新")
-                                                                    print("Original手电筒：\(originalActive ? "开启" : "关闭")")
-                                                                    print("Mirrored手电筒：\(mirroredActive ? "开启" : "关闭")")
-                                                                    print("------------------------")
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            .zIndex(1)
-                                        }
-                                        
-                                        // 添加边框灯效果
-                                        BorderLightView(
-                                            screenWidth: screenWidth,
-                                            centerY: centerY,
-                                            showOriginalHighlight: borderLightManager.showOriginalHighlight,
-                                            showMirroredHighlight: false
-                                        )
-                                        .zIndex(2)
-                                        
-                                        // 在 ZStack 中添加覆盖层视图（在 Original 屏幕的内容中）
-                                        if imageUploader.showOriginalOverlay {
-                                            OverlayView(
-                                                screenID: .original,
-                                                deviceOrientation: orientationManager.currentOrientation,
-                                                screenWidth: screenWidth,
-                                                centerY: centerY,
-                                                screenHeight: screenHeight,
-                                                imageUploader: imageUploader
-                                            )
-                                        }
-                                        
-                                        // Original 屏幕的闪光动画
-                                        if showOriginalFlash {
-                                            FlashAnimationView(frame: CGRect(
-                                                x: 0,
-                                                y: 0,  // 根据屏幕交换状态调整位置
-                                                width: screenWidth,
-                                                height: screenHeight/2
-                                            ))
-                                            .zIndex(4)
-                                        }
-                                    }
+                                    ScreenContentView(
+                                        screenID: .original,  // 或 .mirrored
+                                        image: originalImage,  // 或 mirroredImage
+                                        isPaused: isOriginalPaused,  // 或 isMirroredPaused
+                                        pausedImage: pausedOriginalImage,  // 或 pausedMirroredImage
+                                        scale: isOriginalPaused ? currentCameraScale : currentCameraScale,  // 根据需要调整
+                                        offset: originalOffset,  // 或 mirroredOffset
+                                        orientation: orientationManager.currentOrientation,
+                                        imageUploader: imageUploader,
+                                        borderLightManager: borderLightManager,
+                                        showFlash: showOriginalFlash,  // 或 showMirroredFlash
+                                        screenWidth: geometry.size.width,
+                                        screenHeight: geometry.size.height,
+                                        centerY: geometry.size.height / 2
+                                    )
                                 )
                             )
                             
@@ -1006,125 +1137,21 @@ struct TwoOfMeScreens: View {
                             ScreenContainer(
                                 screenID: .mirrored,
                                 content: AnyView(
-                                    ZStack {
-                                        if let image = isMirroredPaused ? pausedMirroredImage : mirroredImage {
-                                            ZStack {
-                                                Image(uiImage: image)
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                                    .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
-                                                           height: centerY)
-                                                    .scaleEffect(isMirroredPaused ? currentMirroredScale : currentMirroredScale)
-                                                    .offset(isMirroredPaused ? mirroredOffset : .zero)
-                                                    .rotationEffect(isMirroredPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
-                                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                                    .clipped()
-                                                    .gesture(isMirroredPaused && currentMirroredScale > 1.0 ?
-                                                        DragGesture()
-                                                            .onChanged { value in
-                                                                handleMirroredDragGesture(
-                                                                    value: value,
-                                                                    screenWidth: screenWidth,
-                                                                    screenHeight: screenHeight,
-                                                                    centerY: centerY
-                                                                )
-                                                            }
-                                                            .onEnded { _ in
-                                                                handleMirroredDragEnd()
-                                                            }
-                                                        : nil
-                                                    )
-                                                    .zIndex(1)
-                                                
-                                                // 添加关闭按钮
-                                                if imageUploader.isFlashlightActive(for: .mirrored) {
-                                                    ZStack {
-                                                        Color.clear
-                                                            .frame(width: 80, height: 80)
-                                                            .contentShape(Circle())
-                                                        
-                                                        Button(action: {
-                                                            print("------------------------")
-                                                            print("[关闭按钮] 被点击")
-                                                            print("区域：Mirrored屏幕")
-                                                            print("位置：\(isScreensSwapped ? "上部" : "下部")")
-                                                            print("------------------------")
-                                                            
-                                                            // 触发震动反馈
-                                                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                                                            generator.prepare()
-                                                            generator.impactOccurred()
-                                                            
-                                                            imageUploader.closeFlashlight(for: .mirrored)
-                                                        }) {
-                                                            Image(systemName: "xmark.circle.fill")
-                                                                .font(.system(size: 30))
-                                                                .foregroundColor(.white.opacity(0.5))
-                                                                .background(Color.black.opacity(0.5))
-                                                                .clipShape(Circle())
-                                                                .contentShape(Circle())
-                                                        }
-                                                    }
-                                                    .position(x: screenWidth/2, y: centerY/2)
-                                                    .zIndex(999)
-                                                    .onAppear {
-                                                        // 添加手电筒状态变化通知监听
-                                                        NotificationCenter.default.addObserver(
-                                                            forName: NSNotification.Name("FlashlightStateDidChange"),
-                                                            object: nil,
-                                                            queue: .main
-                                                        ) { notification in
-                                                            // 强制视图刷新
-                                                            withAnimation {
-                                                                if let userInfo = notification.userInfo,
-                                                                   let originalActive = userInfo["originalActive"] as? Bool,
-                                                                   let mirroredActive = userInfo["mirroredActive"] as? Bool {
-                                                                    print("------------------------")
-                                                                    print("[关闭按钮] 收到状态更新")
-                                                                    print("Original手电筒：\(originalActive ? "开启" : "关闭")")
-                                                                    print("Mirrored手电筒：\(mirroredActive ? "开启" : "关闭")")
-                                                                    print("------------------------")
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            .zIndex(1)
-                                        }
-                                        
-                                        // 添加边框灯效果
-                                        BorderLightView(
-                                            screenWidth: screenWidth,
-                                            centerY: centerY,
-                                            showOriginalHighlight: false,
-                                            showMirroredHighlight: borderLightManager.showMirroredHighlight
-                                        )
-                                        .zIndex(2)
-                                        
-                                        // 在 ZStack 中添加覆盖层视图（在 Mirrored 屏幕的内容中）
-                                        if imageUploader.showMirroredOverlay {
-                                            OverlayView(
-                                                screenID: .mirrored,
-                                                deviceOrientation: orientationManager.currentOrientation,
-                                                screenWidth: screenWidth,
-                                                centerY: centerY,
-                                                screenHeight: screenHeight,
-                                                imageUploader: imageUploader
-                                            )
-                                        }
-                                        
-                                        // Mirrored 屏幕的闪光动画
-                                        if showMirroredFlash {
-                                            FlashAnimationView(frame: CGRect(
-                                                x: 0,
-                                                y: 0,  // 根据屏幕交换状态调整位置
-                                                width: screenWidth,
-                                                height: screenHeight/2
-                                            ))
-                                            .zIndex(4)
-                                        }
-                                    }
+                                    ScreenContentView(
+                                        screenID: .mirrored,  // 或 .original
+                                        image: mirroredImage,  // 或 originalImage
+                                        isPaused: isMirroredPaused,  // 或 isOriginalPaused
+                                        pausedImage: pausedMirroredImage,  // 或 pausedOriginalImage
+                                        scale: isMirroredPaused ? currentMirroredCameraScale : currentMirroredCameraScale,  // 根据需要调整
+                                        offset: mirroredOffset,  // 或 originalOffset
+                                        orientation: orientationManager.currentOrientation,
+                                        imageUploader: imageUploader,
+                                        borderLightManager: borderLightManager,
+                                        showFlash: showMirroredFlash,  // 或 showOriginalFlash
+                                        screenWidth: geometry.size.width,
+                                        screenHeight: geometry.size.height,
+                                        centerY: geometry.size.height / 2
+                                    )
                                 )
                             )
                         } else {
@@ -1132,249 +1159,42 @@ struct TwoOfMeScreens: View {
                             ScreenContainer(
                                 screenID: .mirrored,
                                 content: AnyView(
-                                    ZStack {
-                                        if let image = isMirroredPaused ? pausedMirroredImage : mirroredImage {
-                                            ZStack {
-                                                Image(uiImage: image)
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                                    .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
-                                                           height: centerY)
-                                                    .scaleEffect(isMirroredPaused ? currentMirroredScale : currentMirroredScale)
-                                                    .offset(isMirroredPaused ? mirroredOffset : .zero)
-                                                    .rotationEffect(isMirroredPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
-                                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                                    .clipped()
-                                                    .gesture(isMirroredPaused && currentMirroredScale > 1.0 ?
-                                                        DragGesture()
-                                                            .onChanged { value in
-                                                                handleMirroredDragGesture(
-                                                                    value: value,
-                                                                    screenWidth: screenWidth,
-                                                                    screenHeight: screenHeight,
-                                                                    centerY: centerY
-                                                                )
-                                                            }
-                                                            .onEnded { _ in
-                                                                handleMirroredDragEnd()
-                                                            }
-                                                        : nil
-                                                    )
-                                                    .zIndex(1)
-                                                
-                                                // 添加关闭按钮
-                                                if imageUploader.isFlashlightActive(for: .mirrored) {
-                                                    ZStack {
-                                                        Color.clear
-                                                            .frame(width: 80, height: 80)
-                                                            .contentShape(Circle())
-                                                        
-                                                        Button(action: {
-                                                            print("------------------------")
-                                                            print("[关闭按钮] 被点击")
-                                                            print("区域：Mirrored屏幕")
-                                                            print("位置：\(isScreensSwapped ? "上部" : "下部")")
-                                                            print("------------------------")
-                                                            
-                                                            // 触发震动反馈
-                                                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                                                            generator.prepare()
-                                                            generator.impactOccurred()
-                                                            
-                                                            imageUploader.closeFlashlight(for: .mirrored)
-                                                        }) {
-                                                            Image(systemName: "xmark.circle.fill")
-                                                                .font(.system(size: 30))
-                                                                .foregroundColor(.white.opacity(0.5))
-                                                                .background(Color.black.opacity(0.5))
-                                                                .clipShape(Circle())
-                                                                .contentShape(Circle())
-                                                        }
-                                                    }
-                                                    .position(x: screenWidth/2, y: centerY/2)
-                                                    .zIndex(999)
-                                                    .onAppear {
-                                                        // 添加手电筒状态变化通知监听
-                                                        NotificationCenter.default.addObserver(
-                                                            forName: NSNotification.Name("FlashlightStateDidChange"),
-                                                            object: nil,
-                                                            queue: .main
-                                                        ) { notification in
-                                                            // 强制视图刷新
-                                                            withAnimation {
-                                                                if let userInfo = notification.userInfo,
-                                                                   let originalActive = userInfo["originalActive"] as? Bool,
-                                                                   let mirroredActive = userInfo["mirroredActive"] as? Bool {
-                                                                    print("------------------------")
-                                                                    print("[关闭按钮] 收到状态更新")
-                                                                    print("Original手电筒：\(originalActive ? "开启" : "关闭")")
-                                                                    print("Mirrored手电筒：\(mirroredActive ? "开启" : "关闭")")
-                                                                    print("------------------------")
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            .zIndex(1)
-                                        }
-                                        
-                                        // 添加边框灯效果
-                                        BorderLightView(
-                                            screenWidth: screenWidth,
-                                            centerY: centerY,
-                                            showOriginalHighlight: false,
-                                            showMirroredHighlight: borderLightManager.showMirroredHighlight
-                                        )
-                                        .zIndex(2)
-                                        
-                                        // 在 ZStack 中添加覆盖层视图（在 Mirrored 屏幕的内容中）
-                                        if imageUploader.showMirroredOverlay {
-                                            OverlayView(
-                                                screenID: .mirrored,
-                                                deviceOrientation: orientationManager.currentOrientation,
-                                                screenWidth: screenWidth,
-                                                centerY: centerY,
-                                                screenHeight: screenHeight,
-                                                imageUploader: imageUploader
-                                            )
-                                        }
-                                        
-                                        // Mirrored 屏幕的闪光动画
-                                        if showMirroredFlash {
-                                            FlashAnimationView(frame: CGRect(
-                                                x: 0,
-                                                y: 0,  // 根据屏幕交换状态调整位置
-                                                width: screenWidth,
-                                                height: screenHeight/2
-                                            ))
-                                            .zIndex(4)
-                                        }
-                                    }
+                                    ScreenContentView(
+                                        screenID: .mirrored,  // 或 .original
+                                        image: mirroredImage,  // 或 originalImage
+                                        isPaused: isMirroredPaused,  // 或 isOriginalPaused
+                                        pausedImage: pausedMirroredImage,  // 或 pausedOriginalImage
+                                        scale: isMirroredPaused ? currentMirroredCameraScale : currentMirroredCameraScale,  // 根据需要调整
+                                        offset: mirroredOffset,  // 或 originalOffset
+                                        orientation: orientationManager.currentOrientation,
+                                        imageUploader: imageUploader,
+                                        borderLightManager: borderLightManager,
+                                        showFlash: showMirroredFlash,  // 或 showOriginalFlash
+                                        screenWidth: geometry.size.width,
+                                        screenHeight: geometry.size.height,
+                                        centerY: geometry.size.height / 2
+                                    )
                                 )
                             )
                             //Original屏幕在下
                             ScreenContainer(
                                 screenID: .original,
                                 content: AnyView(
-                                    ZStack {
-                                        if let image = isOriginalPaused ? pausedOriginalImage : originalImage {
-                                            ZStack {
-                                                Image(uiImage: image)
-                                                    .resizable()
-                                                    .aspectRatio(contentMode: .fill)
-                                                    .frame(width: orientationManager.currentOrientation.isLandscape ? screenHeight / 2 : screenWidth,
-                                                           height: centerY)
-                                                    .scaleEffect(isOriginalPaused ? currentScale : currentScale)
-                                                    .offset(isOriginalPaused ? originalOffset : .zero)
-                                                    .rotationEffect(isOriginalPaused ? getRotationAngle(orientationManager.currentOrientation) : .zero)
-                                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                                    .clipped()
-                                                    .gesture(isOriginalPaused && currentScale > 1.0 ?
-                                                        DragGesture()
-                                                            .onChanged { value in
-                                                                handleDragGesture(
-                                                                    value: value,
-                                                                    screenWidth: screenWidth,
-                                                                    screenHeight: screenHeight,
-                                                                    centerY: centerY
-                                                                )
-                                                            }
-                                                            .onEnded { _ in
-                                                                handleDragEnd()
-                                                            }
-                                                        : nil
-                                                    )
-                                                    .zIndex(1)
-                                                // 添加关闭按钮
-                                                if imageUploader.isFlashlightActive(for: .original) {
-                                                    ZStack {
-                                                        Color.clear
-                                                            .frame(width: 80, height: 80)
-                                                            .contentShape(Circle())
-                                                        
-                                                        Button(action: {
-                                                            print("------------------------")
-                                                            print("[关闭按钮] 被点击")
-                                                            print("区域：Original屏幕")
-                                                            print("位置：\(isScreensSwapped ? "上部" : "下部")")
-                                                            print("------------------------")
-                                                            
-                                                            // 触发震动反馈
-                                                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                                                            generator.prepare()
-                                                            generator.impactOccurred()
-                                                            
-                                                            imageUploader.closeFlashlight(for: .original)
-                                                        }) {
-                                                            Image(systemName: "xmark.circle.fill")
-                                                                .font(.system(size: 30))
-                                                                .foregroundColor(.white.opacity(0.5))
-                                                                .background(Color.black.opacity(0.5))
-                                                                .clipShape(Circle())
-                                                                .contentShape(Circle())
-                                                        }
-                                                    }
-                                                    .position(x: screenWidth/2, y: centerY/2)
-                                                    .zIndex(999)
-                                                    .onAppear {
-                                                        // 添加手电筒状态变化通知监听
-                                                        NotificationCenter.default.addObserver(
-                                                            forName: NSNotification.Name("FlashlightStateDidChange"),
-                                                            object: nil,
-                                                            queue: .main
-                                                        ) { notification in
-                                                            // 强制视图刷新
-                                                            withAnimation {
-                                                                if let userInfo = notification.userInfo,
-                                                                   let originalActive = userInfo["originalActive"] as? Bool,
-                                                                   let mirroredActive = userInfo["mirroredActive"] as? Bool {
-                                                                    print("------------------------")
-                                                                    print("[关闭按钮] 收到状态更新")
-                                                                    print("Original手电筒：\(originalActive ? "开启" : "关闭")")
-                                                                    print("Mirrored手电筒：\(mirroredActive ? "开启" : "关闭")")
-                                                                    print("------------------------")
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            .zIndex(1)
-                                        }
-                                        
-                                        // 添加边框灯效果
-                                        BorderLightView(
-                                            screenWidth: screenWidth,
-                                            centerY: centerY,
-                                            showOriginalHighlight: borderLightManager.showOriginalHighlight,
-                                            showMirroredHighlight: false
-                                        )
-                                        .zIndex(2)
-                                        
-                                        // 在 ZStack 中添加覆盖层视图（在 Original 屏幕的内容中）
-                                        if imageUploader.showOriginalOverlay {
-                                            OverlayView(
-                                                screenID: .original,
-                                                deviceOrientation: orientationManager.currentOrientation,
-                                                screenWidth: screenWidth,
-                                                centerY: centerY,
-                                                screenHeight: screenHeight,
-                                                imageUploader: imageUploader
-                                            )
-                                        }
-                                        
-                                        // Original 屏幕的闪光动画
-                                        if showOriginalFlash {
-                                            FlashAnimationView(frame: CGRect(
-                                                x: 0,
-                                                y: 0,  // 根据屏幕交换状态调整位置
-                                                width: screenWidth,
-                                                height: screenHeight/2
-                                            ))
-                                            .zIndex(4)
-                                        }
-                                    }
+                                    ScreenContentView(
+                                        screenID: .original,  // 或 .mirrored
+                                        image: originalImage,  // 或 mirroredImage
+                                        isPaused: isOriginalPaused,  // 或 isMirroredPaused
+                                        pausedImage: pausedOriginalImage,  // 或 pausedMirroredImage
+                                        scale: isOriginalPaused ? currentCameraScale : currentCameraScale,  // 根据需要调整
+                                        offset: originalOffset,  // 或 mirroredOffset
+                                        orientation: orientationManager.currentOrientation,
+                                        imageUploader: imageUploader,
+                                        borderLightManager: borderLightManager,
+                                        showFlash: showOriginalFlash,  // 或 showMirroredFlash
+                                        screenWidth: geometry.size.width,
+                                        screenHeight: geometry.size.height,
+                                        centerY: geometry.size.height / 2
+                                    )
                                 )
                             )
                         }
@@ -1384,196 +1204,7 @@ struct TwoOfMeScreens: View {
                     // 触控区域
                     if !imageUploader.isOverlayVisible {
                         ZStack {
-                            // Original的触控区2和2a
-                            VStack {
-                                if !isOriginalPaused {
-                                    // 触控区2（未定格状态）
-                                    Color.clear
-                                        .contentShape(Rectangle())
-                                        .frame(height: (screenHeight - 20) / 2)
-                                        .gesture(TwoOfMeGestureManager.createTapGestures(
-                                            for: .original,
-                                            isZone2Enabled: isZone2Enabled,
-                                            isZone3Enabled: isZone3Enabled,
-                                            isDefaultGesture: isDefaultGesture,
-                                            isScreensSwapped: isScreensSwapped,
-                                            layoutDescription: layoutDescription,
-                                            togglePauseState: togglePauseState,
-                                            handleSingleTap: handleSingleTap,
-                                            imageUploader: imageUploader
-                                        ))
-                                        .gesture(TwoOfMeGestureManager.createCombinedGestures(
-                                            for: .original,
-                                            isZone2Enabled: isZone2Enabled,
-                                            isZone3Enabled: isZone3Enabled,
-                                            isOriginalPaused: isOriginalPaused,
-                                            isMirroredPaused: isMirroredPaused,
-                                            originalScale: $originalScale,
-                                            mirroredScale: $mirroredScale,
-                                            currentScale: $currentScale,
-                                            currentMirroredScale: $currentMirroredScale,
-                                            minScale: minScale,
-                                            maxScale: maxScale,
-                                            currentIndicatorScale: $currentIndicatorScale,
-                                            activeScalingScreen: $activeScalingScreen,
-                                            showScaleIndicator: $showScaleIndicator,
-                                            originalOffset: originalOffset,
-                                            mirroredOffset: mirroredOffset,
-                                            imageUploader: imageUploader,
-                                            isImageOutOfBounds: isImageOutOfBounds,
-                                            centerImage: centerImage,
-                                            centerMirroredImage: centerMirroredImage,
-                                            handleDragGesture: handleDragGesture,
-                                            handleMirroredDragGesture: handleMirroredDragGesture,
-                                            handleDragEnd: handleDragEnd,
-                                            handleMirroredDragEnd: handleMirroredDragEnd
-                                        ))
-                                        .allowsHitTesting(!imageUploader.isFlashlightActive(for: .original))
-                                } else {
-                                    // 触控区2a（定格状态）
-                                    Color.clear
-                                        .contentShape(Rectangle())
-                                        .frame(height: (screenHeight - 20) / 2)
-                                        .gesture(TwoOfMeGestureManager.createTapGestures(
-                                            for: .original,
-                                            isZone2Enabled: isZone2Enabled,
-                                            isZone3Enabled: isZone3Enabled,
-                                            isDefaultGesture: isDefaultGesture,
-                                            isScreensSwapped: isScreensSwapped,
-                                            layoutDescription: layoutDescription,
-                                            togglePauseState: togglePauseState,
-                                            handleSingleTap: handleSingleTap,
-                                            imageUploader: imageUploader
-                                        ))
-                                        .gesture(TwoOfMeGestureManager.createCombinedGestures(
-                                            for: .original,
-                                            isZone2Enabled: isZone2Enabled,
-                                            isZone3Enabled: isZone3Enabled,
-                                            isOriginalPaused: isOriginalPaused,
-                                            isMirroredPaused: isMirroredPaused,
-                                            originalScale: $originalScale,
-                                            mirroredScale: $mirroredScale,
-                                            currentScale: $currentScale,
-                                            currentMirroredScale: $currentMirroredScale,
-                                            minScale: minScale,
-                                            maxScale: maxScale,
-                                            currentIndicatorScale: $currentIndicatorScale,
-                                            activeScalingScreen: $activeScalingScreen,
-                                            showScaleIndicator: $showScaleIndicator,
-                                            originalOffset: originalOffset,
-                                            mirroredOffset: mirroredOffset,
-                                            imageUploader: imageUploader,
-                                            isImageOutOfBounds: isImageOutOfBounds,
-                                            centerImage: centerImage,
-                                            centerMirroredImage: centerMirroredImage,
-                                            handleDragGesture: handleDragGesture,
-                                            handleMirroredDragGesture: handleMirroredDragGesture,
-                                            handleDragEnd: handleDragEnd,
-                                            handleMirroredDragEnd: handleMirroredDragEnd
-                                        ))
-                                        .allowsHitTesting(!imageUploader.isFlashlightActive(for: .original))
-                                }
-                                Spacer()
-                            }
-                            .frame(height: screenHeight / 2)
-                            .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight*3/4 : screenHeight/4)
-                            .zIndex(1)
-                            
-                            // Mirrored屏的触控区3和3a
-                            VStack {
-                                if !isMirroredPaused {
-                                    // 触控区3（未定格状态）
-                                    Color.clear
-                                        .contentShape(Rectangle())
-                                        .frame(height: (screenHeight - 20) / 2)
-                                        .gesture(TwoOfMeGestureManager.createTapGestures(
-                                            for: .mirrored,
-                                            isZone2Enabled: isZone2Enabled,
-                                            isZone3Enabled: isZone3Enabled,
-                                            isDefaultGesture: isDefaultGesture,
-                                            isScreensSwapped: isScreensSwapped,
-                                            layoutDescription: layoutDescription,
-                                            togglePauseState: togglePauseState,
-                                            handleSingleTap: handleSingleTap,
-                                            imageUploader: imageUploader
-                                        ))
-                                        .gesture(TwoOfMeGestureManager.createCombinedGestures(
-                                            for: .mirrored,
-                                            isZone2Enabled: isZone2Enabled,
-                                            isZone3Enabled: isZone3Enabled,
-                                            isOriginalPaused: isOriginalPaused,
-                                            isMirroredPaused: isMirroredPaused,
-                                            originalScale: $originalScale,
-                                            mirroredScale: $mirroredScale,
-                                            currentScale: $currentScale,
-                                            currentMirroredScale: $currentMirroredScale,
-                                            minScale: minScale,
-                                            maxScale: maxScale,
-                                            currentIndicatorScale: $currentIndicatorScale,
-                                            activeScalingScreen: $activeScalingScreen,
-                                            showScaleIndicator: $showScaleIndicator,
-                                            originalOffset: originalOffset,
-                                            mirroredOffset: mirroredOffset,
-                                            imageUploader: imageUploader,
-                                            isImageOutOfBounds: isImageOutOfBounds,
-                                            centerImage: centerImage,
-                                            centerMirroredImage: centerMirroredImage,
-                                            handleDragGesture: handleDragGesture,
-                                            handleMirroredDragGesture: handleMirroredDragGesture,
-                                            handleDragEnd: handleDragEnd,
-                                            handleMirroredDragEnd: handleMirroredDragEnd
-                                        ))
-                                        .allowsHitTesting(!imageUploader.isFlashlightActive(for: .mirrored))
-                                } else {
-                                    // 触控区3a（定格状态）
-                                    Color.clear
-                                        .contentShape(Rectangle())
-                                        .frame(height: (screenHeight - 20) / 2)
-                                        .gesture(TwoOfMeGestureManager.createTapGestures(
-                                            for: .mirrored,
-                                            isZone2Enabled: isZone2Enabled,
-                                            isZone3Enabled: isZone3Enabled,
-                                            isDefaultGesture: isDefaultGesture,
-                                            isScreensSwapped: isScreensSwapped,
-                                            layoutDescription: layoutDescription,
-                                            togglePauseState: togglePauseState,
-                                            handleSingleTap: handleSingleTap,
-                                            imageUploader: imageUploader
-                                        ))
-                                        .gesture(TwoOfMeGestureManager.createCombinedGestures(
-                                            for: .mirrored,
-                                            isZone2Enabled: isZone2Enabled,
-                                            isZone3Enabled: isZone3Enabled,
-                                            isOriginalPaused: isOriginalPaused,
-                                            isMirroredPaused: isMirroredPaused,
-                                            originalScale: $originalScale,
-                                            mirroredScale: $mirroredScale,
-                                            currentScale: $currentScale,
-                                            currentMirroredScale: $currentMirroredScale,
-                                            minScale: minScale,
-                                            maxScale: maxScale,
-                                            currentIndicatorScale: $currentIndicatorScale,
-                                            activeScalingScreen: $activeScalingScreen,
-                                            showScaleIndicator: $showScaleIndicator,
-                                            originalOffset: originalOffset,
-                                            mirroredOffset: mirroredOffset,
-                                            imageUploader: imageUploader,
-                                            isImageOutOfBounds: isImageOutOfBounds,
-                                            centerImage: centerImage,
-                                            centerMirroredImage: centerMirroredImage,
-                                            handleDragGesture: handleDragGesture,
-                                            handleMirroredDragGesture: handleMirroredDragGesture,
-                                            handleDragEnd: handleDragEnd,
-                                            handleMirroredDragEnd: handleMirroredDragEnd
-                                        ))
-                                        .allowsHitTesting(!imageUploader.isFlashlightActive(for: .mirrored))
-                                }
-                                Spacer()
-                            }
-                            .frame(height: screenHeight / 2)
-                            .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight/4 : screenHeight*3/4)
-                            
-                            // 触控1
+                            // 触控区1 (放在最上层)
                             TouchZoneOne(
                                 showContainer: $showContainer,
                                 containerWidth: $containerWidth,
@@ -1593,17 +1224,91 @@ struct TwoOfMeScreens: View {
                                 dragVerticalOffset: dragVerticalOffset,
                                 deviceOrientation: orientationManager.currentOrientation,
                                 screenshotManager: screenshotManager,
-                                handleSwapButtonTap: {
-                                    // 触发震动反馈
-                                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                                    generator.prepare()
-                                    generator.impactOccurred()
-                                    
-                                    handleSwapButtonTap()
-                                },
+                                handleSwapButtonTap: handleSwapButtonTap,
                                 borderLightManager: borderLightManager,
-                                imageUploader: imageUploader
+                                imageUploader: imageUploader,
+                                currentCameraScale: originalCameraScale,
+                                currentMirroredCameraScale: mirroredCameraScale
                             )
+                            .zIndex(3)  // 确保触控区1在最上层
+
+                            // Original的触控区2和2a
+                            VStack {
+                                TouchZoneView(
+                                    screenID: .original,
+                                    isPaused: isOriginalPaused,
+                                    isZone2Enabled: isZone2Enabled,
+                                    isZone3Enabled: isZone3Enabled,
+                                    isDefaultGesture: isDefaultGesture,
+                                    isScreensSwapped: isScreensSwapped,
+                                    layoutDescription: layoutDescription,
+                                    screenHeight: screenHeight,
+                                    originalScale: $originalCameraScale,
+                                    mirroredScale: $mirroredCameraScale,
+                                    currentScale: $currentCameraScale,
+                                    currentMirroredScale: $currentMirroredCameraScale,
+                                    minScale: minScale,
+                                    maxScale: maxScale,
+                                    currentIndicatorScale: $currentIndicatorScale,
+                                    activeScalingScreen: $activeScalingScreen,
+                                    showScaleIndicator: $showScaleIndicator,
+                                    originalOffset: originalOffset,
+                                    mirroredOffset: mirroredOffset,
+                                    imageUploader: imageUploader,
+                                    togglePauseState: togglePauseState,
+                                    handleSingleTap: handleSingleTap,
+                                    isImageOutOfBounds: isImageOutOfBounds,
+                                    centerImage: centerImage,
+                                    centerMirroredImage: centerMirroredImage,
+                                    handleDragGesture: handleDragGesture,
+                                    handleMirroredDragGesture: handleMirroredDragGesture,
+                                    handleDragEnd: handleDragEnd,
+                                    handleMirroredDragEnd: handleMirroredDragEnd
+                                )
+                                Spacer()
+                            }
+                            .frame(height: screenHeight / 2)
+                            .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight*3/4 : screenHeight/4)
+                            .zIndex(1)
+                            
+                            // Mirrored的触控区3和3a
+                            VStack {
+                                TouchZoneView(
+                                    screenID: .mirrored,
+                                    isPaused: isMirroredPaused,
+                                    isZone2Enabled: isZone2Enabled,
+                                    isZone3Enabled: isZone3Enabled,
+                                    isDefaultGesture: isDefaultGesture,
+                                    isScreensSwapped: isScreensSwapped,
+                                    layoutDescription: layoutDescription,
+                                    screenHeight: screenHeight,
+                                    originalScale: $originalCameraScale,
+                                    mirroredScale: $mirroredCameraScale,
+                                    currentScale: $currentCameraScale,
+                                    currentMirroredScale: $currentMirroredCameraScale,
+                                    minScale: minScale,
+                                    maxScale: maxScale,
+                                    currentIndicatorScale: $currentIndicatorScale,
+                                    activeScalingScreen: $activeScalingScreen,
+                                    showScaleIndicator: $showScaleIndicator,
+                                    originalOffset: originalOffset,
+                                    mirroredOffset: mirroredOffset,
+                                    imageUploader: imageUploader,
+                                    togglePauseState: togglePauseState,
+                                    handleSingleTap: handleSingleTap,
+                                    isImageOutOfBounds: isImageOutOfBounds,
+                                    centerImage: centerImage,
+                                    centerMirroredImage: centerMirroredImage,
+                                    handleDragGesture: handleDragGesture,
+                                    handleMirroredDragGesture: handleMirroredDragGesture,
+                                    handleDragEnd: handleDragEnd,
+                                    handleMirroredDragEnd: handleMirroredDragEnd
+                                )
+                                Spacer()
+                            }
+                            .frame(height: screenHeight / 2)
+                            .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight/4 : screenHeight*3/4)
+                            .zIndex(2)
                         }
                     }
                 }
@@ -1700,8 +1405,8 @@ struct TwoOfMeScreens: View {
                                 isOriginalPaused = false
                                 pausedOriginalImage = nil
                                 originalOffset = .zero
-                                originalScale = 1.0
-                                currentScale = 1.0
+                                originalCameraScale = 1.0
+                                currentCameraScale = 1.0
                                 print("Original画面已恢复")
                             }
                         case .mirrored:
@@ -1709,8 +1414,8 @@ struct TwoOfMeScreens: View {
                                 isMirroredPaused = false
                                 pausedMirroredImage = nil
                                 mirroredOffset = .zero
-                                mirroredScale = 1.0
-                                currentMirroredScale = 1.0
+                                mirroredCameraScale = 1.0
+                                currentMirroredCameraScale = 1.0
                                 print("Mirrored画面已恢复")
                             }
                         }
@@ -1840,33 +1545,43 @@ struct TwoOfMeScreens: View {
                 isOriginalPaused = false
                 pausedOriginalImage = nil
                 imageUploader.setPausedImage(nil, for: .original)
-                print("Original画面已恢复")
+                // 重置偏移量
+                originalOffset = .zero
+                // 同步缩放比例到实时画面
+                originalCameraScale = originalImageScale
+                currentCameraScale = currentImageScale
+                
+                print("------------------------")
+                print("[定格退出] Original屏幕")
+                print("实时画面比例: \(Int(currentCameraScale * 100))%")
+                print("定格画面比例: \(Int(currentImageScale * 100))%")
+                print("------------------------")
             } else {
                 // 进入定格状态
                 isOriginalPaused = true
+                // 同步实时画面的缩放比例到定格画面
+                originalImageScale = originalCameraScale
+                currentImageScale = currentCameraScale
                 
                 print("------------------------")
-                print("[定格调试] Original屏幕")
-                print("当前缩放比例: \(Int(originalScale * 100))%")
-                print("当前实时比例: \(Int(currentScale * 100))%")
+                print("[定格进入] Original屏幕")
+                print("实时画面比例: \(Int(currentCameraScale * 100))%")
+                print("定格画面比例: \(Int(currentImageScale * 100))%")
                 print("------------------------")
-                
-                // 根据设备方向调整定格画面，并传入缩放比例
+
                 if let image = originalImage {
-                    switch orientationManager.currentOrientation {
-                    case .landscapeLeft:
-                        pausedOriginalImage = image.rotate(degrees: -90)
-                    case .landscapeRight:
-                        pausedOriginalImage = image.rotate(degrees: 90)
-                    case .portraitUpsideDown:
-                        pausedOriginalImage = image.rotate(degrees: 180)
-                    default:
-                        pausedOriginalImage = image
-                    }
-                    // 使用 currentScale 而不是 originalScale
-                    imageUploader.setPausedImage(pausedOriginalImage, for: .original, scale: currentScale)
+                    // 根据设备方向旋转图片
+                    let rotatedImage = rotateImageForCurrentOrientation(image)
+                    pausedOriginalImage = rotatedImage
+                    
+                    // 传入摄像头基准缩放比例，确保裁剪后的图片大小与摄像头画面一致
+                    imageUploader.setPausedImage(
+                        rotatedImage,
+                        for: .original,
+                        scale: currentImageScale,
+                        cameraScale: originalCameraScale  // 添加摄像头基准比例参数
+                    )
                 }
-                print("Original画面已定格，缩放比例: \(Int(currentScale * 100))%")
             }
             
         case .mirrored:
@@ -1875,34 +1590,59 @@ struct TwoOfMeScreens: View {
                 isMirroredPaused = false
                 pausedMirroredImage = nil
                 imageUploader.setPausedImage(nil, for: .mirrored)
-                print("Mirrored画面已恢复")
+                // 重置偏移量
+                mirroredOffset = .zero
+                // 同步缩放比例到实时画面
+                mirroredCameraScale = mirroredImageScale
+                currentMirroredCameraScale = currentMirroredImageScale
+                
+                print("------------------------")
+                print("[定格退出] Mirrored屏幕")
+                print("实时画面比例: \(Int(currentMirroredCameraScale * 100))%")
+                print("定格画面比例: \(Int(currentMirroredImageScale * 100))%")
+                print("------------------------")
             } else {
                 // 进入定格状态
                 isMirroredPaused = true
+                // 同步实时画面的缩放比例到定格画面
+                mirroredImageScale = mirroredCameraScale
+                currentMirroredImageScale = currentMirroredCameraScale
                 
                 print("------------------------")
-                print("[定格调试] Mirrored屏幕")
-                print("当前缩放比例: \(Int(mirroredScale * 100))%")
-                print("当前实时比例: \(Int(currentMirroredScale * 100))%")
+                print("[定格进入] Mirrored屏幕")
+                print("实时画面比例: \(Int(currentMirroredCameraScale * 100))%")
+                print("定格画面比例: \(Int(currentMirroredImageScale * 100))%")
                 print("------------------------")
-                
-                // 根据设备方向调整定格画面，并传入缩放比例
+
                 if let image = mirroredImage {
-                    switch orientationManager.currentOrientation {
-                    case .landscapeLeft:
-                        pausedMirroredImage = image.rotate(degrees: -90)
-                    case .landscapeRight:
-                        pausedMirroredImage = image.rotate(degrees: 90)
-                    case .portraitUpsideDown:
-                        pausedMirroredImage = image.rotate(degrees: 180)
-                    default:
-                        pausedMirroredImage = image
-                    }
-                    // 使用 currentMirroredScale 而不是 mirroredScale
-                    imageUploader.setPausedImage(pausedMirroredImage, for: .mirrored, scale: currentMirroredScale)
+                    // 根据设备方向旋转图片
+                    let rotatedImage = rotateImageForCurrentOrientation(image)
+                    pausedMirroredImage = rotatedImage
+                    
+                    // 传入摄像头基准缩放比例，确保裁剪后的图片大小与摄像头画面一致
+                    imageUploader.setPausedImage(
+                        rotatedImage,
+                        for: .mirrored,
+                        scale: currentMirroredImageScale,
+                        cameraScale: mirroredCameraScale  // 添加摄像头基准比例参数
+                    )
                 }
-                print("Mirrored画面已定格，缩放比例: \(Int(currentMirroredScale * 100))%")
             }
+        }
+    }
+    
+    // 辅助方法：根据当前设备方向旋转图片
+    private func rotateImageForCurrentOrientation(_ image: UIImage) -> UIImage {
+        let orientation = DeviceOrientationManager.shared.validOrientation
+        switch orientation {
+        case .landscapeLeft:
+            return image.rotate(degrees: -90)
+        case .landscapeRight:
+            return image.rotate(degrees: 90)
+        case .portraitUpsideDown:
+            return image.rotate(degrees: 180)
+        default:
+            return image
         }
     }
     

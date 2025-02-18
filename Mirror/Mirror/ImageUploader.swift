@@ -30,6 +30,10 @@ class ImageUploader: ObservableObject {
     @Published var showToast = false  // 添加提示状态
     @Published var toastMessage = ""  // 添加提示文本
     
+    // 添加定格图片属性
+    private(set) var originalPausedImage: UIImage?
+    private(set) var mirroredPausedImage: UIImage?
+    
     private var hideTimer: Timer?
     
     // 添加权限提示弹窗类型枚举
@@ -57,6 +61,16 @@ class ImageUploader: ObservableObject {
     // 添加记录定格时方向的属性
     private var pausedOriginalOrientation: UIDeviceOrientation?
     private var pausedMirroredOrientation: UIDeviceOrientation?
+    
+    // 添加缩放相关属性
+    private var currentImageScale: CGFloat = 1.0
+    private var currentMirroredImageScale: CGFloat = 1.0
+    private var originalCameraScale: CGFloat = 1.0
+    private var mirroredCameraScale: CGFloat = 1.0
+    
+    // 添加保存定格时摄像头比例的属性
+    private var pausedOriginalCameraScale: CGFloat = 1.0
+    private var pausedMirroredCameraScale: CGFloat = 1.0
     
     // 修改图片处理状态控制方法
     func startImageProcessing() {
@@ -305,15 +319,24 @@ class ImageUploader: ObservableObject {
         hideRectangle()
     }
     
-    // 添加下载图片方法
+    // 修改下载图片方法
     func downloadImage(for screenID: ScreenID) {
         print("------------------------")
         print("[下载功能] 开始")
         print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
         print("------------------------")
         
-        // 获取要保存的图片
-        guard let imageToSave = screenID == .original ? pausedOriginalImage : pausedMirroredImage else {
+        // 获取要保存的图片和相关参数
+        let (imageToSave, scale, cameraScale) = screenID == .original ? 
+            (pausedOriginalImage, pausedOriginalCameraScale, originalCameraScale) : 
+            (pausedMirroredImage, pausedMirroredCameraScale, mirroredCameraScale)
+        
+        print("下载参数：")
+        print("- 用户缩放比例: \(Int(scale * 100))%")
+        print("- 摄像头基准比例: \(Int(cameraScale * 100))%")
+        print("- 最终缩放比例: \(Int(scale * cameraScale * 100))%")
+        
+        guard let imageToSave = imageToSave else {
             print("------------------------")
             print("[下载功能] 错误：没有可保存的图片")
             print("------------------------")
@@ -324,13 +347,15 @@ class ImageUploader: ObservableObject {
         // 获取定格时的方向
         let pausedOrientation = screenID == .original ? pausedOriginalOrientation : pausedMirroredOrientation
         
-        // 裁剪图片为分屏大小，使用定格时的方向
+        // 裁剪图片为分屏大小，使用定格时的方向和摄像头基准比例
         let croppedImage = ImageCropUtility.shared.cropImageToScreenSize(
             imageToSave,
             for: screenID,
             offset: currentOffset,
             isLandscape: pausedOrientation?.isLandscape ?? false,
-            pausedOrientation: pausedOrientation
+            pausedOrientation: pausedOrientation,
+            scale: scale,
+            cameraScale: cameraScale
         )
         
         // 检查相册权限并保存图片
@@ -391,35 +416,72 @@ class ImageUploader: ObservableObject {
     private var maxOffset: CGSize = .zero      // 添加最大偏移量
     
     // 修改设置定格图片的方法
-    func setPausedImage(_ image: UIImage?, for screenID: ScreenID, scale: CGFloat = 1.0) {
+    func setPausedImage(
+        _ image: UIImage?,
+        for screenID: ScreenID,
+        scale: CGFloat = 1.0,
+        cameraScale: CGFloat = 1.0,
+        isDualScreenMode: Bool = false,
+        otherScreenImage: UIImage? = nil
+    ) {
         print("------------------------")
-        print("[ImageUploader] 设置定格图片")
+        print("[setPausedImage] 开始处理")
         print("屏幕: \(screenID == .original ? "Original" : "Mirrored")")
-        print("传入缩放比例: \(Int(scale * 100))%")
-        print("------------------------")
+        print("当前缩放比例: \(Int(scale * 100))%")
+        print("基准摄像头比例: \(Int(cameraScale * 100))%")
+        print("最终合成比例: \(Int(scale * 100))%")
+        print("双屏模式: \(isDualScreenMode)")
+        print("输入图片: \(image != nil ? "存在" : "为空")")
+        print("另一屏图片: \(otherScreenImage != nil ? "存在" : "为空")")
         
-        // 设置选中的屏幕ID
-        selectedScreenID = screenID
-        
-        // 如果有图片，记录当前设备方向
-        if let image = image {
-            let orientation = UIDevice.current.orientation
+        do {
+            guard let image = image else {
+                throw NSError(domain: "ImageUploader", code: 1001, userInfo: [
+                    NSLocalizedDescriptionKey: "输入图片为空"
+                ])
+            }
             
-            // 只在允许的方向下记录
-            if DeviceOrientationManager.shared.isAllowedOrientation(orientation) {
-                if screenID == .original {
-                    pausedOriginalOrientation = orientation
-                } else {
-                    pausedMirroredOrientation = orientation
-                }
+            // 设置选中的屏幕ID
+            selectedScreenID = screenID
+            
+            // 重置偏移量
+            setOffset(.zero, maxOffset: .zero)
+            
+            // 保存定格时的摄像头比例和用户缩放比例
+            if screenID == .original {
+                print("[Original] 保存缩放比例:")
+                print("currentImageScale: \(scale)")
+                print("originalCameraScale: \(cameraScale)")
+                print("pausedOriginalCameraScale: \(scale)")
+                currentImageScale = scale
+                originalCameraScale = cameraScale
+                pausedOriginalCameraScale = scale
             } else {
-                // 如果不是允许的方向，使用最后一个有效方向
-                let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
-                if screenID == .original {
-                    pausedOriginalOrientation = lastValidOrientation
-                } else {
-                    pausedMirroredOrientation = lastValidOrientation
-                }
+                print("[Mirrored] 保存缩放比例:")
+                print("currentMirroredImageScale: \(scale)")
+                print("mirroredCameraScale: \(cameraScale)")
+                print("pausedMirroredCameraScale: \(scale)")
+                currentMirroredImageScale = scale
+                mirroredCameraScale = cameraScale
+                pausedMirroredCameraScale = scale
+            }
+            
+            // 记录当前设备方向
+            let orientation = UIDevice.current.orientation
+            let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
+            
+            print("[方向信息]")
+            print("当前方向: \(orientation.rawValue)")
+            print("最后有效方向: \(lastValidOrientation.rawValue)")
+            
+            // 设置方向
+            let finalOrientation = DeviceOrientationManager.shared.isAllowedOrientation(orientation) ? 
+                orientation : lastValidOrientation
+            
+            if screenID == .original {
+                pausedOriginalOrientation = finalOrientation
+            } else {
+                pausedMirroredOrientation = finalOrientation
             }
             
             // 根据当前方向和定格方向裁剪图片
@@ -427,42 +489,67 @@ class ImageUploader: ObservableObject {
             let pausedOrientation = screenID == .original ? 
                 pausedOriginalOrientation : pausedMirroredOrientation
             
-            let adjustedImage = ImageCropUtility.shared.cropPausedImage(
+            print("[裁剪前]")
+            print("目标方向: \(currentOrientation.rawValue)")
+            print("定格方向: \(pausedOrientation?.rawValue ?? -1)")
+            print("原始图片尺寸: \(Int(image.size.width))x\(Int(image.size.height))")
+            
+            // 使用 ImageCropUtility 裁剪图片
+            let adjustedImage = try ImageCropUtility.shared.cropPausedImage(
                 image,
                 for: screenID,
                 targetOrientation: currentOrientation,
                 pausedOrientation: pausedOrientation ?? currentOrientation,
-                offset: currentOffset,
-                scale: scale  // 传入缩放比例
+                offset: .zero,
+                scale: scale,
+                cameraScale: cameraScale
             )
+            
+            guard adjustedImage.size.width > 0 && adjustedImage.size.height > 0 else {
+                throw NSError(domain: "ImageUploader", code: 1002, userInfo: [
+                    NSLocalizedDescriptionKey: "裁剪后图片尺寸无效"
+                ])
+            }
+            
+            print("[裁剪后]")
+            print("裁剪后图片尺寸: \(Int(adjustedImage.size.width))x\(Int(adjustedImage.size.height))")
             
             // 设置裁剪后的图片
             if screenID == .original {
-                pausedOriginalImage = adjustedImage
+                self.originalPausedImage = adjustedImage
+                self._originalPausedImage = adjustedImage
+                self.selectedImage = adjustedImage
+                print("[Original] 图片已设置")
+                print("- 公共属性 originalPausedImage: \(self.originalPausedImage != nil ? "存在" : "为空")")
+                print("- 私有属性 _originalPausedImage: \(self._originalPausedImage != nil ? "存在" : "为空")")
             } else {
-                pausedMirroredImage = adjustedImage
+                self.mirroredPausedImage = adjustedImage
+                self._mirroredPausedImage = adjustedImage
+                self.selectedImage = adjustedImage
+                print("[Mirrored] 图片已设置")
+                print("- 公共属性 mirroredPausedImage: \(self.mirroredPausedImage != nil ? "存在" : "为空")")
+                print("- 私有属性 _mirroredPausedImage: \(self._mirroredPausedImage != nil ? "存在" : "为空")")
             }
-            selectedImage = adjustedImage
             
-            print("------------------------")
-            print("[定格图片] 已设置")
-            print("屏幕：\(screenID == .original ? "Original" : "Mirrored")")
-            print("缩放比例：\(Int(scale * 100))%")
-            print("图片尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
-            print("设备方向：\(orientation.rawValue)")
-            print("有效方向：\(currentOrientation.rawValue)")
-            print("------------------------")
-        } else {
-            // 清除相关数据
-            if screenID == .original {
-                pausedOriginalOrientation = nil
-                pausedOriginalImage = nil
-            } else {
-                pausedMirroredOrientation = nil
-                pausedMirroredImage = nil
+            // 验证图片是否成功设置
+            if screenID == .original && self.originalPausedImage == nil {
+                throw NSError(domain: "ImageUploader", code: 1003, userInfo: [
+                    NSLocalizedDescriptionKey: "Original图片设置失败"
+                ])
+            } else if screenID == .mirrored && self.mirroredPausedImage == nil {
+                throw NSError(domain: "ImageUploader", code: 1004, userInfo: [
+                    NSLocalizedDescriptionKey: "Mirrored图片设置失败"
+                ])
             }
-            selectedImage = nil
+            
+        } catch {
+            print("[错误] setPausedImage 过程出错:")
+            print("错误描述: \(error.localizedDescription)")
+            print("屏幕: \(screenID == .original ? "Original" : "Mirrored")")
+            print("------------------------")
         }
+        
+        print("------------------------")
     }
     
     // 添加设置偏移量的方法
@@ -713,6 +800,77 @@ class ImageUploader: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             self.showToast = false
         }
+    }
+    
+    // 添加这些方法到 ImageUploader 类中
+    func getOriginalCameraScale() -> CGFloat {
+        return originalCameraScale
+    }
+
+    func getMirroredCameraScale() -> CGFloat {
+        return mirroredCameraScale
+    }
+    
+    // 修改定格图片相关的属性和方法
+    private var _originalPausedImage: UIImage?
+    private var _mirroredPausedImage: UIImage?
+    
+    // 获取当前摄像头画面
+    func getCurrentFrame(for screenID: ScreenID) -> UIImage? {
+        // 如果已经有定格的图片，返回定格的图片
+        switch screenID {
+        case .original:
+            if let existingImage = _originalPausedImage {
+                print("------------------------")
+                print("[获取画面] 返回Original定格图片")
+                print("图片尺寸：\(Int(existingImage.size.width))x\(Int(existingImage.size.height))")
+                print("------------------------")
+                return existingImage
+            }
+        case .mirrored:
+            if let existingImage = _mirroredPausedImage {
+                print("------------------------")
+                print("[获取画面] 返回Mirrored定格图片")
+                print("图片尺寸：\(Int(existingImage.size.width))x\(Int(existingImage.size.height))")
+                print("------------------------")
+                return existingImage
+            }
+        }
+        
+        // 如果没有定格的图片，返回 nil
+        print("------------------------")
+        print("[获取画面] 无定格图片：\(screenID == .original ? "Original" : "Mirrored")")
+        print("------------------------")
+        return nil
+    }
+    
+    // 设置定格图片
+    func setPausedImage(_ image: UIImage?, for screenID: ScreenID) {
+        switch screenID {
+        case .original:
+            self._originalPausedImage = image
+            self.originalPausedImage = image
+            print("------------------------")
+            print("[setPausedImage] Original")
+            print("- 公共属性 originalPausedImage: \(self.originalPausedImage != nil ? "存在" : "为空")")
+            print("- 私有属性 _originalPausedImage: \(self._originalPausedImage != nil ? "存在" : "为空")")
+            print("------------------------")
+        case .mirrored:
+            self._mirroredPausedImage = image
+            self.mirroredPausedImage = image
+            print("------------------------")
+            print("[setPausedImage] Mirrored")
+            print("- 公共属性 mirroredPausedImage: \(self.mirroredPausedImage != nil ? "存在" : "为空")")
+            print("- 私有属性 _mirroredPausedImage: \(self._mirroredPausedImage != nil ? "存在" : "为空")")
+            print("------------------------")
+        }
+        
+        // 打印调试信息
+        print("------------------------")
+        print("[setPausedImage] 更新定格图片")
+        print("屏幕: \(screenID == .original ? "Original" : "Mirrored")")
+        print("图片: \(image != nil ? "存在" : "为空")")
+        print("------------------------")
     }
     
     init() {

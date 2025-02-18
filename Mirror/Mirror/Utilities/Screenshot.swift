@@ -149,7 +149,6 @@ struct ScreenshotAnimationView: View {
     // 获取预览图片尺寸
     private func getPreviewSize(_ geometry: GeometryProxy) -> CGSize {
         let orientation = orientationManager.currentOrientation
-        let screenSize = geometry.size
         
         // 获取实际可用屏幕尺寸（去除安全区域的影响）
         let safeScreenSize = CGSize(
@@ -246,6 +245,7 @@ struct ScreenshotAnimationView: View {
 
 class ScreenshotManager: ObservableObject {
     static let shared = ScreenshotManager()
+    private let imageUploader: ImageUploader
     
     @Published var isFlashing = false
     @Published var previewImage: UIImage?
@@ -253,10 +253,23 @@ class ScreenshotManager: ObservableObject {
     private var originalImage: UIImage?
     private var mirroredImage: UIImage?
     private var pendingScreenshot: UIImage?
+    private var originalCameraScale: CGFloat = 1.0
+    private var mirroredCameraScale: CGFloat = 1.0
     
-    func setImages(original: UIImage?, mirrored: UIImage?) {
+    init(imageUploader: ImageUploader = ImageUploader()) {
+        self.imageUploader = imageUploader
+    }
+    
+    func setImages(
+        original: UIImage?,
+        mirrored: UIImage?,
+        originalCameraScale: CGFloat = 1.0,
+        mirroredCameraScale: CGFloat = 1.0
+    ) {
         self.originalImage = original
         self.mirroredImage = mirrored
+        self.originalCameraScale = originalCameraScale
+        self.mirroredCameraScale = mirroredCameraScale
     }
     
     func captureDoubleScreens() {
@@ -265,9 +278,9 @@ class ScreenshotManager: ObservableObject {
         print("------------------------")
         
         // 检查相册权限
-        PHPhotoLibrary.requestAuthorization { status in
+        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
             if status == .authorized {
-                DispatchQueue.main.async {
+                DispatchQueue.main.async(execute: DispatchWorkItem(block: {
                     // 使用最后的有效方向来决定布局
                     let lastValidOrientation = DeviceOrientationManager.shared.lastValidDeviceOrientation
                     let isLandscape = lastValidOrientation.isLandscape
@@ -275,40 +288,80 @@ class ScreenshotManager: ObservableObject {
                     print("[截图] 使用最后的有效方向：\(lastValidOrientation)")
                     print("[截图] 是否横屏：\(isLandscape)")
                     
+                    // 获取当前的摄像头缩放比例
+                    let originalScale = self.originalCameraScale
+                    let mirroredScale = self.mirroredCameraScale
+                    
+                    print("[截图] Original摄像头缩放: \(Int(originalScale * 100))%")
+                    print("[截图] Mirrored摄像头缩放: \(Int(mirroredScale * 100))%")
+                    
+                    // 使用已经存储的图片
                     guard let originalImage = self.originalImage,
                           let mirroredImage = self.mirroredImage else {
-                        print("[截图] 错误：无法获取摄像头画面")
+                        print("[截图] 错误：无法获取定格图片")
                         return
                     }
                     
-                    let croppedOriginal = self.cropImageToScreenSize(originalImage, for: .original, isLandscape: isLandscape)
-                    let croppedMirrored = self.cropImageToScreenSize(mirroredImage, for: .mirrored, isLandscape: isLandscape)
+                    print("[截图] 已获取定格图片")
+                    print("Original尺寸：\(Int(originalImage.size.width))x\(Int(originalImage.size.height))")
+                    print("Mirrored尺寸：\(Int(mirroredImage.size.width))x\(Int(mirroredImage.size.height))")
                     
-                    // 创建最终的截图，使用最后的有效方向
+                    // 裁剪图片
+                    let croppedOriginal = ImageCropUtility.shared.cropImageToScreenSize(
+                        originalImage,
+                        for: .original,
+                        isLandscape: isLandscape,
+                        scale: 1.0,
+                        cameraScale: originalScale
+                    )
+                    
+                    let croppedMirrored = ImageCropUtility.shared.cropImageToScreenSize(
+                        mirroredImage,
+                        for: .mirrored,
+                        isLandscape: isLandscape,
+                        scale: 1.0,
+                        cameraScale: mirroredScale
+                    )
+                    
+                    // 创建最终的截图
                     let finalScreenshot = self.createCombinedImage(
                         top: croppedOriginal,
                         bottom: croppedMirrored,
                         isLandscape: isLandscape
                     )
                     
+                    // 验证最终截图
+                    if finalScreenshot.size.width == 0 || finalScreenshot.size.height == 0 {
+                        print("[截图] 错误：生成的截图尺寸无效")
+                        return
+                    }
+                    
                     // 保存预览图片和待保存的截图
                     self.previewImage = finalScreenshot
                     self.pendingScreenshot = finalScreenshot
                     
+                    print("[截图] 最终截图尺寸：\(Int(finalScreenshot.size.width))x\(Int(finalScreenshot.size.height))")
+                    
                     // 触发闪光动画
                     self.isFlashing = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
                         self.isFlashing = false
                     }
-                }
+                }))
             } else {
                 print("[截图] 错误：没有相册访问权限")
             }
         }
     }
     
-    // 修改 createCombinedImage 方法，添加 isLandscape 参数
+    // 修改 createCombinedImage 方法
     private func createCombinedImage(top: UIImage, bottom: UIImage, isLandscape: Bool) -> UIImage {
+        print("------------------------")
+        print("[截图合并] 开始")
+        print("Top图片尺寸: \(Int(top.size.width))x\(Int(top.size.height))")
+        print("Bottom图片尺寸: \(Int(bottom.size.width))x\(Int(bottom.size.height))")
+        print("是否横屏: \(isLandscape)")
+        
         let screenBounds = UIScreen.main.bounds
         
         // 根据最后的有效方向决定最终图片的尺寸
@@ -316,7 +369,13 @@ class ScreenshotManager: ObservableObject {
             ? CGSize(width: screenBounds.height, height: screenBounds.width)
             : CGSize(width: screenBounds.width, height: screenBounds.height)
         
-        UIGraphicsBeginImageContextWithOptions(finalSize, false, 0.0)
+        print("最终尺寸: \(Int(finalSize.width))x\(Int(finalSize.height))")
+        
+        UIGraphicsBeginImageContextWithOptions(finalSize, true, 0.0)  // 修改这里，设置 opaque 为 true
+        
+        // 填充背景色
+        UIColor.black.setFill()
+        UIRectFill(CGRect(origin: .zero, size: finalSize))
         
         if isLandscape {
             // 横屏：左右布局
@@ -330,6 +389,10 @@ class ScreenshotManager: ObservableObject {
         
         let combinedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
+        
+        print("[截图合并] 完成")
+        print("合并后尺寸: \(Int(combinedImage?.size.width ?? 0))x\(Int(combinedImage?.size.height ?? 0))")
+        print("------------------------")
         
         return combinedImage ?? UIImage()
     }
@@ -352,13 +415,26 @@ class ScreenshotManager: ObservableObject {
         }
     }
     
-    // 裁剪图片到屏幕大小
-    private func cropImageToScreenSize(_ image: UIImage, for screenID: ScreenID, isLandscape: Bool = false) -> UIImage {
-        // 使用ImageCropUtility进行裁剪，使用默认的零偏移量
+    // 修改裁剪图片到屏幕大小的方法
+    private func cropImageToScreenSize(
+        _ image: UIImage,
+        for screenID: ScreenID,
+        isLandscape: Bool = false,
+        cameraScale: CGFloat = 1.0
+    ) -> UIImage {
+        print("------------------------")
+        print("[截图] 裁剪图片")
+        print("屏幕：\(screenID == .original ? "Original" : "Mirrored")")
+        print("摄像头缩放比例：\(Int(cameraScale * 100))%")
+        print("------------------------")
+        
+        // 使用ImageCropUtility进行裁剪，传入摄像头缩放比例
         return ImageCropUtility.shared.cropImageToScreenSize(
             image,
             for: screenID,
-            isLandscape: isLandscape
+            isLandscape: isLandscape,
+            scale: 1.0,  // 这里使用1.0因为我们已经在setPausedImage时应用了缩放
+            cameraScale: cameraScale
         )
     }
 } 

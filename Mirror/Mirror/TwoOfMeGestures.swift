@@ -81,10 +81,18 @@ class TwoOfMeGestureManager {
         for screenID: ScreenID,
         isZone2Enabled: Bool,
         isZone3Enabled: Bool,
-        originalScale: Binding<CGFloat>,
-        mirroredScale: Binding<CGFloat>,
-        currentScale: Binding<CGFloat>,
-        currentMirroredScale: Binding<CGFloat>,
+        isOriginalPaused: Bool,
+        isMirroredPaused: Bool,
+        // Original 画面的缩放参数
+        originalCameraScale: Binding<CGFloat>,
+        originalImageScale: Binding<CGFloat>,
+        currentCameraScale: Binding<CGFloat>,
+        currentImageScale: Binding<CGFloat>,
+        // Mirrored 画面的缩放参数
+        mirroredCameraScale: Binding<CGFloat>,
+        mirroredImageScale: Binding<CGFloat>,
+        currentMirroredCameraScale: Binding<CGFloat>,
+        currentMirroredImageScale: Binding<CGFloat>,
         minScale: CGFloat,
         maxScale: CGFloat,
         currentIndicatorScale: Binding<CGFloat>,
@@ -100,95 +108,109 @@ class TwoOfMeGestureManager {
             .onChanged { scale in
                 if screenID == .original ? isZone2Enabled : isZone3Enabled {
                     if screenID == .original {
-                        let newScale = originalScale.wrappedValue * scale
-                        currentScale.wrappedValue = min(max(newScale, minScale), maxScale)
+                        if isOriginalPaused {
+                            let dampedScale = 1.0 + (scale - 1.0) * 0.1
+                            let newScale = originalImageScale.wrappedValue * dampedScale
+                            currentImageScale.wrappedValue = min(max(newScale, minScale), maxScale)
+                            
+                            print("------------------------")
+                            print("[Original屏幕缩放]")
+                            print("1. 摄像头比例")
+                            print("   - 基准比例: \(Int(originalCameraScale.wrappedValue * 100))%")
+                            print("2. 定格图片比例")
+                            print("   - 基准比例: \(Int(originalImageScale.wrappedValue * 100))%")
+                            print("   - 手势缩放: \(Int(dampedScale * 100))%")
+                            print("   - 最终比例: \(Int(currentImageScale.wrappedValue * 100))%")
+                            print("------------------------")
+                        } else {
+                            let newScale = originalCameraScale.wrappedValue * scale
+                            currentCameraScale.wrappedValue = min(max(newScale, minScale), maxScale)
+                            
+                            print("------------------------")
+                            print("[Original屏幕缩放]")
+                            print("1. 摄像头比例")
+                            print("   - 基准比例: \(Int(originalCameraScale.wrappedValue * 100))%")
+                            print("   - 手势缩放: \(Int(scale * 100))%")
+                            print("   - 最终比例: \(Int(currentCameraScale.wrappedValue * 100))%")
+                            print("2. 定格图片比例")
+                            print("   - 未定格")
+                            print("------------------------")
+                        }
                         
-                        // 添加缩放提示
-                        currentIndicatorScale.wrappedValue = currentScale.wrappedValue
+                        // 更新缩放指示器
+                        currentIndicatorScale.wrappedValue = isOriginalPaused ? 
+                            currentImageScale.wrappedValue : currentCameraScale.wrappedValue
                         activeScalingScreen.wrappedValue = .original
                         showScaleIndicator.wrappedValue = true
                         
-                        print("------------------------")
-                        print("[缩放调试] Original屏幕")
-                        print("基准缩放比例: \(Int(originalScale.wrappedValue * 100))%")
-                        print("当前手势缩放: \(Int(scale * 100))%")
-                        print("最终缩放比例: \(Int(currentScale.wrappedValue * 100))%")
-                        print("------------------------")
                     } else {
-                        let newScale = mirroredScale.wrappedValue * scale
-                        currentMirroredScale.wrappedValue = min(max(newScale, minScale), maxScale)
+                        if isMirroredPaused {
+                            let dampedScale = 1.0 + (scale - 1.0) * 0.1
+                            let newScale = mirroredImageScale.wrappedValue * dampedScale
+                            currentMirroredImageScale.wrappedValue = min(max(newScale, minScale), maxScale)
+                            
+                            print("------------------------")
+                            print("[Mirrored屏幕缩放]")
+                            print("1. 摄像头比例")
+                            print("   - 基准比例: \(Int(mirroredCameraScale.wrappedValue * 100))%")
+                            print("2. 定格图片比例")
+                            print("   - 基准比例: \(Int(mirroredImageScale.wrappedValue * 100))%")
+                            print("   - 手势缩放: \(Int(dampedScale * 100))%")
+                            print("   - 最终比例: \(Int(currentMirroredImageScale.wrappedValue * 100))%")
+                            print("------------------------")
+                        } else {
+                            let newScale = mirroredCameraScale.wrappedValue * scale
+                            currentMirroredCameraScale.wrappedValue = min(max(newScale, minScale), maxScale)
+                            
+                            print("------------------------")
+                            print("[Mirrored屏幕缩放]")
+                            print("1. 摄像头比例")
+                            print("   - 基准比例: \(Int(mirroredCameraScale.wrappedValue * 100))%")
+                            print("   - 手势缩放: \(Int(scale * 100))%")
+                            print("   - 最终比例: \(Int(currentMirroredCameraScale.wrappedValue * 100))%")
+                            print("2. 定格图片比例")
+                            print("   - 未定格")
+                            print("------------------------")
+                        }
                         
-                        // 添加缩放提示
-                        currentIndicatorScale.wrappedValue = currentMirroredScale.wrappedValue
+                        // 更新缩放指示器
+                        currentIndicatorScale.wrappedValue = isMirroredPaused ? 
+                            currentMirroredImageScale.wrappedValue : currentMirroredCameraScale.wrappedValue
                         activeScalingScreen.wrappedValue = .mirrored
                         showScaleIndicator.wrappedValue = true
-                        
-                        print("------------------------")
-                        print("[缩放调试] Mirrored屏幕")
-                        print("基准缩放比例: \(Int(mirroredScale.wrappedValue * 100))%")
-                        print("当前手势缩放: \(Int(scale * 100))%")
-                        print("最终缩放比例: \(Int(currentMirroredScale.wrappedValue * 100))%")
-                        print("------------------------")
                     }
                 }
             }
-            .onEnded { scale in
-                if screenID == .original ? isZone2Enabled : isZone3Enabled {
-                    if screenID == .original {
-                        // 更新基准缩放值
-                        originalScale.wrappedValue = currentScale.wrappedValue
+            .onEnded { endScale in
+                // 移除动画
+                if screenID == .original {
+                    if isOriginalPaused {
+                        originalImageScale.wrappedValue = currentImageScale.wrappedValue
                         
-                        print("------------------------")
-                        print("[缩放结束] Original屏幕")
-                        print("最终基准缩放: \(Int(originalScale.wrappedValue * 100))%")
-                        print("------------------------")
-                        
-                        // 延迟隐藏缩放提示
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showScaleIndicator.wrappedValue = false
-                            activeScalingScreen.wrappedValue = nil
-                        }
-                        
-                        // 只在缩小操作且图片超出边界时进行中心位置矫正
-                        if scale < 1.0 && isImageOutOfBounds(
-                            currentScale.wrappedValue,
-                            originalOffset,
-                            UIScreen.main.bounds.width,
-                            UIScreen.main.bounds.height
-                        ) {
-                            print("图片超出边界，执行缩小后的中心位置矫正")
-                            centerImage(currentScale.wrappedValue)
-                        } else {
-                            print("图片在边界内，保持当前位置")
+                        // 只在缩小时检查边界并居中
+                        if endScale < 1.0 && isImageOutOfBounds(currentImageScale.wrappedValue, originalOffset, minScale, maxScale) {
+                            centerImage(currentImageScale.wrappedValue)
                         }
                     } else {
-                        // 更新基准缩放值
-                        mirroredScale.wrappedValue = currentMirroredScale.wrappedValue
-                        
-                        print("------------------------")
-                        print("[缩放结束] Mirrored屏幕")
-                        print("最终基准缩放: \(Int(mirroredScale.wrappedValue * 100))%")
-                        print("------------------------")
-                        
-                        // 延迟隐藏缩放提示
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showScaleIndicator.wrappedValue = false
-                            activeScalingScreen.wrappedValue = nil
-                        }
-                        
-                        // 添加缩小操作的边界检查和中心矫正
-                        if scale < 1.0 && isImageOutOfBounds(
-                            currentMirroredScale.wrappedValue,
-                            mirroredOffset,
-                            UIScreen.main.bounds.width,
-                            UIScreen.main.bounds.height
-                        ) {
-                            print("图片超出边界，执行缩小后的中心位置矫正")
-                            centerMirroredImage(currentMirroredScale.wrappedValue)
-                        } else {
-                            print("图片在边界内，保持当前位置")
-                        }
+                        originalCameraScale.wrappedValue = currentCameraScale.wrappedValue
                     }
+                } else {
+                    if isMirroredPaused {
+                        mirroredImageScale.wrappedValue = currentMirroredImageScale.wrappedValue
+                        
+                        // 只在缩小时检查边界并居中
+                        if endScale < 1.0 && isImageOutOfBounds(currentMirroredImageScale.wrappedValue, mirroredOffset, minScale, maxScale) {
+                            centerMirroredImage(currentMirroredImageScale.wrappedValue)
+                        }
+                    } else {
+                        mirroredCameraScale.wrappedValue = currentMirroredCameraScale.wrappedValue
+                    }
+                }
+                
+                // 延迟隐藏缩放提示
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showScaleIndicator.wrappedValue = false
+                    activeScalingScreen.wrappedValue = nil
                 }
             }
     }
@@ -255,15 +277,19 @@ class TwoOfMeGestureManager {
         isMirroredPaused: Bool,
         currentScale: CGFloat,
         currentMirroredScale: CGFloat,
+        originalOffset: CGSize,
+        mirroredOffset: CGSize,
         imageUploader: ImageUploader,
-        handleDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat) -> Void,
-        handleMirroredDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat) -> Void,
+        isImageOutOfBounds: @escaping (CGFloat, CGSize, CGFloat, CGFloat) -> Bool,
+        centerImage: @escaping (CGFloat) -> Void,
+        centerMirroredImage: @escaping (CGFloat) -> Void,
+        handleDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat, CGSize) -> Void,
+        handleMirroredDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat, CGSize) -> Void,
         handleDragEnd: @escaping () -> Void,
         handleMirroredDragEnd: @escaping () -> Void
     ) -> some Gesture {
-        DragGesture()
+        DragGesture(minimumDistance: 5)
             .onChanged { value in
-                // 检查当前分屏的手电筒状态
                 if imageUploader.isFlashlightActive(for: screenID) {
                     return
                 }
@@ -271,20 +297,42 @@ class TwoOfMeGestureManager {
                 if screenID == .original ? isZone2Enabled : isZone3Enabled {
                     if screenID == .original {
                         if isOriginalPaused && currentScale > 1.0 {
+                            // 使用 DeviceOrientationManager 的当前有效方向
+                            let orientation = DeviceOrientationManager.shared.validOrientation
+                            let dampedTranslation = getRotatedTranslation(
+                                CGSize(
+                                    width: value.translation.width * 0.7,
+                                    height: value.translation.height * 0.7
+                                ),
+                                for: orientation
+                            )
+                            
                             handleDragGesture(
                                 value,
                                 UIScreen.main.bounds.width,
                                 UIScreen.main.bounds.height,
-                                UIScreen.main.bounds.height / 2
+                                UIScreen.main.bounds.height / 2,
+                                dampedTranslation
                             )
                         }
                     } else {
                         if isMirroredPaused && currentMirroredScale > 1.0 {
+                            // 使用 DeviceOrientationManager 的当前有效方向
+                            let orientation = DeviceOrientationManager.shared.validOrientation
+                            let dampedTranslation = getRotatedTranslation(
+                                CGSize(
+                                    width: value.translation.width * 0.7,
+                                    height: value.translation.height * 0.7
+                                ),
+                                for: orientation
+                            )
+                            
                             handleMirroredDragGesture(
                                 value,
                                 UIScreen.main.bounds.width,
                                 UIScreen.main.bounds.height,
-                                UIScreen.main.bounds.height / 2
+                                UIScreen.main.bounds.height / 2,
+                                dampedTranslation
                             )
                         }
                     }
@@ -300,14 +348,66 @@ class TwoOfMeGestureManager {
                     if screenID == .original {
                         if isOriginalPaused && currentScale > 1.0 {
                             handleDragEnd()
+                            
+                            // 检查是否需要中心校准
+                            if isImageOutOfBounds(
+                                currentScale,
+                                originalOffset,
+                                UIScreen.main.bounds.width,
+                                UIScreen.main.bounds.height
+                            ) {
+                                print("拖动结束，图片超出边界，执行中心位置矫正")
+                                centerImage(currentScale)
+                            }
                         }
                     } else {
                         if isMirroredPaused && currentMirroredScale > 1.0 {
                             handleMirroredDragEnd()
+                            
+                            // 检查是否需要中心校准
+                            if isImageOutOfBounds(
+                                currentMirroredScale,
+                                mirroredOffset,
+                                UIScreen.main.bounds.width,
+                                UIScreen.main.bounds.height
+                            ) {
+                                print("拖动结束，图片超出边界，执行中心位置矫正")
+                                centerMirroredImage(currentMirroredScale)
+                            }
                         }
                     }
                 }
             }
+    }
+    
+    // 添加获取旋转后偏移的辅助方法
+    private static func getRotatedTranslation(_ translation: CGSize, for orientation: UIDeviceOrientation) -> CGSize {
+        // 只处理允许的方向
+        if DeviceOrientationManager.shared.isAllowedOrientation(orientation) {
+            switch orientation {
+            case .landscapeLeft:
+                return CGSize(
+                    width: translation.height,
+                    height: -translation.width
+                )
+            case .landscapeRight:
+                return CGSize(
+                    width: -translation.height,
+                    height: translation.width
+                )
+            case .portraitUpsideDown:
+                return CGSize(
+                    width: -translation.width,
+                    height: -translation.height
+                )
+            default:
+                return translation
+            }
+        } else {
+            // 如果不是允许的方向，使用最后一个有效方向
+            let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
+            return getRotatedTranslation(translation, for: lastValidOrientation)
+        }
     }
     
     // 创建组合手势
@@ -332,8 +432,8 @@ class TwoOfMeGestureManager {
         isImageOutOfBounds: @escaping (CGFloat, CGSize, CGFloat, CGFloat) -> Bool,
         centerImage: @escaping (CGFloat) -> Void,
         centerMirroredImage: @escaping (CGFloat) -> Void,
-        handleDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat) -> Void,
-        handleMirroredDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat) -> Void,
+        handleDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat, CGSize) -> Void,
+        handleMirroredDragGesture: @escaping (DragGesture.Value, CGFloat, CGFloat, CGFloat, CGSize) -> Void,
         handleDragEnd: @escaping () -> Void,
         handleMirroredDragEnd: @escaping () -> Void
     ) -> some Gesture {
@@ -352,10 +452,18 @@ class TwoOfMeGestureManager {
                     for: screenID,
                     isZone2Enabled: isZone2Enabled,
                     isZone3Enabled: isZone3Enabled,
-                    originalScale: originalScale,
-                    mirroredScale: mirroredScale,
-                    currentScale: currentScale,
-                    currentMirroredScale: currentMirroredScale,
+                    isOriginalPaused: isOriginalPaused,
+                    isMirroredPaused: isMirroredPaused,
+                    // Original 画面的缩放参数
+                    originalCameraScale: originalScale,
+                    originalImageScale: currentScale,
+                    currentCameraScale: currentScale,
+                    currentImageScale: currentScale,
+                    // Mirrored 画面的缩放参数
+                    mirroredCameraScale: mirroredScale,
+                    mirroredImageScale: currentMirroredScale,
+                    currentMirroredCameraScale: currentMirroredScale,
+                    currentMirroredImageScale: currentMirroredScale,
                     minScale: minScale,
                     maxScale: maxScale,
                     currentIndicatorScale: currentIndicatorScale,
@@ -375,7 +483,12 @@ class TwoOfMeGestureManager {
                     isMirroredPaused: isMirroredPaused,
                     currentScale: currentScale.wrappedValue,
                     currentMirroredScale: currentMirroredScale.wrappedValue,
+                    originalOffset: originalOffset,
+                    mirroredOffset: mirroredOffset,
                     imageUploader: imageUploader,
+                    isImageOutOfBounds: isImageOutOfBounds,
+                    centerImage: centerImage,
+                    centerMirroredImage: centerMirroredImage,
                     handleDragGesture: handleDragGesture,
                     handleMirroredDragGesture: handleMirroredDragGesture,
                     handleDragEnd: handleDragEnd,
