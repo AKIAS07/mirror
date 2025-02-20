@@ -340,13 +340,26 @@ class ImageUploader: ObservableObject {
         // 获取定格时的方向
         let pausedOrientation = screenID == .original ? pausedOriginalOrientation : pausedMirroredOrientation
         
-        // 裁剪图片为分屏大小
+        // 获取当前摄像头缩放比例
+        let cameraScale = screenID == .original ? pausedOriginalCameraScale : pausedMirroredCameraScale
+        
+        print("[下载功能] 图片信息")
+        print("- 原始尺寸: \(Int(imageToSave.size.width))x\(Int(imageToSave.size.height))")
+        print("- 定格方向: \(pausedOrientation?.rawValue ?? -1)")
+        print("- 摄像头缩放: \(Int(cameraScale * 100))%")
+        
+        // 裁剪图片为分屏大小，传入摄像头缩放比例
         let croppedImage = ImageCropUtility.shared.cropImageToScreenSize(
             imageToSave,
             for: screenID,
             offset: currentOffset,
-            isLandscape: pausedOrientation?.isLandscape ?? false
+            isLandscape: pausedOrientation?.isLandscape ?? false,
+            pausedOrientation: pausedOrientation,
+            scale: 1.0,  // 使用1.0作为基础缩放
+            cameraScale: cameraScale  // 传入保存的摄像头缩放比例
         )
+        
+        print("- 裁剪后尺寸: \(Int(croppedImage.size.width))x\(Int(croppedImage.size.height))")
         
         // 检查相册权限并保存图片
         PHPhotoLibrary.requestAuthorization { [weak self] status in
@@ -551,6 +564,23 @@ class ImageUploader: ObservableObject {
                 object: nil
             )
         }
+        
+        // 保存摄像头缩放比例
+        if screenID == .original {
+            pausedOriginalCameraScale = cameraScale
+            if isDualScreenMode {
+                pausedMirroredCameraScale = cameraScale
+            }
+        } else {
+            pausedMirroredCameraScale = cameraScale
+            if isDualScreenMode {
+                pausedOriginalCameraScale = cameraScale
+            }
+        }
+        
+        print("[setPausedImage] 保存摄像头缩放比例")
+        print("Original: \(Int(pausedOriginalCameraScale * 100))%")
+        print("Mirrored: \(Int(pausedMirroredCameraScale * 100))%")
         
         print("------------------------")
     }

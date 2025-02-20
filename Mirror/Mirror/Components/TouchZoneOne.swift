@@ -441,34 +441,36 @@ struct TouchZoneOne: View {
                                     print("------------------------")
                                     
                                     // 处理Original屏幕
-                                    if !self.isOriginalPaused {
-                                        self.isOriginalPaused = true
-                                        if let originalImg = self.originalImage {
+                                    if !isOriginalPaused {
+                                        isOriginalPaused = true
+                                        if let originalImg = originalImage {
                                             switch self.orientationManager.currentOrientation {
                                             case .landscapeLeft:
-                                                self.pausedOriginalImage = originalImg.rotate(degrees: -90)
+                                                pausedOriginalImage = originalImg.rotate(degrees: -90)
                                             case .landscapeRight:
-                                                self.pausedOriginalImage = originalImg.rotate(degrees: 90)
+                                                pausedOriginalImage = originalImg.rotate(degrees: 90)
                                             case .portraitUpsideDown:
-                                                self.pausedOriginalImage = originalImg.rotate(degrees: 180)
+                                                pausedOriginalImage = originalImg.rotate(degrees: 180)
                                             default:
-                                                self.pausedOriginalImage = originalImg
+                                                pausedOriginalImage = originalImg
                                             }
                                             print("Original画面已定格")
-                                            // 修改：使用当前实际的摄像头缩放比例作为基准比例
+                                            // 使用双屏模式设置定格图片，以触发自动缩放
                                             imageUploader.setPausedImage(
                                                 self.pausedOriginalImage,
                                                 for: .original,
-                                                scale: self.currentCameraScale,  // 当前实际的缩放比例
-                                                cameraScale: self.currentCameraScale  // 使用当前实际的缩放比例作为基准比例
+                                                scale: self.currentCameraScale,
+                                                cameraScale: self.currentCameraScale,
+                                                isDualScreenMode: true,  // 设置为双屏模式
+                                                otherScreenImage: self.pausedMirroredImage  // 传入另一个屏幕的图片
                                             )
                                         }
                                     }
                                     
                                     // 处理Mirrored屏幕
-                                    if !self.isMirroredPaused {
-                                        self.isMirroredPaused = true
-                                        if let mirroredImg = self.mirroredImage {
+                                    if !isMirroredPaused {
+                                        isMirroredPaused = true
+                                        if let mirroredImg = mirroredImage {
                                             switch self.orientationManager.currentOrientation {
                                             case .landscapeLeft:
                                                 self.pausedMirroredImage = mirroredImg.rotate(degrees: -90)
@@ -480,20 +482,22 @@ struct TouchZoneOne: View {
                                                 self.pausedMirroredImage = mirroredImg
                                             }
                                             print("Mirrored画面已定格")
-                                            // 修改：使用当前实际的摄像头缩放比例作为基准比例
+                                            // 使用双屏模式设置定格图片，以触发自动缩放
                                             imageUploader.setPausedImage(
                                                 self.pausedMirroredImage,
                                                 for: .mirrored,
-                                                scale: self.currentMirroredCameraScale,  // 当前实际的缩放比例
-                                                cameraScale: self.currentMirroredCameraScale  // 使用当前实际的缩放比例作为基准比例
+                                                scale: self.currentMirroredCameraScale,
+                                                cameraScale: self.currentMirroredCameraScale,
+                                                isDualScreenMode: true,  // 设置为双屏模式
+                                                otherScreenImage: self.pausedOriginalImage  // 传入另一个屏幕的图片
                                             )
                                         }
                                     }
                                     
                                     print("------------------------")
                                     print("开始执行截图")
-                                    print("Original定格状态: \(self.isOriginalPaused)")
-                                    print("Mirrored定格状态: \(self.isMirroredPaused)")
+                                    print("Original定格状态: \(isOriginalPaused)")
+                                    print("Mirrored定格状态: \(isMirroredPaused)")
                                     print("------------------------")
                                     
                                     // 更新截图管理器的图像引用并执行截图
@@ -688,12 +692,14 @@ struct TouchZoneOne: View {
                                             pausedOriginalImage = originalImg
                                         }
                                         print("Original画面已定格")
-                                        // 修改：使用当前实际的摄像头缩放比例作为基准比例
+                                        // 使用双屏模式设置定格图片，以触发自动缩放
                                         imageUploader.setPausedImage(
                                             self.pausedOriginalImage,
                                             for: .original,
-                                            scale: self.currentCameraScale,  // 当前实际的缩放比例
-                                            cameraScale: self.currentCameraScale  // 使用当前实际的缩放比例作为基准比例
+                                            scale: self.currentCameraScale,
+                                            cameraScale: self.currentCameraScale,
+                                            isDualScreenMode: true,  // 设置为双屏模式
+                                            otherScreenImage: self.pausedMirroredImage  // 传入另一个屏幕的图片
                                         )
                                     }
                                 }
@@ -713,12 +719,14 @@ struct TouchZoneOne: View {
                                             self.pausedMirroredImage = mirroredImg
                                         }
                                         print("Mirrored画面已定格")
-                                        // 修改：使用当前实际的摄像头缩放比例作为基准比例
+                                        // 使用双屏模式设置定格图片，以触发自动缩放
                                         imageUploader.setPausedImage(
                                             self.pausedMirroredImage,
                                             for: .mirrored,
-                                            scale: self.currentMirroredCameraScale,  // 当前实际的缩放比例
-                                            cameraScale: self.currentMirroredCameraScale  // 使用当前实际的缩放比例作为基准比例
+                                            scale: self.currentMirroredCameraScale,
+                                            cameraScale: self.currentMirroredCameraScale,
+                                            isDualScreenMode: true,  // 设置为双屏模式
+                                            otherScreenImage: self.pausedOriginalImage  // 传入另一个屏幕的图片
                                         )
                                     }
                                 }
