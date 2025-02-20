@@ -435,19 +435,6 @@ class ImageUploader: ObservableObject {
         // 重置偏移量
         setOffset(.zero, maxOffset: .zero)
         
-        // 强制重置缩放比例为1.0（100%）
-        if screenID == .original {
-            print("重置 Original 缩放比例为: 100%")
-            currentImageScale = 1.0
-            originalCameraScale = 1.0  // 重置摄像头基准比例
-            pausedOriginalCameraScale = 1.0
-        } else {
-            print("重置 Mirrored 缩放比例为: 100%")
-            currentMirroredImageScale = 1.0
-            mirroredCameraScale = 1.0  // 重置摄像头基准比例
-            pausedMirroredCameraScale = 1.0
-        }
-        
         // 记录当前设备方向
         let orientation = UIDevice.current.orientation
         let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
@@ -505,6 +492,13 @@ class ImageUploader: ObservableObject {
             print("[Original] 图片已设置")
             print("- 公共属性 originalPausedImage: \(self.originalPausedImage != nil ? "存在" : "为空")")
             print("- 私有属性 _originalPausedImage: \(self._originalPausedImage != nil ? "存在" : "为空")")
+            
+            // 如果是双屏模式，同时设置另一个屏幕的图片
+            if isDualScreenMode, let otherImage = otherScreenImage {
+                self.mirroredPausedImage = otherImage
+                self._mirroredPausedImage = otherImage
+                print("[Mirrored] 双屏模式下的图片已设置")
+            }
         } else {
             self.mirroredPausedImage = adjustedImage
             self._mirroredPausedImage = adjustedImage
@@ -512,6 +506,50 @@ class ImageUploader: ObservableObject {
             print("[Mirrored] 图片已设置")
             print("- 公共属性 mirroredPausedImage: \(self.mirroredPausedImage != nil ? "存在" : "为空")")
             print("- 私有属性 _mirroredPausedImage: \(self._mirroredPausedImage != nil ? "存在" : "为空")")
+            
+            // 如果是双屏模式，同时设置另一个屏幕的图片
+            if isDualScreenMode, let otherImage = otherScreenImage {
+                self.originalPausedImage = otherImage
+                self._originalPausedImage = otherImage
+                print("[Original] 双屏模式下的图片已设置")
+            }
+        }
+
+        // 强制重置缩放比例为1.0（100%）
+        if screenID == .original {
+            print("重置 Original 缩放比例为: 100%")
+            currentImageScale = 1.0
+            originalCameraScale = 1.0
+            pausedOriginalCameraScale = 1.0
+            
+            // 如果是双屏模式，同时重置另一个屏幕的缩放比例
+            if isDualScreenMode {
+                print("重置 Mirrored 缩放比例为: 100%（双屏模式）")
+                currentMirroredImageScale = 1.0
+                mirroredCameraScale = 1.0
+                pausedMirroredCameraScale = 1.0
+            }
+        } else {
+            print("重置 Mirrored 缩放比例为: 100%")
+            currentMirroredImageScale = 1.0
+            mirroredCameraScale = 1.0
+            pausedMirroredCameraScale = 1.0
+            
+            // 如果是双屏模式，同时重置另一个屏幕的缩放比例
+            if isDualScreenMode {
+                print("重置 Original 缩放比例为: 100%（双屏模式）")
+                currentImageScale = 1.0
+                originalCameraScale = 1.0
+                pausedOriginalCameraScale = 1.0
+            }
+        }
+        
+        // 如果是双屏模式，发送通知通知两个屏幕都需要重置缩放
+        if isDualScreenMode {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ResetScreenScales"),
+                object: nil
+            )
         }
         
         print("------------------------")

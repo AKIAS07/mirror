@@ -10,6 +10,10 @@ class TwoOfMeGestureManager {
         isDefaultGesture: Bool,
         isScreensSwapped: Bool,
         layoutDescription: String,
+        currentImageScale: Binding<CGFloat>,
+        originalImageScale: Binding<CGFloat>,
+        currentMirroredImageScale: Binding<CGFloat>,
+        mirroredImageScale: Binding<CGFloat>,
         togglePauseState: @escaping (ScreenID) -> Void,
         handleSingleTap: @escaping (ScreenID) -> Void,
         imageUploader: ImageUploader
@@ -43,6 +47,27 @@ class TwoOfMeGestureManager {
                             
                             togglePauseState(screenID)
                             
+                            // 在Original屏幕被定格时，自动将画面缩放比例重置为100%
+                            if screenID == .original {
+                                currentImageScale.wrappedValue = 1.0
+                                originalImageScale.wrappedValue = 1.0
+                                
+                                print("------------------------")
+                                print("[Original屏幕自动缩放]")
+                                print("定格后自动重置缩放比例为100%")
+                                print("------------------------")
+                            }
+                                                        
+                            // 在Mirrored屏幕被定格时，自动将画面缩放比例重置为100%
+                            if screenID == .mirrored {
+                                currentMirroredImageScale.wrappedValue = 1.0
+                                mirroredImageScale.wrappedValue = 1.0
+                                
+                                print("------------------------")
+                                print("[Mirrored屏幕自动缩放]")
+                                print("定格后自动重置缩放比例为100%")
+                                print("------------------------")
+                            }
                             print("当前布局：\(layoutDescription)")
                             print("------------------------")
                         } else {

@@ -135,6 +135,10 @@ private struct ScreenGestureView: View {
                 isDefaultGesture: isDefaultGesture,
                 isScreensSwapped: isScreensSwapped,
                 layoutDescription: layoutDescription,
+                currentImageScale: $currentScale,
+                originalImageScale: $originalScale,
+                currentMirroredImageScale: $currentMirroredScale,
+                mirroredImageScale: $mirroredScale,
                 togglePauseState: togglePauseState,
                 handleSingleTap: handleSingleTap,
                 imageUploader: imageUploader
@@ -1422,6 +1426,29 @@ struct TwoOfMeScreens: View {
                     }
                 }
                 
+                // 添加重置缩放比例的通知监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("ResetScreenScales"),
+                    object: nil,
+                    queue: .main
+                ) { [self] _ in
+                    print("------------------------")
+                    print("[双屏截图] 重置两个屏幕的缩放比例")
+                    print("------------------------")
+                    
+                    // 重置 Original 屏幕的缩放比例
+                    originalImageScale = 1.0
+                    currentImageScale = 1.0
+                    originalCameraScale = 1.0
+                    currentCameraScale = 1.0
+                    
+                    // 重置 Mirrored 屏幕的缩放比例
+                    mirroredImageScale = 1.0
+                    currentMirroredImageScale = 1.0
+                    mirroredCameraScale = 1.0
+                    currentMirroredCameraScale = 1.0
+                }
+                
                 print("------------------------")
                 print("视图初始化")
                 print("触控区2永远对应Original幕（双击可定格/恢复画面）")
@@ -1434,6 +1461,7 @@ struct TwoOfMeScreens: View {
                 NotificationCenter.default.removeObserver(self)
                 hideContainerTimer?.invalidate()
                 borderLightManager.turnOffAllLights()
+                NotificationCenter.default.removeObserver(self, name: NSNotification.Name("ResetScreenScales"), object: nil)
             }
             .onChange(of: imageUploader.selectedImage) { newImage in
                 handleSelectedImage(newImage)
