@@ -874,27 +874,20 @@ struct TwoOfMeScreens: View {
     
     // 处理交换按钮点击
     private func handleSwapButtonTap() {
-        print("------------------------")
-        print("执行交换操作")
-        print("当前布局：\(layoutDescription)")
-        
-        // 交换手电筒状态和图片
-        imageUploader.handleScreenSwap()
-        
-        // 执行交换
-        withAnimation {
+        withAnimation(.easeInOut(duration: 0.3)) {
             isScreensSwapped.toggle()
-        }
-        
-        // 延迟打印交换后状态
-        DispatchQueue.main.async {
-            print("交换完成")
-            print("新布局：\(layoutDescription)")
+            
+            // 更新截图管理器的屏幕交换状态
+            screenshotManager.updateScreenSwapState(isScreensSwapped)
+            
+            // 通知 ImageUploader 处理分屏交换
+            imageUploader.handleScreenSwap()
+            
+            print("------------------------")
+            print("[分屏交换] 布局已更新")
+            print("当前布局：\(isScreensSwapped ? "Mirrored在上，Original在下" : "Original在上，Mirrored在下")")
             print("------------------------")
         }
-        
-        // 立即隐藏容器
-        hideContainer()
     }
     
     // 添加边框灯管理器
@@ -1431,9 +1424,9 @@ struct TwoOfMeScreens: View {
                     forName: NSNotification.Name("ResetScreenScales"),
                     object: nil,
                     queue: .main
-                ) { [self] _ in
+                ) { [self] notification in
                     print("------------------------")
-                    print("[双屏截图] 重置两个屏幕的缩放比例")
+                    print("[双屏重置] 重置两个屏幕的缩放比例和偏移量")
                     print("------------------------")
                     
                     // 重置 Original 屏幕的缩放比例
@@ -1442,11 +1435,21 @@ struct TwoOfMeScreens: View {
                     originalCameraScale = 1.0
                     currentCameraScale = 1.0
                     
-                    // 重置 Mirrored 屏幕的缩放比例
+                    // 重置 Original 屏幕的偏移量
+                    originalOffset = .zero
+                    
+                    // 重置 Mirrored 屏幕的缩放比例  
                     mirroredImageScale = 1.0
                     currentMirroredImageScale = 1.0
                     mirroredCameraScale = 1.0
                     currentMirroredCameraScale = 1.0
+                    
+                    // 重置 Mirrored 屏幕的偏移量
+                    mirroredOffset = .zero
+                    
+                    print("[重置完成]")
+                    print("Original - 缩放: 100%, 偏移: (0, 0)")
+                    print("Mirrored - 缩放: 100%, 偏移: (0, 0)")
                 }
                 
                 print("------------------------")

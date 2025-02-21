@@ -255,9 +255,16 @@ class ScreenshotManager: ObservableObject {
     private var pendingScreenshot: UIImage?
     private var originalCameraScale: CGFloat = 1.0
     private var mirroredCameraScale: CGFloat = 1.0
+    private var isScreenSwapped: Bool = false  // 添加屏幕交换状态追踪
     
     init(imageUploader: ImageUploader = ImageUploader()) {
         self.imageUploader = imageUploader
+    }
+    
+    // 添加更新屏幕交换状态的方法
+    func updateScreenSwapState(_ isSwapped: Bool) {
+        self.isScreenSwapped = isSwapped
+        print("[截图] 屏幕交换状态已更新: \(isSwapped ? "已交换" : "未交换")")
     }
     
     func setImages(
@@ -289,20 +296,24 @@ class ScreenshotManager: ObservableObject {
                     print("[截图] 是否横屏：\(isLandscape)")
                     
                     // 获取当前的摄像头缩放比例
-                    let originalScale = self.originalCameraScale
-                    let mirroredScale = self.mirroredCameraScale
+                    let originalScale = self.originalImage != nil ? self.originalCameraScale : 1.0
+                    let mirroredScale = self.mirroredImage != nil ? self.mirroredCameraScale : 1.0
                     
                     print("[截图] Original摄像头缩放: \(Int(originalScale * 100))%")
                     print("[截图] Mirrored摄像头缩放: \(Int(mirroredScale * 100))%")
                     
-                    // 使用已经存储的图片
-                    guard let originalImage = self.originalImage,
-                          let mirroredImage = self.mirroredImage else {
-                        print("[截图] 错误：无法获取定格图片")
+                    // 获取两个屏幕的图片，优先使用定格的图片
+                    let finalOriginalImage = self.imageUploader.getCurrentFrame(for: .original) ?? self.originalImage
+                    let finalMirroredImage = self.imageUploader.getCurrentFrame(for: .mirrored) ?? self.mirroredImage
+                    
+                    // 使用获取到的图片
+                    guard let originalImage = finalOriginalImage,
+                          let mirroredImage = finalMirroredImage else {
+                        print("[截图] 错误：无法获取图片")
                         return
                     }
                     
-                    print("[截图] 已获取定格图片")
+                    print("[截图] 已获取图片")
                     print("Original尺寸：\(Int(originalImage.size.width))x\(Int(originalImage.size.height))")
                     print("Mirrored尺寸：\(Int(mirroredImage.size.width))x\(Int(mirroredImage.size.height))")
                     
@@ -360,11 +371,13 @@ class ScreenshotManager: ObservableObject {
     private func createCombinedImage(top: UIImage, bottom: UIImage, isLandscape: Bool) -> UIImage {
         print("------------------------")
         print("[截图合并] 开始")
+        print("当前布局：\(isScreenSwapped ? "Mirrored在上，Original在下" : "Original在上，Mirrored在下")")
         print("Top图片尺寸: \(Int(top.size.width))x\(Int(top.size.height))")
         print("Bottom图片尺寸: \(Int(bottom.size.width))x\(Int(bottom.size.height))")
         print("是否横屏: \(isLandscape)")
         
         let screenBounds = UIScreen.main.bounds
+        let currentOrientation = DeviceOrientationManager.shared.currentOrientation
         
         // 根据最后的有效方向决定最终图片的尺寸
         let finalSize = isLandscape 
@@ -372,22 +385,80 @@ class ScreenshotManager: ObservableObject {
             : CGSize(width: screenBounds.width, height: screenBounds.height)
         
         print("最终尺寸: \(Int(finalSize.width))x\(Int(finalSize.height))")
+        print("当前设备方向: \(currentOrientation)")
         
-        UIGraphicsBeginImageContextWithOptions(finalSize, true, 0.0)  // 修改这里，设置 opaque 为 true
+        // 定义图片布局结构
+        struct ImageLayout {
+            let first: UIImage
+            let second: UIImage
+            let firstFrame: CGRect
+            let secondFrame: CGRect
+        }
+        
+        // 获取布局配置
+        func getLayout() -> ImageLayout {
+            // 根据当前的分屏布局状态决定图片顺序
+            let (firstImage, secondImage) = isScreenSwapped ? (bottom, top) : (top, bottom)
+            
+            switch currentOrientation {
+            case .portrait:
+                // 正常竖屏
+                let firstFrame = CGRect(x: 0, y: 0, 
+                                      width: finalSize.width, height: finalSize.height/2)
+                let secondFrame = CGRect(x: 0, y: finalSize.height/2, 
+                                       width: finalSize.width, height: finalSize.height/2)
+                return ImageLayout(first: firstImage, second: secondImage,
+                                 firstFrame: firstFrame, secondFrame: secondFrame)
+                
+            case .portraitUpsideDown:
+                // 倒置竖屏 - 交换上下位置
+                let firstFrame = CGRect(x: 0, y: finalSize.height/2, 
+                                      width: finalSize.width, height: finalSize.height/2)
+                let secondFrame = CGRect(x: 0, y: 0, 
+                                       width: finalSize.width, height: finalSize.height/2)
+                return ImageLayout(first: firstImage, second: secondImage,
+                                 firstFrame: firstFrame, secondFrame: secondFrame)
+                
+            case .landscapeLeft:
+                // 向左横屏
+                let firstFrame = CGRect(x: 0, y: 0, 
+                                      width: finalSize.width/2, height: finalSize.height)
+                let secondFrame = CGRect(x: finalSize.width/2, y: 0, 
+                                       width: finalSize.width/2, height: finalSize.height)
+                return ImageLayout(first: firstImage, second: secondImage,
+                                 firstFrame: firstFrame, secondFrame: secondFrame)
+                
+            case .landscapeRight:
+                // 向右横屏 - 交换左右位置
+                let firstFrame = CGRect(x: finalSize.width/2, y: 0, 
+                                      width: finalSize.width/2, height: finalSize.height)
+                let secondFrame = CGRect(x: 0, y: 0, 
+                                       width: finalSize.width/2, height: finalSize.height)
+                return ImageLayout(first: firstImage, second: secondImage,
+                                 firstFrame: firstFrame, secondFrame: secondFrame)
+                
+            default:
+                // 默认使用正常竖屏布局
+                let firstFrame = CGRect(x: 0, y: 0, 
+                                      width: finalSize.width, height: finalSize.height/2)
+                let secondFrame = CGRect(x: 0, y: finalSize.height/2, 
+                                       width: finalSize.width, height: finalSize.height/2)
+                return ImageLayout(first: firstImage, second: secondImage,
+                                 firstFrame: firstFrame, secondFrame: secondFrame)
+            }
+        }
+        
+        // 创建图片上下文并绘制
+        UIGraphicsBeginImageContextWithOptions(finalSize, true, 0.0)
         
         // 填充背景色
         UIColor.black.setFill()
         UIRectFill(CGRect(origin: .zero, size: finalSize))
         
-        if isLandscape {
-            // 横屏：左右布局
-            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width/2, height: finalSize.height))
-            bottom.draw(in: CGRect(x: finalSize.width/2, y: 0, width: finalSize.width/2, height: finalSize.height))
-        } else {
-            // 竖屏：上下布局
-            top.draw(in: CGRect(x: 0, y: 0, width: finalSize.width, height: finalSize.height/2))
-            bottom.draw(in: CGRect(x: 0, y: finalSize.height/2, width: finalSize.width, height: finalSize.height/2))
-        }
+        // 获取并应用布局
+        let layout = getLayout()
+        layout.first.draw(in: layout.firstFrame)
+        layout.second.draw(in: layout.secondFrame)
         
         let combinedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()

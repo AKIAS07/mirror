@@ -535,12 +535,18 @@ class ImageUploader: ObservableObject {
             originalCameraScale = 1.0
             pausedOriginalCameraScale = 1.0
             
-            // 如果是双屏模式，同时重置另一个屏幕的缩放比例
+            // 重置偏移量为零,使图片回到中心位置
+            setOffset(.zero, maxOffset: .zero)
+            
+            // 如果是双屏模式，同时重置另一个屏幕的缩放比例和偏移量
             if isDualScreenMode {
                 print("重置 Mirrored 缩放比例为: 100%（双屏模式）")
                 currentMirroredImageScale = 1.0
                 mirroredCameraScale = 1.0
                 pausedMirroredCameraScale = 1.0
+                
+                // 重置另一个屏幕的偏移量
+                setOffset(.zero, maxOffset: .zero)
             }
         } else {
             print("重置 Mirrored 缩放比例为: 100%")
@@ -548,22 +554,35 @@ class ImageUploader: ObservableObject {
             mirroredCameraScale = 1.0
             pausedMirroredCameraScale = 1.0
             
-            // 如果是双屏模式，同时重置另一个屏幕的缩放比例
+            // 重置偏移量为零,使图片回到中心位置
+            setOffset(.zero, maxOffset: .zero)
+            
+            // 如果是双屏模式，同时重置另一个屏幕的缩放比例和偏移量
             if isDualScreenMode {
                 print("重置 Original 缩放比例为: 100%（双屏模式）")
                 currentImageScale = 1.0
                 originalCameraScale = 1.0
                 pausedOriginalCameraScale = 1.0
+                
+                // 重置另一个屏幕的偏移量
+                setOffset(.zero, maxOffset: .zero)
             }
         }
         
-        // 如果是双屏模式，发送通知通知两个屏幕都需要重置缩放
+        // 如果是双屏模式，发送通知通知两个屏幕都需要重置缩放和偏移
         if isDualScreenMode {
             NotificationCenter.default.post(
                 name: NSNotification.Name("ResetScreenScales"),
-                object: nil
+                object: nil,
+                userInfo: [
+                    "resetOffset": true  // 添加重置偏移量的标记
+                ]
             )
         }
+        
+        print("[重置完成]")
+        print("Original - 缩放: \(Int(currentImageScale * 100))%, 偏移: (0, 0)")
+        print("Mirrored - 缩放: \(Int(currentMirroredImageScale * 100))%, 偏移: (0, 0)")
         
         // 保存摄像头缩放比例
         if screenID == .original {
@@ -769,7 +788,7 @@ class ImageUploader: ObservableObject {
         }
     }
     
-    // 添加分屏交换时的手电筒状态处理方法
+    // 修改分屏交换时的手电筒状态处理方法
     func handleScreenSwap() {
         print("------------------------")
         print("[分屏交换] 开始")
@@ -783,9 +802,9 @@ class ImageUploader: ObservableObject {
         isFlashlightActiveMirrored = tempOriginal
         
         // 交换定格图片
-        let tempOriginalImage = pausedOriginalImage
-        pausedOriginalImage = pausedMirroredImage
-        pausedMirroredImage = tempOriginalImage
+        let tempOriginalImage = _originalPausedImage
+        _originalPausedImage = _mirroredPausedImage
+        _mirroredPausedImage = tempOriginalImage
         
         print("交换后状态：")
         print("  Original手电筒：\(isFlashlightActiveOriginal ? "开启" : "关闭")")

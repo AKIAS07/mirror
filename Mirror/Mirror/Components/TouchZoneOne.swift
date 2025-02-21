@@ -379,8 +379,8 @@ struct TouchZoneOne: View {
                                                 
                                                 // 更新截图管理器的图像引用并执行截图
                                                 self.screenshotManager.setImages(
-                                                    original: rotatedOriginalImg,  // 使用旋转后的图片
-                                                    mirrored: rotatedMirroredImg,  // 使用旋转后的图片
+                                                    original: rotatedOriginalImg,
+                                                    mirrored: rotatedMirroredImg,
                                                     originalCameraScale: self.currentCameraScale,
                                                     mirroredCameraScale: self.currentMirroredCameraScale
                                                 )
@@ -505,7 +505,7 @@ struct TouchZoneOne: View {
                                         original: self.pausedOriginalImage ?? self.originalImage,
                                         mirrored: self.pausedMirroredImage ?? self.mirroredImage,
                                         originalCameraScale: self.currentCameraScale,  // 添加 Original 摄像头缩放比例
-                                        mirroredCameraScale: self.currentMirroredCameraScale  // 添加 Mirrored 摄像头缩放比例
+                                        mirroredCameraScale: self.currentMirroredCameraScale
                                     )
                                     self.screenshotManager.captureDoubleScreens()
                                 }
@@ -616,8 +616,8 @@ struct TouchZoneOne: View {
                                             
                                             // 更新截图管理器的图像引用并执行截图
                                             self.screenshotManager.setImages(
-                                                original: rotatedOriginalImg,  // 使用旋转后的图片
-                                                mirrored: rotatedMirroredImg,  // 使用旋转后的图片
+                                                original: rotatedOriginalImg,
+                                                mirrored: rotatedMirroredImg,
                                                 originalCameraScale: self.currentCameraScale,
                                                 mirroredCameraScale: self.currentMirroredCameraScale
                                             )
@@ -742,7 +742,7 @@ struct TouchZoneOne: View {
                                     original: self.pausedOriginalImage ?? self.originalImage,
                                     mirrored: self.pausedMirroredImage ?? self.mirroredImage,
                                     originalCameraScale: self.currentCameraScale,  // 添加 Original 摄像头缩放比例
-                                    mirroredCameraScale: self.currentMirroredCameraScale  // 添加 Mirrored 摄像头缩放比例
+                                    mirroredCameraScale: self.currentMirroredCameraScale
                                 )
                                 self.screenshotManager.captureDoubleScreens()
                             }
@@ -853,6 +853,9 @@ struct TouchZoneOne: View {
         
         // 处理手电筒状态交换
         imageUploader.handleScreenSwap()
+        
+        // 更新截图管理器的屏幕交换状态
+        screenshotManager.updateScreenSwapState(isScreenSwapped)
         
         handleSwapButtonTap()
         
