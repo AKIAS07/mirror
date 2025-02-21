@@ -86,7 +86,8 @@ struct RestartCameraView: View {
                         .rotationEffect(orientationManager.getRotationAngle(orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                 }
-                .position(x: geometry.size.width/2, y: geometry.size.height/2-25)
+                .position(x: geometry.size.width/2, 
+                         y: geometry.size.height/2 - geometry.safeAreaInsets.bottom/2)  // 考虑安全区域
             }
             .onTapGesture {
                 action()

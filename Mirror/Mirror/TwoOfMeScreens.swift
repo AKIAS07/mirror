@@ -1083,6 +1083,17 @@ struct TwoOfMeScreens: View {
     @State private var showMirroredFlash = false  // 添加镜像画面闪光状态
     @State private var touchZonePoint: CGPoint = .zero  // 修改变量名
     
+    @State private var showOriginalRestartHint = false  // Original屏幕重启提示
+    @State private var showMirroredRestartHint = false  // Mirrored屏幕重启提示
+    
+    // 添加状态变量来控制提示的显示
+    @State private var showRestartHint = false  // 控制提示的显示
+    @State private var restartHintWorkItem: DispatchWorkItem?  // 用于延迟隐藏提示
+    
+    // 添加新的状态变量
+    @State private var showPhotoDisabledHint = false
+    @State private var photoDisabledHintWorkItem: DispatchWorkItem?
+    
     init() {
         // 不再需要设置边框灯管理器引用
     }
@@ -1095,10 +1106,11 @@ struct TwoOfMeScreens: View {
             let _ = screenHeight / 2
             
             ZStack {
-                // 背景
+                // 背景 (zIndex = 0)
                 Color.black.edgesIgnoringSafeArea(.all)
+                    .zIndex(0)
                 
-                // 所有内容包装在一个偏移容器中
+                // 所有内容包装在一个偏移容器中 (zIndex = 1)
                 ZStack {
                     // 上下分屏布局
                     VStack(spacing: 0) {
@@ -1198,37 +1210,9 @@ struct TwoOfMeScreens: View {
                     }
                     .animation(.easeInOut(duration: 0.3), value: isScreensSwapped)  // 添加交换动画
                     
-                    // 触控区域
+                    // 其他触控区域（区域2和3）
                     if !imageUploader.isOverlayVisible {
                         ZStack {
-                            // 触控区1 (放在最上层)
-                            TouchZoneOne(
-                                showContainer: $showContainer,
-                                containerWidth: $containerWidth,
-                                touchZonePosition: $touchZonePosition,
-                                dragOffset: $dragOffset,
-                                isZone1Enabled: $isZone1Enabled,
-                                isOriginalPaused: $isOriginalPaused,
-                                isMirroredPaused: $isMirroredPaused,
-                                pausedOriginalImage: $pausedOriginalImage,
-                                pausedMirroredImage: $pausedMirroredImage,
-                                originalImage: originalImage,
-                                mirroredImage: mirroredImage,
-                                dragDampingFactor: dragDampingFactor,
-                                animationDuration: animationDuration,
-                                screenWidth: screenWidth,
-                                screenHeight: screenHeight,
-                                dragVerticalOffset: dragVerticalOffset,
-                                deviceOrientation: orientationManager.currentOrientation,
-                                screenshotManager: screenshotManager,
-                                handleSwapButtonTap: handleSwapButtonTap,
-                                borderLightManager: borderLightManager,
-                                imageUploader: imageUploader,
-                                currentCameraScale: originalCameraScale,
-                                currentMirroredCameraScale: mirroredCameraScale
-                            )
-                            .zIndex(3)  // 确保触控区1在最上层
-
                             // Original的触控区2和2a
                             VStack {
                                 TouchZoneView(
@@ -1309,9 +1293,140 @@ struct TwoOfMeScreens: View {
                         }
                     }
                 }
-                .offset(x: pageOffset)  // 应用页面偏移
+                .offset(x: pageOffset)
+                .zIndex(1)
                 
-                // 添加边缘触控区（保持在最上层且不受偏移影响）
+                // 重启提示视图 (zIndex = 2)
+                ZStack {
+                    if showOriginalRestartHint {
+                        RestartCameraView(action: {
+                            showOriginalRestartHint = false
+                            // 只重启 Original 屏幕
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak cameraManager] in
+                                guard let cameraManager = cameraManager else { return }
+                                print("------------------------")
+                                print("[Two of Me] Original屏幕重启")
+                                print("------------------------")
+                                if let processor = cameraManager.videoOutputDelegate as? VideoProcessor {
+                                    processor.enableOriginalOutput = true
+                                    cameraManager.restartCamera()  // 直接重启相机
+                                }
+                            }
+                        })
+                        .frame(height: UIScreen.main.bounds.height / 2)
+                        .position(x: geometry.size.width/2, 
+                                 y: isScreensSwapped ? geometry.size.height * 3/4 : geometry.size.height/4)
+                    }
+                    
+                    if showMirroredRestartHint {
+                        RestartCameraView(action: {
+                            showMirroredRestartHint = false
+                            // 只重启 Mirrored 屏幕
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak cameraManager] in
+                                guard let cameraManager = cameraManager else { return }
+                                print("------------------------")
+                                print("[Two of Me] Mirrored屏幕重启")
+                                print("------------------------")
+                                if let processor = cameraManager.videoOutputDelegate as? VideoProcessor {
+                                    processor.enableMirroredOutput = true
+                                    cameraManager.restartCamera()  // 直接重启相机
+                                }
+                            }
+                        })
+                        .frame(height: UIScreen.main.bounds.height / 2)
+                        .position(x: geometry.size.width/2, 
+                                 y: isScreensSwapped ? geometry.size.height/4 : geometry.size.height * 3/4)
+                    }
+                }
+                .offset(x: pageOffset)  // 添加页面偏移
+                .zIndex(2)
+                
+                // 触控区1移到这里 (zIndex = 3)
+                if !imageUploader.isOverlayVisible {
+                    TouchZoneOne(
+                        showContainer: $showContainer,
+                        containerWidth: $containerWidth,
+                        touchZonePosition: $touchZonePosition,
+                        dragOffset: $dragOffset,
+                        isZone1Enabled: $isZone1Enabled,
+                        isOriginalPaused: $isOriginalPaused,
+                        isMirroredPaused: $isMirroredPaused,
+                        pausedOriginalImage: $pausedOriginalImage,
+                        pausedMirroredImage: $pausedMirroredImage,
+                        originalImage: originalImage,
+                        mirroredImage: mirroredImage,
+                        dragDampingFactor: dragDampingFactor,
+                        animationDuration: animationDuration,
+                        screenWidth: screenWidth,
+                        screenHeight: screenHeight,
+                        dragVerticalOffset: dragVerticalOffset,
+                        deviceOrientation: orientationManager.currentOrientation,
+                        screenshotManager: screenshotManager,
+                        handleSwapButtonTap: handleSwapButtonTap,
+                        borderLightManager: borderLightManager,
+                        imageUploader: imageUploader,
+                        currentCameraScale: originalCameraScale,
+                        currentMirroredCameraScale: mirroredCameraScale,
+                        bothScreensRestarting: showOriginalRestartHint && showMirroredRestartHint,
+                        anyScreenRestarting: showOriginalRestartHint || showMirroredRestartHint,
+                        onDisabledAction: {
+                            // 显示"请先打开摄像头"提示
+                            restartHintWorkItem?.cancel()
+                            showRestartHint = true
+                            
+                            let workItem = DispatchWorkItem {
+                                withAnimation {
+                                    showRestartHint = false
+                                }
+                            }
+                            restartHintWorkItem = workItem
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
+                        },
+                        onPhotoDisabledAction: {
+                            // 显示"请先打开所有摄像头"提示
+                            photoDisabledHintWorkItem?.cancel()
+                            showPhotoDisabledHint = true
+                            
+                            let workItem = DispatchWorkItem {
+                                withAnimation {
+                                    showPhotoDisabledHint = false
+                                }
+                            }
+                            photoDisabledHintWorkItem = workItem
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
+                        }
+                    )
+                    .overlay(
+                        Group {
+                            if showRestartHint && showOriginalRestartHint && showMirroredRestartHint {
+                                Text("请先打开摄像头")
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.black.opacity(0.75))
+                                    .cornerRadius(8)
+                                    .opacity(0.8)
+                                    .allowsHitTesting(false)
+                                    .transition(.opacity)
+                            } else if showPhotoDisabledHint && (showOriginalRestartHint || showMirroredRestartHint) {
+                                Text("请先打开所有摄像头")
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.black.opacity(0.75))
+                                    .cornerRadius(8)
+                                    .opacity(0.8)
+                                    .allowsHitTesting(false)
+                                    .transition(.opacity)
+                            }
+                        }
+                    )
+                    .zIndex(3)
+                }
+                
+                // 边缘退出手势触控区 (zIndex = 4)
                 EdgeDismissGesture(
                     screenWidth: screenWidth,
                     screenHeight: screenHeight,
@@ -1332,16 +1447,16 @@ struct TwoOfMeScreens: View {
                     },
                     pageOffset: $pageOffset  // 传递页面偏移绑定
                 )
-                .zIndex(3)
+                .zIndex(4)
                 
-                // 添加截图动画（不受页面偏移影响）
+                // 截图动画 (zIndex = 5)
                 ScreenshotAnimationView(
                     isVisible: $screenshotManager.isFlashing,
                     touchZonePosition: touchZonePosition
                 )
-                .zIndex(4)
+                .zIndex(5)
                 
-                // 修改缩放提示动画（不受页面偏移影响）
+                // 修改缩放提示动画 (zIndex = 6)
                 if showScaleIndicator, let activeScreen = activeScalingScreen {
                     ScaleIndicatorView(
                         scale: currentIndicatorScale,
@@ -1354,10 +1469,10 @@ struct TwoOfMeScreens: View {
                             : (isScreensSwapped ? screenHeight/4 : screenHeight * 3/4)  // Mirrored屏幕中心
                     )
                     .animation(.easeInOut(duration: 0.2), value: currentIndicatorScale)
-                    .zIndex(4)
+                    .zIndex(6)
                 }
                 
-                // 添加动画图标（不受页面偏移影响）
+                // 添加动画图标 (zIndex = 7)
                 if showMiddleIconAnimation {
                     Image("icon-bf-white")
                         .resizable()
@@ -1368,7 +1483,7 @@ struct TwoOfMeScreens: View {
                         .transition(.opacity)
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .position(middleAnimationPosition)
-                        .zIndex(4)
+                        .zIndex(7)
                 }
             }
             .onAppear {
@@ -1475,19 +1590,15 @@ struct TwoOfMeScreens: View {
                 print("[Two of Me] 即将进入后台")
                 print("------------------------")
                 cameraManager.stopSession()
+                // 同时显示两个重启提示
+                showOriginalRestartHint = true
+                showMirroredRestartHint = true
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                 print("------------------------")
                 print("[Two of Me] 已回到前台")
                 print("------------------------")
-                // 延迟2秒后重启相机
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak cameraManager] in
-                    guard let cameraManager = cameraManager else { return }
-                    print("------------------------")
-                    print("[Two of Me] 执行相机重启")
-                    print("------------------------")
-                    cameraManager.restartCamera()
-                }
+                // 等待用户分别点击重启提示
             }
             // 添加手势设置变化监听
             .onAppear {
@@ -1532,6 +1643,10 @@ struct TwoOfMeScreens: View {
         
         let processor = VideoProcessor()
         
+        // 初始化时启用两个输出
+        processor.enableOriginalOutput = true
+        processor.enableMirroredOutput = true
+        
         // 设置原始画面处理器
         processor.normalImageHandler = { image in
             DispatchQueue.main.async {
@@ -1552,6 +1667,8 @@ struct TwoOfMeScreens: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak cameraManager] in
             DispatchQueue.global(qos: .userInitiated).async {
                 cameraManager?.checkPermission()
+                // 确保相机重启
+                cameraManager?.restartCamera()
             }
         }
         

@@ -10,6 +10,10 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let logInterval: TimeInterval = 1.0  // 最多输出一次日志
     private var lastOrientation: UIDeviceOrientation = .unknown
     
+    // 添加输出控制属性
+    var enableOriginalOutput: Bool = false
+    var enableMirroredOutput: Bool = false
+    
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
@@ -19,40 +23,33 @@ class VideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
         
-        // 生成正常画面
-        if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
-            let normalImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
-            DispatchQueue.main.async {
-                self.normalImageHandler?(normalImage)
-            }
-        }
-        
-        // 生成镜像画面（根据方向处理）
-        var mirroredImage = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
-        
-        // 获取当前有效方向
-        let validOrientation = DeviceOrientationManager.shared.validOrientation
-        
-        // 只处理允许的方向
-        if DeviceOrientationManager.shared.isAllowedOrientation(validOrientation) {
-            // 根据有效方向旋转镜像画面
-            if validOrientation == .landscapeLeft || validOrientation == .landscapeRight {
-                let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
-                    .rotated(by: .pi)
-                mirroredImage = mirroredImage.transformed(by: rotationTransform)
-                
-                // 只在方向变化时输出日志
-                if validOrientation != lastOrientation {
-                    print("镜像画面根据设备方向(\(validOrientation == .landscapeLeft ? "向左" : "向右"))调整")
-                    lastOrientation = validOrientation
+        // 根据控制属性决定是否输出
+        if enableOriginalOutput {
+            if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
+                let normalImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
+                DispatchQueue.main.async {
+                    self.normalImageHandler?(normalImage)
                 }
             }
         }
         
-        if let cgImage = context.createCGImage(mirroredImage, from: mirroredImage.extent) {
-            let flippedUIImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
-            DispatchQueue.main.async {
-                self.flippedImageHandler?(flippedUIImage)
+        if enableMirroredOutput {
+            var mirroredImage = ciImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
+            let validOrientation = DeviceOrientationManager.shared.validOrientation
+            
+            if DeviceOrientationManager.shared.isAllowedOrientation(validOrientation) {
+                if validOrientation == .landscapeLeft || validOrientation == .landscapeRight {
+                    let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
+                        .rotated(by: .pi)
+                    mirroredImage = mirroredImage.transformed(by: rotationTransform)
+                }
+            }
+            
+            if let cgImage = context.createCGImage(mirroredImage, from: mirroredImage.extent) {
+                let flippedUIImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
+                DispatchQueue.main.async {
+                    self.flippedImageHandler?(flippedUIImage)
+                }
             }
         }
     }
