@@ -1103,7 +1103,6 @@ struct TwoOfMeScreens: View {
             let screenBounds = UIScreen.main.bounds
             let screenHeight = screenBounds.height
             let screenWidth = screenBounds.width
-            let _ = screenHeight / 2
             
             ZStack {
                 // 背景 (zIndex = 0)
@@ -1426,7 +1425,7 @@ struct TwoOfMeScreens: View {
                     .zIndex(3)
                 }
                 
-                // 边缘退出手势触控区 (zIndex = 4)
+                // 边缘退出手势触控区 - 移到最外层并降低优先级
                 EdgeDismissGesture(
                     screenWidth: screenWidth,
                     screenHeight: screenHeight,
@@ -1446,6 +1445,52 @@ struct TwoOfMeScreens: View {
                         )
                     },
                     pageOffset: $pageOffset  // 传递页面偏移绑定
+                )
+                .simultaneousGesture(  // 改用 simultaneousGesture 替代 highPriorityGesture
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            // 只有在起始点在边缘20pt范围内时才处理手势
+                            let edgeWidth: CGFloat = 20
+                            let isLeftEdge = value.startLocation.x <= edgeWidth
+                            let isRightEdge = value.startLocation.x >= screenWidth - edgeWidth
+                            
+                            if isLeftEdge || isRightEdge {
+                                // 处理边缘退出手势
+                                let horizontalDrag = isLeftEdge ? 
+                                    value.location.x - value.startLocation.x :
+                                    value.startLocation.x - value.location.x
+                                
+                                pageOffset = isLeftEdge ? max(0, horizontalDrag) : min(0, -horizontalDrag)
+                            }
+                        }
+                        .onEnded { value in
+                            // 如果拖动超过阈值则退出
+                            if abs(pageOffset) > screenWidth * 0.3 {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    pageOffset = value.startLocation.x <= 20 ? screenWidth : -screenWidth
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    // 在退出前关闭所有功能
+                                    borderLightManager.turnOffAllLights()  // 关闭边框灯
+                                    cameraManager.stopSession()  // 停止相机会话
+                                    
+                                    print("------------------------")
+                                    print("分屏页面退出")
+                                    print("------------------------")
+                                    
+                                    // 发送通知以便主页面处理
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("DismissTwoOfMeView"),
+                                        object: nil
+                                    )
+                                }
+                            } else {
+                                // 否则回弹
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    pageOffset = 0
+                                }
+                            }
+                        }
                 )
                 .zIndex(4)
                 
@@ -1485,6 +1530,14 @@ struct TwoOfMeScreens: View {
                         .position(middleAnimationPosition)
                         .zIndex(7)
                 }
+                
+                // 添加黄色遮罩视图 (zIndex = 8)
+                YellowMaskView(
+                    screenWidth: screenWidth,
+                    screenHeight: screenHeight
+                )
+                .offset(x: pageOffset) // 跟随页面偏移
+                .zIndex(8)
             }
             .onAppear {
                 // 确保开启设备方向监听

@@ -4,111 +4,125 @@ struct EdgeDismissGesture: View {
     let screenWidth: CGFloat
     let screenHeight: CGFloat
     let onDismiss: () -> Void
-    @Binding var pageOffset: CGFloat  // 添加页面偏移绑定
+    @Binding var pageOffset: CGFloat
     
-    // 状态变量
+    // 添加状态变量来跟踪拖动状态
     @State private var isDragging = false
+    @State private var dragStartLocation: CGFloat = 0
     
-    // 常量
-    private let edgeWidth: CGFloat = 20  // 边缘触控区宽度
-    private let dismissThreshold: CGFloat = 100  // 触发退出的阈值
-    private let dampingFactor: CGFloat = 0.5  // 拖动阻尼系数
+    // 添加设备方向判断
+    private var isLandscape: Bool {
+        let orientation = UIDevice.current.orientation
+        return orientation.isLandscape
+    }
     
     var body: some View {
         HStack(spacing: 0) {
-            // 左侧触控区
+            // 左边缘触控区 - 减小宽度并移到最边缘
             Color.clear
-                .frame(width: edgeWidth, height: screenHeight)
+                .frame(width: isLandscape ? 7 : 7)
+                .background(Color.red)
                 .contentShape(Rectangle())
                 .gesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            handleDrag(value: value, fromLeft: true)
+                            if !isDragging {
+                                isDragging = true
+                                dragStartLocation = value.startLocation.x
+                            }
+                            
+                            // 计算水平拖动距离
+                            let horizontalDrag = value.location.x - dragStartLocation
+                            
+                            // 应用水平偏移
+                            pageOffset = max(0, horizontalDrag)
+                            
+                            print("------------------------")
+                            print("[边缘手势] 左侧拖动中")
+                            print("起始位置：\(Int(dragStartLocation))pt")
+                            print("当前位置：\(Int(value.location.x))pt")
+                            print("水平偏移：\(Int(pageOffset))pt")
+                            print("------------------------")
                         }
                         .onEnded { value in
-                            handleDragEnd(value: value, fromLeft: true)
+                            isDragging = false
+                            
+                            // 如果拖动超过阈值则退出
+                            if pageOffset > screenWidth * 0.3 {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    pageOffset = screenWidth
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    onDismiss()
+                                }
+                            } else {
+                                // 否则回弹
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    pageOffset = 0
+                                }
+                            }
+                            
+                            print("------------------------")
+                            print("[边缘手势] 左侧拖动结束")
+                            print("最终偏移：\(Int(pageOffset))pt")
+                            print("------------------------")
                         }
                 )
             
             Spacer()
             
-            // 右侧触控区
+            // 右边缘触控区 - 减小宽度并移到最边缘
             Color.clear
-                .frame(width: edgeWidth, height: screenHeight)
+                .frame(width: isLandscape ? 40 : 7)
+                .background(Color.blue)
                 .contentShape(Rectangle())
                 .gesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            handleDrag(value: value, fromLeft: false)
+                            if !isDragging {
+                                isDragging = true
+                                dragStartLocation = value.startLocation.x
+                            }
+                            
+                            // 计算水平拖动距离
+                            let horizontalDrag = dragStartLocation - value.location.x
+                            
+                            // 应用水平偏移(负值)
+                            pageOffset = min(0, -horizontalDrag)
+                            
+                            print("------------------------")
+                            print("[边缘手势] 右侧拖动中")
+                            print("起始位置：\(Int(dragStartLocation))pt")
+                            print("当前位置：\(Int(value.location.x))pt") 
+                            print("水平偏移：\(Int(pageOffset))pt")
+                            print("------------------------")
                         }
                         .onEnded { value in
-                            handleDragEnd(value: value, fromLeft: false)
+                            isDragging = false
+                            
+                            // 如果拖动超过阈值则退出
+                            if abs(pageOffset) > screenWidth * 0.3 {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    pageOffset = -screenWidth
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    onDismiss()
+                                }
+                            } else {
+                                // 否则回弹
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    pageOffset = 0
+                                }
+                            }
+                            
+                            print("------------------------")
+                            print("[边缘手势] 右侧拖动结束")
+                            print("最终偏移：\(Int(pageOffset))pt")
+                            print("------------------------")
                         }
                 )
         }
-        .frame(maxWidth: .infinity)
-    }
-    
-    // 处理拖动
-    private func handleDrag(value: DragGesture.Value, fromLeft: Bool) {
-        if !isDragging {
-            isDragging = true
-            print("------------------------")
-            print("触控区E被触发")
-            print("位置：\(fromLeft ? "左" : "右")侧边缘")
-            print("------------------------")
-        }
-        
-        let translation = value.translation.width
-        let adjustedTranslation = fromLeft ? translation : -abs(translation)
-        
-        // 应用阻尼效果并更新页面偏移
-        withAnimation(.interactiveSpring()) {
-            pageOffset = adjustedTranslation * dampingFactor
-        }
-        
-        // 打印拖动状态
-        print("------------------------")
-        print("触控区E拖动中")
-        print("原始偏移：\(Int(translation))pt")
-        print("阻尼后偏移：\(Int(pageOffset))pt")
-        print("------------------------")
-    }
-    
-    // 处理拖动结束
-    private func handleDragEnd(value: DragGesture.Value, fromLeft: Bool) {
-        let translation = value.translation.width
-        let adjustedTranslation = fromLeft ? translation : -abs(translation)
-        
-        if abs(adjustedTranslation) >= dismissThreshold {
-            print("------------------------")
-            print("触控区E触发退出")
-            print("最终偏移：\(Int(adjustedTranslation))pt")
-            print("------------------------")
-            
-            // 触发退出动画
-            withAnimation(.easeInOut(duration: 0.3)) {
-                pageOffset = fromLeft ? screenWidth : -screenWidth
-            }
-            
-            // 延迟执行实际退出
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                onDismiss()
-            }
-        } else {
-            print("------------------------")
-            print("触控区E拖动取消")
-            print("最终偏移：\(Int(adjustedTranslation))pt")
-            print("未达到退出阈值：\(dismissThreshold)pt")
-            print("------------------------")
-            
-            // 恢复原位
-            withAnimation(.easeOut(duration: 0.2)) {
-                pageOffset = 0
-            }
-        }
-        
-        isDragging = false
+        .frame(maxHeight: .infinity)
     }
 }
 

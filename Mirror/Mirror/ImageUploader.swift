@@ -1049,36 +1049,22 @@ struct OverlayView: View {
     
     private var uploadArea: some View {
         ZStack {
-            // 背景
+            // 背景矩形不需要旋转,保持竖屏
             if screenID == .original {
                 Rectangle()
                     .fill(Color.black)
                     .frame(height: centerY)
                     .allowsHitTesting(false)
                     .contentShape(Rectangle())
-                    .rotationEffect(getRotationAngle(deviceOrientation))  // 整体旋转
-                    .onAppear {
-                        print("------------------------")
-                        print("[Original屏幕] centerY值: \(centerY)")
-                        print("屏幕高度: \(screenHeight)")
-                        print("------------------------")
-                    }
             } else {
                 Rectangle()
                     .fill(Color.white)
                     .frame(height: centerY)
                     .allowsHitTesting(false)
                     .contentShape(Rectangle())
-                    .rotationEffect(getRotationAngle(deviceOrientation))  // 整体旋转
-                    .onAppear {
-                        print("------------------------")
-                        print("[Mirrored屏幕] centerY值: \(centerY)")
-                        print("屏幕高度: \(screenHeight)")
-                        print("------------------------")
-                    }
             }
             
-            // 按钮容器
+            // 按钮容器根据设备方向旋转
             HStack(spacing: 50) {
                 // 手电筒按钮
                 Button(action: {
@@ -1100,6 +1086,7 @@ struct OverlayView: View {
                         .font(.system(size: 80))
                         .frame(width: 80, height: 80)
                         .contentShape(Rectangle())
+                        
                 }
                 .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
                 
@@ -1121,17 +1108,17 @@ struct OverlayView: View {
                         .font(.system(size: 80))
                         .frame(width: 80, height: 80)
                         .contentShape(Rectangle())
+                        
                 }
                 .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
             }
-            .rotationEffect(getRotationAngle(deviceOrientation))  // 按钮容器整体旋转
         }
     }
     
-    // 添加下载区域视图
+    // 修改下载区域视图
     private var downloadArea: some View {
         ZStack {
-            // 背景
+            // 背景矩形不需要旋转,保持竖屏
             if screenID == .original {
                 Rectangle()
                     .fill(Color.black)
@@ -1144,7 +1131,7 @@ struct OverlayView: View {
                     .allowsHitTesting(false)
             }
             
-            // 下载按钮
+            // 下载按钮根据设备方向旋转
             Button(action: {
                 // 触发震动反馈
                 let generator = UIImpactFeedbackGenerator(style: .medium)
@@ -1160,7 +1147,7 @@ struct OverlayView: View {
             }) {
                 Image(systemName: "square.and.arrow.down.fill")
                     .font(.system(size: 80))
-                    .rotationEffect(getRotationAngle(deviceOrientation))
+                    .rotationEffect(getRotationAngle(deviceOrientation)) // 按钮自转
                     .frame(width: 80, height: 80)
                     .contentShape(Rectangle())
             }

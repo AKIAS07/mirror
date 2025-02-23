@@ -426,6 +426,8 @@ struct BorderLightView: View {
                     )
             )
             .clipped()
+            .scaleEffect(1.0, anchor: .center) // 添加固定缩放
+            .rotation3DEffect(.degrees(0), axis: (x: 0, y: 0, z: 1)) // 禁止3D旋转
         }
     }
 } 
