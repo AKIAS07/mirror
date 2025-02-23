@@ -94,7 +94,37 @@ class TwoOfMeGestureManager {
                         if isDefaultGesture {
                             handleSingleTap(screenID)
                         } else {
+                            print("------------------------")
+                            print("触控区\(screenID == .original ? "2" : "3")被单击")
+                            print("区域：\(screenID.debugName)屏幕")
+                            print("位置：\(isScreensSwapped ? (screenID == .original ? "下部" : "上部") : (screenID == .original ? "上部" : "下部"))")
+                            print("进入触控区\(screenID == .original ? "2a" : "3a")")
+                            
                             togglePauseState(screenID)
+                            
+                            // 在Original屏幕被定格时，自动将画面缩放比例重置为100%
+                            if screenID == .original {
+                                currentImageScale.wrappedValue = 1.0
+                                originalImageScale.wrappedValue = 1.0
+                                
+                                print("------------------------")
+                                print("[Original屏幕自动缩放]")
+                                print("定格后自动重置缩放比例为100%")
+                                print("------------------------")
+                            }
+                                                        
+                            // 在Mirrored屏幕被定格时，自动将画面缩放比例重置为100%
+                            if screenID == .mirrored {
+                                currentMirroredImageScale.wrappedValue = 1.0
+                                mirroredImageScale.wrappedValue = 1.0
+                                
+                                print("------------------------")
+                                print("[Mirrored屏幕自动缩放]")
+                                print("定格后自动重置缩放比例为100%")
+                                print("------------------------")
+                            }
+                            print("当前布局：\(layoutDescription)")
+                            print("------------------------")
                         }
                     }
                 }

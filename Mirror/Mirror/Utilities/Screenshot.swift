@@ -263,8 +263,12 @@ class ScreenshotManager: ObservableObject {
     
     // 添加更新屏幕交换状态的方法
     func updateScreenSwapState(_ isSwapped: Bool) {
+        print("------------------------")
+        print("[截图] 更新屏幕交换状态")
+        print("之前状态：\(self.isScreenSwapped ? "已交换" : "未交换")")
+        print("新状态：\(isSwapped ? "已交换" : "未交换")")
+        print("------------------------")
         self.isScreenSwapped = isSwapped
-        print("[截图] 屏幕交换状态已更新: \(isSwapped ? "已交换" : "未交换")")
     }
     
     func setImages(

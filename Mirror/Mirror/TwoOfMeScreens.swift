@@ -1626,6 +1626,17 @@ struct TwoOfMeScreens: View {
                 print("触控区3：永远对应Mirrored屏幕（双击可定格/恢复画面）")
                 print("初始布局：\(layoutDescription)")
                 print("------------------------")
+                
+                // 加载保存的配置
+                let settings = UserSettingsManager.shared.loadTwoOfMeSettings()
+                isScreensSwapped = settings.isScreensSwapped
+                originalCameraScale = settings.originalCameraScale
+                mirroredCameraScale = settings.mirroredCameraScale
+                originalImageScale = settings.originalImageScale
+                mirroredImageScale = settings.mirroredImageScale
+                
+                // 同步屏幕交换状态到截图管理器
+                screenshotManager.updateScreenSwapState(isScreensSwapped)
             }
             .onDisappear {
                 UIDevice.current.endGeneratingDeviceOrientationNotifications()
@@ -1633,6 +1644,18 @@ struct TwoOfMeScreens: View {
                 hideContainerTimer?.invalidate()
                 borderLightManager.turnOffAllLights()
                 NotificationCenter.default.removeObserver(self, name: NSNotification.Name("ResetScreenScales"), object: nil)
+                
+                // 保存当前配置
+                UserSettingsManager.shared.saveTwoOfMeSettings(
+                    isScreensSwapped: isScreensSwapped,
+                    originalCameraScale: originalCameraScale,
+                    mirroredCameraScale: mirroredCameraScale,
+                    originalImageScale: originalImageScale,
+                    mirroredImageScale: mirroredImageScale
+                )
+                
+                // 重置所有参数
+                UserSettingsManager.shared.resetTwoOfMeSettings()
             }
             .onChange(of: imageUploader.selectedImage) { newImage in
                 handleSelectedImage(newImage)
@@ -1684,6 +1707,11 @@ struct TwoOfMeScreens: View {
                         showMirroredFlash = false
                     }
                 }
+            }
+            // 监听屏幕交换状态变化
+            .onChange(of: isScreensSwapped) { newValue in
+                // 同步屏幕交换状态到截图管理器
+                screenshotManager.updateScreenSwapState(newValue)
             }
         }
         .ignoresSafeArea(.all)

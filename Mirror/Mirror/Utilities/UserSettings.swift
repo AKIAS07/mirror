@@ -18,6 +18,11 @@ private enum UserSettingsKeys {
     static let splitScreenIconColorAlpha = "splitScreenIconColorAlpha"
     static let hasUserConfig = "hasUserConfig"  // 新增：是否有用户配置
     static let splitScreenIconUseOriginal = "splitScreenIconUseOriginal"
+    static let isScreensSwapped = "isScreensSwapped"
+    static let originalCameraScale = "originalCameraScale"
+    static let mirroredCameraScale = "mirroredCameraScale"
+    static let originalImageScale = "originalImageScale"
+    static let mirroredImageScale = "mirroredImageScale"
 }
 
 // 用户设置管理器
@@ -239,6 +244,90 @@ class UserSettingsManager {
             
             print("所有用户设置已应用")
         }
+    }
+    
+    // MARK: - TwoOfMe 配置管理
+    
+    // 重置 TwoOfMe 所有参数
+    func resetTwoOfMeSettings() {
+        print("------------------------")
+        print("[TwoOfMe] 重置所有参数")
+        
+        // 重置屏幕交换状态
+        defaults.set(false, forKey: UserSettingsKeys.isScreensSwapped)
+        
+        // 重置缩放比例
+        defaults.set(1.0, forKey: UserSettingsKeys.originalCameraScale)
+        defaults.set(1.0, forKey: UserSettingsKeys.mirroredCameraScale)
+        defaults.set(1.0, forKey: UserSettingsKeys.originalImageScale)
+        defaults.set(1.0, forKey: UserSettingsKeys.mirroredImageScale)
+        
+        defaults.synchronize()
+        print("- 屏幕交换状态：重置为默认")
+        print("- 所有缩放比例：重置为100%")
+        print("------------------------")
+    }
+    
+    // 保存 TwoOfMe 当前配置
+    func saveTwoOfMeSettings(
+        isScreensSwapped: Bool,
+        originalCameraScale: CGFloat,
+        mirroredCameraScale: CGFloat,
+        originalImageScale: CGFloat,
+        mirroredImageScale: CGFloat
+    ) {
+        print("------------------------")
+        print("[TwoOfMe] 保存当前配置")
+        
+        // 保存屏幕交换状态
+        defaults.set(isScreensSwapped, forKey: UserSettingsKeys.isScreensSwapped)
+        
+        // 保存缩放比例
+        defaults.set(originalCameraScale, forKey: UserSettingsKeys.originalCameraScale)
+        defaults.set(mirroredCameraScale, forKey: UserSettingsKeys.mirroredCameraScale)
+        defaults.set(originalImageScale, forKey: UserSettingsKeys.originalImageScale)
+        defaults.set(mirroredImageScale, forKey: UserSettingsKeys.mirroredImageScale)
+        
+        defaults.synchronize()
+        print("- 屏幕交换状态：\(isScreensSwapped ? "已交换" : "默认")")
+        print("- Original摄像头缩放：\(Int(originalCameraScale * 100))%")
+        print("- Mirrored摄像头缩放：\(Int(mirroredCameraScale * 100))%")
+        print("- Original定格缩放：\(Int(originalImageScale * 100))%")
+        print("- Mirrored定格缩放：\(Int(mirroredImageScale * 100))%")
+        print("------------------------")
+    }
+    
+    // 加载 TwoOfMe 配置
+    func loadTwoOfMeSettings() -> (
+        isScreensSwapped: Bool,
+        originalCameraScale: CGFloat,
+        mirroredCameraScale: CGFloat,
+        originalImageScale: CGFloat,
+        mirroredImageScale: CGFloat
+    ) {
+        print("------------------------")
+        print("[TwoOfMe] 加载配置")
+        
+        let isScreensSwapped = false
+        let originalCameraScale = CGFloat(defaults.float(forKey: UserSettingsKeys.originalCameraScale))
+        let mirroredCameraScale = CGFloat(defaults.float(forKey: UserSettingsKeys.mirroredCameraScale))
+        let originalImageScale = CGFloat(defaults.float(forKey: UserSettingsKeys.originalImageScale))
+        let mirroredImageScale = CGFloat(defaults.float(forKey: UserSettingsKeys.mirroredImageScale))
+        
+        print("- 屏幕交换状态：\(isScreensSwapped ? "已交换" : "默认")")
+        print("- Original摄像头缩放：\(Int(originalCameraScale * 100))%")
+        print("- Mirrored摄像头缩放：\(Int(mirroredCameraScale * 100))%")
+        print("- Original定格缩放：\(Int(originalImageScale * 100))%")
+        print("- Mirrored定格缩放：\(Int(mirroredImageScale * 100))%")
+        print("------------------------")
+        
+        return (
+            isScreensSwapped: isScreensSwapped,
+            originalCameraScale: originalCameraScale == 0 ? 1.0 : originalCameraScale,
+            mirroredCameraScale: mirroredCameraScale == 0 ? 1.0 : mirroredCameraScale,
+            originalImageScale: originalImageScale == 0 ? 1.0 : originalImageScale,
+            mirroredImageScale: mirroredImageScale == 0 ? 1.0 : mirroredImageScale
+        )
     }
 }
 

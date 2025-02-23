@@ -204,6 +204,13 @@ public struct SettingsPanel: View {
     private func saveSettings() {
         UserSettingsManager.shared.saveCurrentConfig()
         styleManager.saveCurrentSettings()
+        
+        // 同步 TwoOfMe 相关设置
+        NotificationCenter.default.post(
+            name: NSNotification.Name("SyncTwoOfMeSettings"),
+            object: nil
+        )
+        
         initialState = SettingsState()  // 更新初始状态
         hasUnsavedChanges = false
         
