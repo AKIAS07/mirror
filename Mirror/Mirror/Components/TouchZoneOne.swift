@@ -69,6 +69,8 @@ struct TouchZoneOne: View {
     let onDisabledAction: () -> Void
     let onPhotoDisabledAction: () -> Void  // 添加新的回调属性
     
+    let dragScale: CGFloat  // 添加新属性
+    
     // MARK: - Init
     init(
         showContainer: Binding<Bool>,
@@ -97,7 +99,8 @@ struct TouchZoneOne: View {
         bothScreensRestarting: Bool,
         anyScreenRestarting: Bool,  // 添加新参数
         onDisabledAction: @escaping () -> Void,
-        onPhotoDisabledAction: @escaping () -> Void  // 添加新参数
+        onPhotoDisabledAction: @escaping () -> Void,  // 添加新参数
+        dragScale: CGFloat  // 添加新参数
     ) {
         self._showContainer = showContainer
         self._containerWidth = containerWidth
@@ -126,6 +129,7 @@ struct TouchZoneOne: View {
         self.anyScreenRestarting = anyScreenRestarting
         self.onDisabledAction = onDisabledAction
         self.onPhotoDisabledAction = onPhotoDisabledAction
+        self.dragScale = dragScale
         
         // 初始化时设置基准缩放比例为当前缩放比例
         self._originalCameraScale = State(initialValue: currentCameraScale)
@@ -175,9 +179,12 @@ struct TouchZoneOne: View {
                 Image(getIconName(deviceOrientation))
                     .resizable()
                     .frame(width: 40, height: 40)
+                    .scaleEffect(dragScale)  // 添加缩放效果
+                    .opacity(1.0 - (dragScale - 1.0) * 0.1)  // 根据缩放比例计算透明度(1.0到0.3)
                     .contentShape(Rectangle())
                     .rotationEffect(getRotationAngle(deviceOrientation))
                     .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
+                    .animation(.easeInOut(duration: 0.2), value: dragScale)  // 缩放和透明度共用同一个动画
                     .apply(colorModifier: styleManager.splitScreenIconColor != Color.purple)
                     .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
             }
@@ -194,52 +201,47 @@ struct TouchZoneOne: View {
         }
         .gesture(
             LongPressGesture(minimumDuration: 0.5)
+                .onEnded { _ in
+                    if bothScreensRestarting {
+                        onDisabledAction()
+                        return
+                    }
+                    // 触发长按震动反馈
+                    heavyFeedbackGenerator.impactOccurred()
+                    print("------------------------")
+                    print("触控区1长按时间达到")
+                    print("触发震动反馈")
+                    print("------------------------")
+                    
+                    // 在这里直接开始显示中央透明矩形的延迟任务
+                    if !isDraggingTouchZone {
+                        // 取消之前的延迟任务（如果存在）
+                        showContainerWorkItem?.cancel()
+                        
+                        // 创建新的延迟任务
+                        let workItem = DispatchWorkItem {
+                            handleContainerVisibility(showContainer: true)
+                        }
+                        showContainerWorkItem = workItem
+                        
+                        // 延迟0.3秒执行
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+                    }
+                }
+        )
+        .simultaneousGesture(  // 使用 simultaneousGesture 添加拖动手势
+            LongPressGesture(minimumDuration: 0.3)
                 .sequenced(before: DragGesture(minimumDistance: 0))
                 .onChanged { value in
                     switch value {
                     case .first(_):
-                        if bothScreensRestarting {
-                            onDisabledAction()  // 触发回调
-                            break
-                        }
-                        // 长按开始，不做任何操作
                         break
                     case .second(true, let drag):
                         if let drag = drag {
                             let translation = drag.translation
                             let distance = sqrt(pow(translation.width, 2) + pow(translation.height, 2))
                             
-                            if distance < 5 && !isDraggingTouchZone {
-                                if bothScreensRestarting {
-                                    onDisabledAction()  // 触发回调
-                                    break
-                                }
-                                // 只有在未触发过震动时才触发
-                                if !hasTriggeredLongPressHaptic {
-                                    // 触发震动反馈
-                                    heavyFeedbackGenerator.impactOccurred()
-                                    hasTriggeredLongPressHaptic = true
-                                    
-                                    print("------------------------")
-                                    print("触控区1被长按")
-                                    print("区域：中央透明矩形")
-                                    print("可点击状态：已启用")
-                                    print("------------------------")
-                                }
-                                
-                                // 取消之前的延迟任务（如果存在）
-                                showContainerWorkItem?.cancel()
-                                
-                                // 创建新的延迟任务
-                                let workItem = DispatchWorkItem {
-                                    handleContainerVisibility(showContainer: true)
-                                }
-                                showContainerWorkItem = workItem
-                                
-                                // 延迟0.3秒执行
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
-                                
-                            } else {  // 移动距离大于5pt或已处于拖动状态，视为拖动
+                            if distance > 5 {  // 只处理移动超过阈值的情况
                                 // 重置长按震动状态
                                 hasTriggeredLongPressHaptic = false
                                 
@@ -272,7 +274,6 @@ struct TouchZoneOne: View {
                             }
                         }
                     case .second(false, _):
-                        // 长按手势未完成，重置状态
                         hasTriggeredLongPressHaptic = false
                         break
                     }
@@ -533,23 +534,6 @@ struct TouchZoneOne: View {
                                         mirroredCameraScale: self.currentMirroredCameraScale
                                     )
                                     self.screenshotManager.captureDoubleScreens()
-                                }
-                            } else {  // 默认模式：单击控制边框灯
-                                print("------------------------")
-                                print("触控区1被点击")
-                                print("区域：中央透明矩形")
-                                print("可点击状态：已启用")
-                                print("------------------------")
-                                
-                                // 显示边框灯动画
-                                showBorderLightAnimation()
-                                
-                                if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
-                                    self.borderLightManager.turnOffAllLights()
-                                    print("所有边框灯已关闭")
-                                } else {
-                                    self.borderLightManager.turnOnAllLights()
-                                    print("所有边框灯已开启")
                                 }
                             }
                         }

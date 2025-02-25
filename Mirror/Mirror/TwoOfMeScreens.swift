@@ -279,13 +279,19 @@ private struct CloseButtonView: View {
                 
                 imageUploader.closeFlashlight(for: screenID)
             }) {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "minus.circle.fill")
                     .font(.system(size: 30))
-                    .foregroundColor(.white.opacity(0.5))
-                    .background(Color.black.opacity(0.5))
+                    .foregroundColor(.gray.opacity(0.3))
+                    //.background(Color.black.opacity(0.3))
                     .clipShape(Circle())
                     .contentShape(Circle())
             }
+            Image(systemName: "minus")
+            .font(.system(size: 40))
+            .foregroundColor(.white.opacity(0.3))
+            //.background(Color.black.opacity(0.3))
+            .clipShape(Circle())
+            .contentShape(Circle())
         }
         .position(x: screenWidth/2, y: centerY/2)
         .zIndex(999)
@@ -1094,6 +1100,10 @@ struct TwoOfMeScreens: View {
     @State private var showPhotoDisabledHint = false
     @State private var photoDisabledHintWorkItem: DispatchWorkItem?
     
+    @State private var dragScale: CGFloat = 1.0  // 添加拖拽缩放状态
+    
+    @State private var isEdgeDismissOverlayActive = false  // 添加遮罩状态
+    
     init() {
         // 不再需要设置边框灯管理器引用
     }
@@ -1395,7 +1405,8 @@ struct TwoOfMeScreens: View {
                             photoDisabledHintWorkItem = workItem
                             
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
-                        }
+                        },
+                        dragScale: dragScale  // 传递缩放值
                     )
                     .overlay(
                         Group {
@@ -1422,7 +1433,7 @@ struct TwoOfMeScreens: View {
                             }
                         }
                     )
-                    .zIndex(3)
+                    .zIndex(11)
                 }
                 
                 // 边缘退出手势触控区 - 移到最外层并降低优先级
@@ -1444,7 +1455,10 @@ struct TwoOfMeScreens: View {
                             object: nil
                         )
                     },
-                    pageOffset: $pageOffset  // 传递页面偏移绑定
+                    pageOffset: $pageOffset,  // 传递页面偏移绑定
+                    dragScale: $dragScale,  // 传递缩放绑定
+                    isOverlayActive: $isEdgeDismissOverlayActive,  // 传递遮罩状态
+                    touchZonePosition: $touchZonePosition  // 传递触控区位置绑定
                 )
                 .simultaneousGesture(  // 改用 simultaneousGesture 替代 highPriorityGesture
                     DragGesture(minimumDistance: 0)
@@ -1538,6 +1552,10 @@ struct TwoOfMeScreens: View {
                 )
                 .offset(x: pageOffset) // 跟随页面偏移
                 .zIndex(8)
+                
+                // 添加全屏透明遮罩
+                EdgeDismissOverlay(isActive: isEdgeDismissOverlayActive)
+                    .zIndex(999)  // 确保遮罩在最上层
             }
             .onAppear {
                 // 确保开启设备方向监听

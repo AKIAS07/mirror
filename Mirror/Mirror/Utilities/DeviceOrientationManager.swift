@@ -6,6 +6,7 @@ class DeviceOrientationManager: ObservableObject {
     
     @Published private(set) var currentOrientation: UIDeviceOrientation = .portrait
     private var lastValidOrientation: UIDeviceOrientation = .portrait
+    @Published private(set) var isOrientationLocked: Bool = false  // 添加方向锁定状态
     
     private let allowedOrientations: [UIDeviceOrientation] = [
         .portrait,
@@ -30,6 +31,11 @@ class DeviceOrientationManager: ObservableObject {
     }
     
     @objc private func handleOrientationChange() {
+        // 如果方向被锁定，不处理方向变化
+        if isOrientationLocked {
+            return
+        }
+        
         let newOrientation = UIDevice.current.orientation
         
         // 只处理允许的方向，否则保持最后一个有效方向
@@ -87,6 +93,23 @@ class DeviceOrientationManager: ObservableObject {
     // 添加新方法来获取最后的有效方向
     var lastValidDeviceOrientation: UIDeviceOrientation {
         return lastValidOrientation
+    }
+    
+    // 添加锁定/解锁方向的方法
+    func lockOrientation() {
+        isOrientationLocked = true
+        print("------------------------")
+        print("[设备方向] 已锁定")
+        print("当前方向：\(getOrientationDescription(currentOrientation))")
+        print("------------------------")
+    }
+    
+    func unlockOrientation() {
+        isOrientationLocked = false
+        print("------------------------")
+        print("[设备方向] 已解锁")
+        print("当前方向：\(getOrientationDescription(currentOrientation))")
+        print("------------------------")
     }
     
     deinit {
