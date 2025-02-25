@@ -188,6 +188,7 @@ private struct ScreenContentView: View {
     let screenWidth: CGFloat
     let screenHeight: CGFloat
     let centerY: CGFloat
+    let isScreensSwapped: Bool  // 添加这个参数
     
     var body: some View {
         ZStack {
@@ -223,7 +224,9 @@ private struct ScreenContentView: View {
                 screenWidth: screenWidth,
                 centerY: centerY,
                 showOriginalHighlight: screenID == .original ? borderLightManager.showOriginalHighlight : false,
-                showMirroredHighlight: screenID == .mirrored ? borderLightManager.showMirroredHighlight : false
+                showMirroredHighlight: screenID == .mirrored ? borderLightManager.showMirroredHighlight : false,
+                screenPosition: screenID == .original ? .original : .mirrored,
+                isScreensSwapped: isScreensSwapped
             )
             .zIndex(2)
             
@@ -1142,15 +1145,12 @@ struct TwoOfMeScreens: View {
                                         showFlash: showOriginalFlash,  // 或 showMirroredFlash
                                         screenWidth: geometry.size.width,
                                         screenHeight: geometry.size.height,
-                                        centerY: geometry.size.height / 2
+                                        centerY: geometry.size.height / 2,
+                                        isScreensSwapped: isScreensSwapped  // 添加这个参数
                                     )
                                 )
                             )
-                            
-                            Rectangle()
-                                .fill(Color.gray)
-                                .frame(height: 1)
-                            
+
                             // Mirrored 屏幕在下
                             ScreenContainer(
                                 screenID: .mirrored,
@@ -1168,7 +1168,8 @@ struct TwoOfMeScreens: View {
                                         showFlash: showMirroredFlash,  // 或 showOriginalFlash
                                         screenWidth: geometry.size.width,
                                         screenHeight: geometry.size.height,
-                                        centerY: geometry.size.height / 2
+                                        centerY: geometry.size.height / 2,
+                                        isScreensSwapped: isScreensSwapped  // 添加这个参数
                                     )
                                 )
                             )
@@ -1190,10 +1191,12 @@ struct TwoOfMeScreens: View {
                                         showFlash: showMirroredFlash,  // 或 showOriginalFlash
                                         screenWidth: geometry.size.width,
                                         screenHeight: geometry.size.height,
-                                        centerY: geometry.size.height / 2
+                                        centerY: geometry.size.height / 2,
+                                        isScreensSwapped: isScreensSwapped  // 添加这个参数
                                     )
                                 )
                             )
+
                             //Original屏幕在下
                             ScreenContainer(
                                 screenID: .original,
@@ -1211,7 +1214,8 @@ struct TwoOfMeScreens: View {
                                         showFlash: showOriginalFlash,  // 或 showMirroredFlash
                                         screenWidth: geometry.size.width,
                                         screenHeight: geometry.size.height,
-                                        centerY: geometry.size.height / 2
+                                        centerY: geometry.size.height / 2,
+                                        isScreensSwapped: isScreensSwapped  // 添加这个参数
                                     )
                                 )
                             )
@@ -1513,7 +1517,7 @@ struct TwoOfMeScreens: View {
                     isVisible: $screenshotManager.isFlashing,
                     touchZonePosition: touchZonePosition
                 )
-                .zIndex(5)
+                .zIndex(998)
                 
                 // 修改缩放提示动画 (zIndex = 6)
                 if showScaleIndicator, let activeScreen = activeScalingScreen {

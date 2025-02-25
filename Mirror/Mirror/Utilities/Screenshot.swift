@@ -78,7 +78,7 @@ struct ScreenshotAnimationView: View {
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.system(size: 44))
-                                        .foregroundColor(.black)
+                                        .foregroundColor(.white)
                                 }
                             }
                             .offset(getButtonsOffset(geometry))

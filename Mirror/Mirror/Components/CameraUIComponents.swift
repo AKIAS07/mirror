@@ -220,7 +220,9 @@ struct CameraBorderView: View {
                 screenWidth: containerFrame.width,
                 centerY: containerFrame.height,
                 showOriginalHighlight: isSelected,
-                showMirroredHighlight: isSelected
+                showMirroredHighlight: isSelected,
+                screenPosition: nil,
+                isScreensSwapped: false
             )
             .position(x: geometry.size.width/2, y: geometry.size.height/2)
         }

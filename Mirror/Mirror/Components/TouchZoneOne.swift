@@ -230,7 +230,7 @@ struct TouchZoneOne: View {
                 }
         )
         .simultaneousGesture(  // 使用 simultaneousGesture 添加拖动手势
-            LongPressGesture(minimumDuration: 0.3)
+            LongPressGesture(minimumDuration: 0.5)
                 .sequenced(before: DragGesture(minimumDistance: 0))
                 .onChanged { value in
                     switch value {
@@ -338,7 +338,22 @@ struct TouchZoneOne: View {
                             // 触发单击震动反馈
                             self.feedbackGenerator.impactOccurred()
                             
-                            if !self.styleManager.isDefaultGesture {  // 交换模式：单击拍照
+                            if self.styleManager.isDefaultGesture {  // 默认模式：单击控制边框灯
+                                print("------------------------")
+                                print("触控区1单击控制边框灯（默认模式）")
+                                print("------------------------")
+                                
+                                // 显示边框灯动画
+                                showBorderLightAnimation()
+                                
+                                if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
+                                    self.borderLightManager.turnOffAllLights()
+                                    print("所有边框灯已关闭")
+                                } else {
+                                    self.borderLightManager.turnOnAllLights()
+                                    print("所有边框灯已开启")
+                                }
+                            } else {  // 交换模式：单击拍照
                                 print("------------------------")
                                 print("触控区1单击拍照（交换模式）")
                                 print("------------------------")

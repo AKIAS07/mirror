@@ -381,10 +381,89 @@ struct BorderLightView: View {
     let centerY: CGFloat
     let showOriginalHighlight: Bool
     let showMirroredHighlight: Bool
+    let screenPosition: ScreenPosition?
+    let isScreensSwapped: Bool
+    
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    @ObservedObject private var borderLightManager = BorderLightManager.shared
+    
+    // 添加圆角控制方法
+    private func getCornerRadii() -> (topLeading: CGFloat, topTrailing: CGFloat, bottomLeading: CGFloat, bottomTrailing: CGFloat) {
+        let radius = CameraLayoutConfig.borderCornerRadius
+        
+        // 如果没有指定屏幕位置，说明是主页面，所有圆角都使用相同的值
+        guard let position = screenPosition else {
+            return (radius, radius, radius, radius)
+        }
+        
+        // 在分屏页面，根据屏幕位置和交换状态设置圆角
+        switch position {
+        case .original:
+            // Original 屏幕在上方时
+            if !isScreensSwapped {
+                return (radius, radius, 0, 0) // 上圆下直
+            } else {
+                return (0, 0, radius, radius) // 上直下圆
+            }
+        case .mirrored:
+            // Mirrored 屏幕在上方时
+            if isScreensSwapped {
+                return (radius, radius, 0, 0) // 上圆下直
+            } else {
+                return (0, 0, radius, radius) // 上直下圆
+            }
+        }
+    }
+    
+    // 修改获取线宽的方法
+    private func getLineWidth(isHighlighted: Bool, cornerRadii: (topLeading: CGFloat, topTrailing: CGFloat, bottomLeading: CGFloat, bottomTrailing: CGFloat)) -> CGFloat {
+        // 未高亮时使用默认宽度
+        if !isHighlighted {
+            return 1
+        }
+        
+        // 如果是主页面，直接返回完整宽度
+        guard let position = screenPosition else {
+            return styleManager.selectedWidth
+        }
+        
+        // 检查是否两个分屏都开启了边框灯
+        let bothScreensHighlighted = showOriginalHighlight && showMirroredHighlight
+        
+        // 判断是否是需要减半宽度的边（直角边）
+        let isReducedWidthEdge: Bool
+        switch position {
+        case .original:
+            if !isScreensSwapped {
+                // Original在上方时，检查下边
+                isReducedWidthEdge = cornerRadii.bottomLeading == 0 && cornerRadii.bottomTrailing == 0
+            } else {
+                // Original在下方时，检查上边
+                isReducedWidthEdge = cornerRadii.topLeading == 0 && cornerRadii.topTrailing == 0
+            }
+        case .mirrored:
+            if isScreensSwapped {
+                // Mirrored在上方时，检查下边
+                isReducedWidthEdge = cornerRadii.bottomLeading == 0 && cornerRadii.bottomTrailing == 0
+            } else {
+                // Mirrored在下方时，检查上边
+                isReducedWidthEdge = cornerRadii.topLeading == 0 && cornerRadii.topTrailing == 0
+            }
+        }
+        
+        // 如果两个屏幕都高亮且是直角边，返回一半宽度
+        if bothScreensHighlighted && isReducedWidthEdge {
+            print("边框宽度减半：\(styleManager.selectedWidth / 2)")
+            return styleManager.selectedWidth / 2
+        }
+        
+        return styleManager.selectedWidth
+    }
     
     var body: some View {
         let isHighlighted = showOriginalHighlight || showMirroredHighlight || styleManager.isPreviewMode
+        let cornerRadii = getCornerRadii()
+        let lineWidth = getLineWidth(isHighlighted: isHighlighted, cornerRadii: cornerRadii)
         
         GeometryReader { geometry in
             // 计算实际的边框尺寸
@@ -393,41 +472,126 @@ struct BorderLightView: View {
             
             ZStack {
                 // 发光边框
-                RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
-                    .stroke(
-                        isHighlighted ? styleManager.selectedColor : Color.gray.opacity(0.3),
-                        lineWidth: isHighlighted ? styleManager.selectedWidth : 1
+                CustomRoundedRectangle(
+                    topLeadingRadius: cornerRadii.topLeading,
+                    topTrailingRadius: cornerRadii.topTrailing,
+                    bottomLeadingRadius: cornerRadii.bottomLeading,
+                    bottomTrailingRadius: cornerRadii.bottomTrailing
+                )
+                .stroke(
+                    isHighlighted ? styleManager.selectedColor : Color.gray.opacity(0.3),
+                    lineWidth: lineWidth
+                )
+                .frame(width: frameWidth, height: frameHeight)
+                .position(
+                    x: frameWidth/2,
+                    y: frameHeight/2
+                )
+                .overlay(
+                    CustomRoundedRectangle(
+                        topLeadingRadius: cornerRadii.topLeading,
+                        topTrailingRadius: cornerRadii.topTrailing,
+                        bottomLeadingRadius: cornerRadii.bottomLeading,
+                        bottomTrailingRadius: cornerRadii.bottomTrailing
                     )
+                    .stroke(Color.gray.opacity(isHighlighted ? 0.3 : 1), lineWidth: 1)
                     .frame(width: frameWidth, height: frameHeight)
                     .position(
                         x: frameWidth/2,
                         y: frameHeight/2
                     )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
-                            .stroke(Color.gray.opacity(isHighlighted ? 0.3 : 1), lineWidth: 1)
-                            .frame(width: frameWidth, height: frameHeight)
-                            .position(
-                                x: frameWidth/2,
-                                y: frameHeight/2
-                            )
-                    )
-                    .animation(.easeInOut(duration: 0.3), value: isHighlighted)
-                    .animation(.easeInOut(duration: 0.3), value: styleManager.selectedColor)
-                    .animation(.easeInOut(duration: 0.3), value: styleManager.selectedWidth)
+                )
+                .animation(.easeInOut(duration: 0.3), value: isHighlighted)
+                .animation(.easeInOut(duration: 0.3), value: styleManager.selectedColor)
+                .animation(.easeInOut(duration: 0.3), value: lineWidth)
             }
             .mask(
-                // 遮罩，只显示边框线内的部分
-                RoundedRectangle(cornerRadius: CameraLayoutConfig.borderCornerRadius)
-                    .frame(width: frameWidth - 1, height: frameHeight - 1)
-                    .position(
-                        x: frameWidth/2,
-                        y: frameHeight/2
-                    )
+                CustomRoundedRectangle(
+                    topLeadingRadius: cornerRadii.topLeading,
+                    topTrailingRadius: cornerRadii.topTrailing,
+                    bottomLeadingRadius: cornerRadii.bottomLeading,
+                    bottomTrailingRadius: cornerRadii.bottomTrailing
+                )
+                .frame(width: frameWidth, height: frameHeight)
+                .position(
+                    x: frameWidth/2,
+                    y: frameHeight/2
+                )
             )
             .clipped()
-            .scaleEffect(1.0, anchor: .center) // 添加固定缩放
-            .rotation3DEffect(.degrees(0), axis: (x: 0, y: 0, z: 1)) // 禁止3D旋转
+            .scaleEffect(1.0, anchor: .center)
+            .rotation3DEffect(.degrees(0), axis: (x: 0, y: 0, z: 1))
         }
     }
+}
+
+// 自定义不同圆角的矩形形状
+struct CustomRoundedRectangle: Shape {
+    let topLeadingRadius: CGFloat
+    let topTrailingRadius: CGFloat
+    let bottomLeadingRadius: CGFloat
+    let bottomTrailingRadius: CGFloat
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        // 从左上角开始，顺时针绘制
+        path.move(to: CGPoint(x: rect.minX + topLeadingRadius, y: rect.minY))
+        
+        // 上边
+        path.addLine(to: CGPoint(x: rect.maxX - topTrailingRadius, y: rect.minY))
+        // 右上角
+        path.addArc(
+            center: CGPoint(x: rect.maxX - topTrailingRadius, y: rect.minY + topTrailingRadius),
+            radius: topTrailingRadius,
+            startAngle: Angle(degrees: -90),
+            endAngle: Angle(degrees: 0),
+            clockwise: false
+        )
+        
+        // 右边
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - bottomTrailingRadius))
+        // 右下角
+        if bottomTrailingRadius > 0 {
+            path.addArc(
+                center: CGPoint(x: rect.maxX - bottomTrailingRadius, y: rect.maxY - bottomTrailingRadius),
+                radius: bottomTrailingRadius,
+                startAngle: Angle(degrees: 0),
+                endAngle: Angle(degrees: 90),
+                clockwise: false
+            )
+        }
+        
+        // 下边
+        path.addLine(to: CGPoint(x: rect.minX + bottomLeadingRadius, y: rect.maxY))
+        // 左下角
+        if bottomLeadingRadius > 0 {
+            path.addArc(
+                center: CGPoint(x: rect.minX + bottomLeadingRadius, y: rect.maxY - bottomLeadingRadius),
+                radius: bottomLeadingRadius,
+                startAngle: Angle(degrees: 90),
+                endAngle: Angle(degrees: 180),
+                clockwise: false
+            )
+        }
+        
+        // 左边
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + topLeadingRadius))
+        // 左上角
+        path.addArc(
+            center: CGPoint(x: rect.minX + topLeadingRadius, y: rect.minY + topLeadingRadius),
+            radius: topLeadingRadius,
+            startAngle: Angle(degrees: 180),
+            endAngle: Angle(degrees: 270),
+            clockwise: false
+        )
+        
+        return path
+    }
+}
+
+// 添加屏幕位置枚举
+enum ScreenPosition {
+    case original
+    case mirrored
 } 

@@ -5,6 +5,9 @@ struct YellowMaskView: View {
     let screenHeight: CGFloat
     let overflowAmount: CGFloat = 50 // 边框溢出量
     
+    // 获取设备圆角值
+    private let deviceCornerRadius: CGFloat = UIDevice.getCornerRadius()
+    
     var body: some View {
         GeometryReader { geometry in
             // 创建一个包含溢出区域的黄色遮罩
@@ -18,18 +21,33 @@ struct YellowMaskView: View {
                 )
                 path.addRect(outerRect)
                 
-                // 内部镂空矩形（设备屏幕大小）
+                // 内部镂空矩形（设备屏幕大小，带圆角）
                 let innerRect = CGRect(
                     x: 0,
                     y: 0,
                     width: screenWidth,
                     height: screenHeight
                 )
-                path.addRect(innerRect)
+                
+                // 创建圆角矩形路径
+                let roundedRect = UIBezierPath(
+                    roundedRect: innerRect,
+                    cornerRadius: deviceCornerRadius
+                )
+                
+                // 将 UIBezierPath 转换为 Path
+                path.addPath(Path(roundedRect.cgPath))
             }
             .fill(style: FillStyle(eoFill: true)) // 使用 even-odd 规则创建镂空效果
             .foregroundColor(.black)
         }
         .allowsHitTesting(false) // 确保遮罩不会影响触摸事件
     }
+}
+
+#Preview {
+    YellowMaskView(
+        screenWidth: UIScreen.main.bounds.width,
+        screenHeight: UIScreen.main.bounds.height
+    )
 } 
