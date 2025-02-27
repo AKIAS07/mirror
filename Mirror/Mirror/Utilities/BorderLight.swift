@@ -419,7 +419,7 @@ struct BorderLightView: View {
     private func getLineWidth(isHighlighted: Bool, cornerRadii: (topLeading: CGFloat, topTrailing: CGFloat, bottomLeading: CGFloat, bottomTrailing: CGFloat)) -> CGFloat {
         // 未高亮时使用默认宽度
         if !isHighlighted {
-            return 1
+            return 0
         }
         
         // 如果是主页面，直接返回完整宽度
@@ -494,7 +494,7 @@ struct BorderLightView: View {
                         bottomLeadingRadius: cornerRadii.bottomLeading,
                         bottomTrailingRadius: cornerRadii.bottomTrailing
                     )
-                    .stroke(Color.gray.opacity(isHighlighted ? 0.3 : 1), lineWidth: 1)
+                    .stroke(Color.black.opacity(isHighlighted ? 0.3 : 1), lineWidth: 0)
                     .frame(width: frameWidth, height: frameHeight)
                     .position(
                         x: frameWidth/2,

@@ -151,51 +151,23 @@ class ImageUploader: ObservableObject {
     
     // 修改权限检查方法
     func checkPhotoLibraryPermission(completion: @escaping (Bool) -> Void) {
-        let status = PHPhotoLibrary.authorizationStatus()
-        switch status {
-        case .authorized:
-            print("------------------------")
-            print("[相册权限] 已授权（完全访问）")
-            print("------------------------")
-            completion(true)
-        case .limited:
-            print("------------------------")
-            print("[相册权限] 已授权（受限访问）")
-            print("------------------------")
-            completion(true)
-        case .denied, .restricted:
-            print("------------------------")
-            print("[相册权限] 已被拒绝")
-            print("------------------------")
-            completion(false)
-            // 确保在权限被拒绝时恢复相机状态
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.onCameraStateChanged?()
-            }
-        case .notDetermined:
-            print("------------------------")
-            print("[相册权限] 开始申请")
-            print("------------------------")
-            PHPhotoLibrary.requestAuthorization { [weak self] status in
-                DispatchQueue.main.async {
-                    print("------------------------")
-                    print("[相册权限] 申请结果：\(status == .authorized ? "完全访问" : status == .limited ? "受限访问" : "已拒绝")")
-                    print("------------------------")
-                    completion(status == .authorized || status == .limited)
-                    
-                    // 确保在权限申请完成后恢复相机状态
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        self?.onCameraStateChanged?()
-                    }
-                }
-            }
-        @unknown default:
-            completion(false)
-            // 确保在未知状态时恢复相机状态
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.onCameraStateChanged?()
+        PermissionManager.shared.checkPhotoLibraryPermission(completion: completion)
+    }
+    
+    // 修改权限处理方法
+    func handlePermissionRequest() {
+        PermissionManager.shared.checkPhotoLibraryPermission { [weak self] granted in
+            if granted {
+                self?.showImagePicker = true
+            } else {
+                self?.hideRectangle()
             }
         }
+    }
+    
+    func handleSettingsNavigation() {
+        PermissionManager.shared.openSettings()
+        hideRectangle()
     }
     
     // 修改上传图片方法
@@ -253,74 +225,9 @@ class ImageUploader: ObservableObject {
         }
     }
     
-    // 修改处理权限申请的方法
-    func handlePermissionRequest() {
-        print("------------------------")
-        print("[相册权限] 用户确认提示，开始申请权限")
-        print("------------------------")
-        
-        PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] status in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                
-                if status == .authorized || status == .limited {
-                    print("------------------------")
-                    print("[相册权限] 用户已授权")
-                    print("------------------------")
-                    
-                    // 如果是受限访问，等待系统的照片选择界面关闭后再显示我们的图片选择器
-                    if status == .limited {
-                        print("------------------------")
-                        print("[相册权限] 受限访问模式")
-                        print("------------------------")
-                        // 延迟显示我们的图片选择器，等待系统界面消失
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            // 在显示图片选择器之前先暂停相机会话
-                            DispatchQueue.global(qos: .userInitiated).async {
-                                self.onCameraStateChanged?()
-                                DispatchQueue.main.async {
-                                    self.showImagePicker = true
-                                }
-                            }
-                        }
-                    } else {
-                        // 完全访问权限，直接显示图片选择器
-                        DispatchQueue.global(qos: .userInitiated).async {
-                            self.onCameraStateChanged?()
-                            DispatchQueue.main.async {
-                                self.showImagePicker = true
-                            }
-                        }
-                    }
-                } else {
-                    print("------------------------")
-                    print("[相册权限] 用户已拒绝")
-                    print("------------------------")
-                    self.hideRectangle()
-                }
-            }
-        }
-    }
-    
-    // 添加处理设置页面跳转的方法
-    func handleSettingsNavigation() {
-        print("------------------------")
-        print("[相册权限] 用户确认提示，准备跳转设置页面")
-        print("------------------------")
-        
-        if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-            if UIApplication.shared.canOpenURL(settingsUrl) {
-                UIApplication.shared.open(settingsUrl)
-                print("------------------------")
-                print("[相册权限] 已打开设置页面")
-                print("------------------------")
-            }
-        }
-        hideRectangle()
-    }
-    
     // 修改下载图片方法
     func downloadImage(for screenID: ScreenID) {
+        
         print("------------------------")
         print("[下载功能] 开始")
         print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")

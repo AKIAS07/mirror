@@ -429,7 +429,7 @@ struct TouchZoneOne: View {
                                                 originalCameraScale: self.currentCameraScale,
                                                 mirroredCameraScale: self.currentMirroredCameraScale
                                             )
-                                            self.screenshotManager.captureDoubleScreens()
+                                            self.screenshotManager.takeScreenshot()
                                         }
                                         
                                     } else {
@@ -548,7 +548,7 @@ struct TouchZoneOne: View {
                                         originalCameraScale: self.currentCameraScale,  // 添加 Original 摄像头缩放比例
                                         mirroredCameraScale: self.currentMirroredCameraScale
                                     )
-                                    self.screenshotManager.captureDoubleScreens()
+                                    self.screenshotManager.takeScreenshot()
                                 }
                             }
                         }
@@ -649,7 +649,7 @@ struct TouchZoneOne: View {
                                             originalCameraScale: self.currentCameraScale,
                                             mirroredCameraScale: self.currentMirroredCameraScale
                                         )
-                                        self.screenshotManager.captureDoubleScreens()
+                                        self.screenshotManager.takeScreenshot()
                                     }
                                     
                                 } else {
@@ -768,7 +768,7 @@ struct TouchZoneOne: View {
                                     originalCameraScale: self.currentCameraScale,  // 添加 Original 摄像头缩放比例
                                     mirroredCameraScale: self.currentMirroredCameraScale
                                 )
-                                self.screenshotManager.captureDoubleScreens()
+                                self.screenshotManager.takeScreenshot()
                             }
                         } else {  // 交换模式：双击控制边框灯
                             // 显示边框灯动画
@@ -946,5 +946,15 @@ struct TouchZoneOne: View {
         print("已完成图片旋转")
         
         return (rotatedOriginalImg, rotatedMirroredImg)
+    }
+    
+    // 修改截图调用部分
+    private func handleDoubleTap() {
+        print("------------------------")
+        print("双击触发截图")
+        print("------------------------")
+        
+        // 使用新的方法名
+        ScreenshotManager.shared.takeScreenshot()
     }
 } 

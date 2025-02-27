@@ -283,91 +283,93 @@ class ScreenshotManager: ObservableObject {
         self.mirroredCameraScale = mirroredCameraScale
     }
     
-    func captureDoubleScreens() {
-        print("------------------------")
-        print("[截图] 开始双屏截图")
-        print("------------------------")
+    func takeScreenshot() {
+        print("[截图] 开始处理")
         
         // 检查相册权限
-        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
-            if status == .authorized {
-                DispatchQueue.main.async(execute: DispatchWorkItem(block: {
-                    // 使用当前有效方向来决定布局
-                    let currentOrientation = DeviceOrientationManager.shared.validOrientation
-                    let isLandscape = currentOrientation.isLandscape
-                    
-                    print("[截图] 当前设备方向：\(currentOrientation)")
-                    print("[截图] 是否横屏：\(isLandscape)")
-                    
-                    // 获取当前的摄像头缩放比例
-                    let originalScale = self.originalImage != nil ? self.originalCameraScale : 1.0
-                    let mirroredScale = self.mirroredImage != nil ? self.mirroredCameraScale : 1.0
-                    
-                    print("[截图] Original摄像头缩放: \(Int(originalScale * 100))%")
-                    print("[截图] Mirrored摄像头缩放: \(Int(mirroredScale * 100))%")
-                    
-                    // 获取两个屏幕的图片，优先使用定格的图片
-                    let finalOriginalImage = self.imageUploader.getCurrentFrame(for: .original) ?? self.originalImage
-                    let finalMirroredImage = self.imageUploader.getCurrentFrame(for: .mirrored) ?? self.mirroredImage
-                    
-                    // 使用获取到的图片
-                    guard let originalImage = finalOriginalImage,
-                          let mirroredImage = finalMirroredImage else {
-                        print("[截图] 错误：无法获取图片")
-                        return
-                    }
-                    
-                    print("[截图] 已获取图片")
-                    print("Original尺寸：\(Int(originalImage.size.width))x\(Int(originalImage.size.height))")
-                    print("Mirrored尺寸：\(Int(mirroredImage.size.width))x\(Int(mirroredImage.size.height))")
-                    
-                    // 裁剪图片时传入当前方向
-                    let croppedOriginal = ImageCropUtility.shared.cropImageToScreenSize(
-                        originalImage,
-                        for: .original,
-                        isLandscape: isLandscape,
-                        pausedOrientation: currentOrientation,
-                        scale: 1.0,
-                        cameraScale: originalScale
-                    )
-                    
-                    let croppedMirrored = ImageCropUtility.shared.cropImageToScreenSize(
-                        mirroredImage,
-                        for: .mirrored,
-                        isLandscape: isLandscape,
-                        pausedOrientation: currentOrientation,
-                        scale: 1.0,
-                        cameraScale: mirroredScale
-                    )
-                    
-                    // 创建最终的截图
-                    let finalScreenshot = self.createCombinedImage(
-                        top: croppedOriginal,
-                        bottom: croppedMirrored,
-                        isLandscape: isLandscape
-                    )
-                    
-                    // 验证最终截图
-                    if finalScreenshot.size.width == 0 || finalScreenshot.size.height == 0 {
-                        print("[截图] 错误：生成的截图尺寸无效")
-                        return
-                    }
-                    
-                    // 保存预览图片和待保存的截图
-                    self.previewImage = finalScreenshot
-                    self.pendingScreenshot = finalScreenshot
-                    
-                    print("[截图] 最终截图尺寸：\(Int(finalScreenshot.size.width))x\(Int(finalScreenshot.size.height))")
-                    
-                    // 触发闪光动画
-                    self.isFlashing = true
-                    Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
-                        self.isFlashing = false
-                    }
-                }))
+        PermissionManager.shared.checkPhotoLibraryPermission { [weak self] granted in
+            if granted {
+                DispatchQueue.main.async {
+                    self?.performScreenshot()
+                }
             } else {
                 print("[截图] 错误：没有相册访问权限")
             }
+        }
+    }
+    
+    private func performScreenshot() {
+        // 使用当前有效方向来决定布局
+        let currentOrientation = DeviceOrientationManager.shared.validOrientation
+        let isLandscape = currentOrientation.isLandscape
+        
+        print("[截图] 当前设备方向：\(currentOrientation)")
+        print("[截图] 是否横屏：\(isLandscape)")
+        
+        // 获取当前的摄像头缩放比例
+        let originalScale = self.originalImage != nil ? self.originalCameraScale : 1.0
+        let mirroredScale = self.mirroredImage != nil ? self.mirroredCameraScale : 1.0
+        
+        print("[截图] Original摄像头缩放: \(Int(originalScale * 100))%")
+        print("[截图] Mirrored摄像头缩放: \(Int(mirroredScale * 100))%")
+        
+        // 获取两个屏幕的图片，优先使用定格的图片
+        let finalOriginalImage = self.imageUploader.getCurrentFrame(for: .original) ?? self.originalImage
+        let finalMirroredImage = self.imageUploader.getCurrentFrame(for: .mirrored) ?? self.mirroredImage
+        
+        // 使用获取到的图片
+        guard let originalImage = finalOriginalImage,
+              let mirroredImage = finalMirroredImage else {
+            print("[截图] 错误：无法获取图片")
+            return
+        }
+        
+        print("[截图] 已获取图片")
+        print("Original尺寸：\(Int(originalImage.size.width))x\(Int(originalImage.size.height))")
+        print("Mirrored尺寸：\(Int(mirroredImage.size.width))x\(Int(mirroredImage.size.height))")
+        
+        // 裁剪图片时传入当前方向
+        let croppedOriginal = ImageCropUtility.shared.cropImageToScreenSize(
+            originalImage,
+            for: .original,
+            isLandscape: isLandscape,
+            pausedOrientation: currentOrientation,
+            scale: 1.0,
+            cameraScale: originalScale
+        )
+        
+        let croppedMirrored = ImageCropUtility.shared.cropImageToScreenSize(
+            mirroredImage,
+            for: .mirrored,
+            isLandscape: isLandscape,
+            pausedOrientation: currentOrientation,
+            scale: 1.0,
+            cameraScale: mirroredScale
+        )
+        
+        // 创建最终的截图
+        let finalScreenshot = self.createCombinedImage(
+            top: croppedOriginal,
+            bottom: croppedMirrored,
+            isLandscape: isLandscape
+        )
+        
+        // 验证最终截图
+        if finalScreenshot.size.width == 0 || finalScreenshot.size.height == 0 {
+            print("[截图] 错误：生成的截图尺寸无效")
+            return
+        }
+        
+        // 保存预览图片和待保存的截图
+        self.previewImage = finalScreenshot
+        self.pendingScreenshot = finalScreenshot
+        
+        print("[截图] 最终截图尺寸：\(Int(finalScreenshot.size.width))x\(Int(finalScreenshot.size.height))")
+        
+        // 触发闪光动画
+        self.isFlashing = true
+        Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
+            self.isFlashing = false
         }
     }
     

@@ -13,14 +13,12 @@ public struct CaptureButtonStyle {
 public class CaptureState: ObservableObject {
     @Published public var capturedImage: UIImage?
     @Published public var showButtons: Bool = false
-    @Published public var showSaveSuccess: Bool = false
-    @Published public var showSaveError: Bool = false
     @Published public var currentScale: CGFloat = 1.0
     
-    public init() {}
+    private var isProcessingAlert = false
     
     // 根据缩放比例裁剪图片
-    private func cropImage(_ image: UIImage, scale: CGFloat) -> UIImage {
+    func cropImage(_ image: UIImage, scale: CGFloat) -> UIImage {
         let screenBounds = UIScreen.main.bounds
         let screenSize = screenBounds.size
         
@@ -64,38 +62,33 @@ public class CaptureState: ObservableObject {
         return croppedImage ?? image
     }
     
-    // 保存图片到相册
+    // 修改保存图片方法
     public func saveToPhotos() {
-        guard let image = capturedImage else { return }
+        guard let image = capturedImage else {
+            print("[相册保存] 错误：没有可保存的图片")
+            return
+        }
         
-        // 根据缩放比例处理图片
         let processedImage = cropImage(image, scale: currentScale)
         
-        PHPhotoLibrary.requestAuthorization { status in
-            guard status == .authorized else {
-                DispatchQueue.main.async {
-                    self.showSaveError = true
-                    print("相册权限未授权")
-                }
-                return
-            }
-            
-            PHPhotoLibrary.shared().performChanges({
-                PHAssetChangeRequest.creationRequestForAsset(from: processedImage)
-            }) { success, error in
-                DispatchQueue.main.async {
-                    if success {
-                        self.showSaveSuccess = true
-                        print("图片已保存到相册")
-                    } else {
-                        self.showSaveError = true
-                        if let error = error {
-                            print("保存图片失败：\(error.localizedDescription)")
-                        }
-                    }
-                }
+        // 直接调用权限管理器处理保存
+        PermissionManager.shared.handlePhotoLibraryAccess(
+            for: processedImage
+        ) { [weak self] success in
+            if success {
+                print("[相册保存] 保存成功")
+            } else {
+                print("[相册保存] 保存失败")
             }
         }
+    }
+    
+    // 修改重置方法
+    public func reset(onComplete: (() -> Void)? = nil) {
+        capturedImage = nil
+        showButtons = false
+        isProcessingAlert = false
+        onComplete?()
     }
     
     // 分享图片
@@ -117,15 +110,6 @@ public class CaptureState: ObservableObject {
                 print("分享界面已显示")
             }
         }
-    }
-    
-    // 重置状态
-    public func reset(onComplete: (() -> Void)? = nil) {
-        capturedImage = nil
-        showButtons = false
-        showSaveSuccess = false
-        showSaveError = false
-        onComplete?()
     }
 }
 
@@ -161,6 +145,29 @@ public struct CaptureActionButton: View {
                 .clipShape(Circle())
         }
     }
+    
+    // 添加一个新的初始化方法,专门用于处理下载按钮
+    public static func downloadButton(
+        captureState: CaptureState,
+        color: Color,
+        rotationAngle: Double
+    ) -> some View {
+        CaptureActionButton(
+            systemName: "square.and.arrow.down.fill",
+            action: {
+                // 触发震动反馈
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.prepare()
+                generator.impactOccurred()
+                
+                captureState.saveToPhotos()
+            },
+            feedbackStyle: .medium,
+            color: color
+        )
+        .rotationEffect(.degrees(rotationAngle))
+        .animation(.easeInOut(duration: 0.3), value: rotationAngle)
+    }
 }
 
 // 截图操作视图
@@ -168,33 +175,7 @@ public struct CaptureActionsView: View {
     @ObservedObject var captureState: CaptureState
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
-    @State private var showAlert = false
-    @State private var alertType: AlertType = .success
-    @State private var showButtons = true
     let onDismiss: () -> Void
-    
-    private enum AlertType {
-        case success
-        case error
-    }
-    
-    private var rotationAngle: Double {
-        switch orientationManager.currentOrientation {
-        case .landscapeLeft:
-            return 90
-        case .landscapeRight:
-            return -90
-        case .portraitUpsideDown:
-            return 180
-        default:
-            return 0
-        }
-    }
-    
-    public init(captureState: CaptureState, onDismiss: @escaping () -> Void) {
-        self.captureState = captureState
-        self.onDismiss = onDismiss
-    }
     
     public var body: some View {
         if captureState.showButtons {
@@ -202,12 +183,22 @@ public struct CaptureActionsView: View {
                 let screenBounds = UIScreen.main.bounds
                 
                 ZStack {
-                    // 添加一个全屏背景层来阻止点击事件穿透
-                    Color.black.opacity(0.0001)
-                        .frame(width: screenBounds.width, height: screenBounds.height)
-                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                        .contentShape(Rectangle())
-                    
+                    // 修改全屏背景层的实现
+                    if captureState.showButtons {
+                        Color.black.opacity(0.0001)
+                            .frame(width: screenBounds.width, height: screenBounds.height)
+                            .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                            .contentShape(Rectangle())
+                            .allowsHitTesting(true) // 确保只在需要时接收点击事件
+                            .onTapGesture {
+                                withAnimation {
+                                    captureState.reset {
+                                        onDismiss()
+                                    }
+                                }
+                            }
+                    }
+
                     // 图片层
                     if let image = captureState.capturedImage {
                         Image(uiImage: image)
@@ -216,6 +207,7 @@ public struct CaptureActionsView: View {
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .scaleEffect(captureState.currentScale)
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                            .allowsHitTesting(false) // 禁止图片层接收点击事件
                             .background(GeometryReader { geometry in
                                 Color.clear.onAppear {
                                     let frame = geometry.frame(in: .global)
@@ -248,7 +240,7 @@ public struct CaptureActionsView: View {
                         }
                     
                     // 按钮控制层
-                    if showButtons {
+                    if captureState.showButtons {
                         VStack(spacing: 0) {
                             Spacer()
                             
@@ -257,14 +249,12 @@ public struct CaptureActionsView: View {
                                 HStack(spacing: CaptureButtonStyle.buttonSpacing) {
                                     Spacer()
                                     
-                                    // 下载按钮
-                                    CaptureActionButton(
-                                        systemName: "square.and.arrow.down.fill",
-                                        action: captureState.saveToPhotos,
-                                        color: styleManager.iconColor
+                                    // 使用新的下载按钮
+                                    CaptureActionButton.downloadButton(
+                                        captureState: captureState,
+                                        color: styleManager.iconColor,
+                                        rotationAngle: getRotationAngle()
                                     )
-                                    .rotationEffect(.degrees(rotationAngle))
-                                    .animation(.easeInOut(duration: 0.3), value: rotationAngle)
                                     .background(GeometryReader { geometry in
                                         Color.clear.onAppear {
                                             let frame = geometry.frame(in: .global)
@@ -278,8 +268,8 @@ public struct CaptureActionsView: View {
                                         action: captureState.shareImage,
                                         color: styleManager.iconColor
                                     )
-                                    .rotationEffect(.degrees(rotationAngle))
-                                    .animation(.easeInOut(duration: 0.3), value: rotationAngle)
+                                    .rotationEffect(.degrees(getRotationAngle()))
+                                    .animation(.easeInOut(duration: 0.3), value: getRotationAngle())
                                     .background(GeometryReader { geometry in
                                         Color.clear.onAppear {
                                             let frame = geometry.frame(in: .global)
@@ -298,42 +288,16 @@ public struct CaptureActionsView: View {
             }
             .ignoresSafeArea()
             .zIndex(9)
-            .onChange(of: captureState.showSaveSuccess) { newValue in
-                if newValue {
-                    alertType = .success
-                    showAlert = true
-                    // 1秒后自动关闭弹窗
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        captureState.showSaveSuccess = false
-                        showAlert = false
-                    }
-                }
-            }
-            .onChange(of: captureState.showSaveError) { newValue in
-                if newValue {
-                    alertType = .error
-                    showAlert = true
-                }
-            }
-            .alert(isPresented: $showAlert) {
-                switch alertType {
-                case .success:
-                    return Alert(
-                        title: Text("保存成功"),
-                        message: nil,
-                        dismissButton: nil
-                    )
-                case .error:
-                    return Alert(
-                        title: Text("保存失败"),
-                        message: Text("请确保已授予相册访问权限"),
-                        dismissButton: .default(Text("确定")) {
-                            captureState.showSaveError = false
-                            showAlert = false
-                        }
-                    )
-                }
-            }
+        }
+    }
+    
+    // 添加辅助方法
+    private func getRotationAngle() -> Double {
+        switch orientationManager.currentOrientation {
+        case .landscapeLeft: return 90
+        case .landscapeRight: return -90
+        case .portraitUpsideDown: return 180
+        default: return 0
         }
     }
 } 

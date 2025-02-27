@@ -78,11 +78,16 @@ struct ContentView: View {
     // 添加设备方向状态
     @StateObject private var orientationManager = DeviceOrientationManager.shared
     
+    // 添加共享的 CaptureState
+    @StateObject private var captureState = CaptureState()
+    
+    @StateObject private var permissionManager = PermissionManager.shared
+    
     var body: some View {
         GeometryReader { geometry in
             
             ZStack {
-                if cameraManager.permissionGranted {
+                if permissionManager.cameraPermissionGranted {
                     if cameraManager.isMirrored {
                         // 模式A视图
                         GeometryReader { geometry in
@@ -101,7 +106,8 @@ struct ContentView: View {
                                 showScaleIndicator: $showScaleIndicator,
                                 currentIndicatorScale: $currentIndicatorScale,
                                 onPinchChanged: handlePinchGesture,
-                                onPinchEnded: handlePinchEnd
+                                onPinchEnded: handlePinchEnd,
+                                captureState: captureState
                             )
                         }
                         
@@ -126,7 +132,8 @@ struct ContentView: View {
                                 showScaleIndicator: $showScaleIndicator,
                                 currentIndicatorScale: $currentIndicatorScale,
                                 onPinchChanged: handlePinchGesture,
-                                onPinchEnded: handlePinchEnd
+                                onPinchEnded: handlePinchEnd,
+                                captureState: captureState
                             )
                         }
                         
@@ -306,30 +313,7 @@ struct ContentView: View {
                             .zIndex(5)  // 提高边框视图的层级
                     }
                 } else {
-                    // 权限请求视图
-                    ZStack {
-                        Color.black.edgesIgnoringSafeArea(.all)
-                        
-                        VStack {
-                            Image(systemName: "camera.fill")
-                                .foregroundColor(.white)
-                                .font(.largeTitle)
-                            Text("使用此APP需要您开启相机权限")
-                                .foregroundColor(.white)
-                                .padding()
-                            Button(action: {
-                                if let url = URL(string: UIApplication.openSettingsURLString) {
-                                    UIApplication.shared.open(url)
-                                }
-                            }) {
-                                Text("授权相机")
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(Color.yellow)
-                                    .cornerRadius(8)
-                            }
-                        }
-                    }
+                    CameraPermissionView()
                 }
                 
                 // 添加提示视图到最顶层
@@ -381,6 +365,8 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
+                permissionManager.checkInitialCameraPermission()
+                
                 // 检查并加载保存的配置
                 let settings = UserSettingsManager.shared
                 if settings.hasUserConfig() {
@@ -515,6 +501,9 @@ struct ContentView: View {
                     removal: .opacity.combined(with: .move(edge: .leading))
                 ))
                 .animation(.easeInOut(duration: 0.3), value: showingTwoOfMe)
+        }
+        .alert(item: $permissionManager.alertState) { state in
+            permissionManager.makeAlert()
         }
     }
     

@@ -22,7 +22,7 @@ public struct SettingsTheme {
     static let selectedBorderColor = Color.black
     
     // 边框
-    static let normalBorderWidth: CGFloat = 1
+    static let normalBorderWidth: CGFloat = 0
     static let selectedBorderWidth: CGFloat = 4  // 增加选中边框的粗细
     static let buttonBorderColor = Color.gray.opacity(0.5)  // 统一按钮边框颜色
     static let selectedButtonBorderColor = Color.gray    // 选中按钮边框颜色

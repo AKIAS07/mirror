@@ -22,7 +22,6 @@ struct CameraContainer: View {
     let cameraManager: CameraManager
     
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
-    @StateObject private var captureState = CaptureState()
     
     @Binding var currentScale: CGFloat
     @Binding var showScaleIndicator: Bool
@@ -34,6 +33,8 @@ struct CameraContainer: View {
     
     @State private var lastScreenshotTime: Date = Date()
     private let screenshotDebounceInterval: TimeInterval = 0.5
+    
+    let captureState: CaptureState
     
     init(session: AVCaptureSession, 
          isMirrored: Bool, 
@@ -49,7 +50,8 @@ struct CameraContainer: View {
          showScaleIndicator: Binding<Bool>,
          currentIndicatorScale: Binding<CGFloat>,
          onPinchChanged: @escaping (CGFloat) -> Void,
-         onPinchEnded: @escaping (CGFloat) -> Void) {
+         onPinchEnded: @escaping (CGFloat) -> Void,
+         captureState: CaptureState = CaptureState()) {
         self.session = session
         self.isMirrored = isMirrored
         self.isActive = isActive
@@ -65,6 +67,7 @@ struct CameraContainer: View {
         _currentIndicatorScale = currentIndicatorScale
         self.onPinchChanged = onPinchChanged
         self.onPinchEnded = onPinchEnded
+        self.captureState = captureState
     }
     
     var body: some View {

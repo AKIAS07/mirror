@@ -8,7 +8,7 @@ struct BorderStyle {
             splitScreenSelectedColor = selectedColor
         }
     }
-    static let normalWidth: CGFloat = 1
+    static let normalWidth: CGFloat = 0
     static var selectedWidth: CGFloat = 40 {
         didSet {
             splitScreenSelectedWidth = selectedWidth
@@ -16,7 +16,7 @@ struct BorderStyle {
     }
     
     // 分屏边框样式
-    static let splitScreenNormalWidth: CGFloat = 1
+    static let splitScreenNormalWidth: CGFloat = 0
     static var splitScreenSelectedWidth: CGFloat = 40
     static let splitScreenNormalColor = Color.gray.opacity(0.3)
     static var splitScreenSelectedColor = Color.white
