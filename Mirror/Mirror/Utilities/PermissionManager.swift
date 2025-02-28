@@ -17,6 +17,21 @@ enum PermissionStatus {
     case restricted
 }
 
+// 修改全局权限管理视图
+struct PermissionManagerView: View {
+    @StateObject private var manager = PermissionManager.shared
+    
+    var body: some View {
+        ZStack {
+            EmptyView()
+        }
+        .alert(item: $manager.alertState) { state in
+            manager.makeAlert()
+        }
+        .zIndex(999) // 确保 Alert 显示在最上层
+    }
+}
+
 // 权限管理器
 class PermissionManager: ObservableObject {
     static let shared = PermissionManager()
@@ -29,6 +44,18 @@ class PermissionManager: ObservableObject {
     
     // Alert 状态管理
     @Published var alertState: AlertState?
+    
+    // 添加全局权限状态
+    @Published private(set) var permissionState: PermissionState = .unknown
+    
+    // 权限状态枚举
+    enum PermissionState {
+        case unknown
+        case authorized
+        case denied
+        case notDetermined
+        case limited
+    }
     
     // Alert 状态枚举
     public enum AlertState: Identifiable, Equatable {
@@ -47,6 +74,7 @@ class PermissionManager: ObservableObject {
     
     private init() {
         checkInitialCameraPermission()
+        updatePermissionState()
     }
     
     // MARK: - 相册权限处理
@@ -54,38 +82,34 @@ class PermissionManager: ObservableObject {
     func handlePhotoLibraryAccess(for image: UIImage, completion: @escaping (Bool) -> Void) {
         currentImage = image
         
-        // 每次请求时重新获取最新的权限状态
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         print("[相册权限] 当前状态: \(status.rawValue)")
-        photoLibraryStatus = status  // 更新状态
         
-        switch status {
-        case .authorized, .limited:
-            print("[相册权限] 已授权，直接保存")
-            saveImageToPhotoLibrary(image) { success in
-                DispatchQueue.main.async {
-                    self.alertState = success ? .success : .error
-                    completion(success)
+        DispatchQueue.main.async { [weak self] in
+            switch status {
+            case .authorized, .limited:
+                print("[相册权限] 已授权，直接保存")
+                self?.saveImageToPhotoLibrary(image) { success in
+                    DispatchQueue.main.async {
+                        self?.alertState = success ? .success : .error
+                        completion(success)
+                    }
                 }
-            }
-            
-        case .notDetermined:
-            print("[相册权限] 未确定，显示首次授权弹窗")
-            DispatchQueue.main.async {
-                self.alertState = .permission(isFirstRequest: true)
-            }
-            
-        case .denied, .restricted:
-            print("[相册权限] 已拒绝或受限，显示设置弹窗")
-            DispatchQueue.main.async {
-                self.alertState = .permission(isFirstRequest: false)
-            }
-            
-        @unknown default:
-            DispatchQueue.main.async {
-                self.alertState = .error
+                
+            case .notDetermined:
+                print("[相册权限] 未确定，显示首次授权弹窗")
+                self?.alertState = .permission(isFirstRequest: true)
+                
+            case .denied, .restricted:
+                print("[相册权限] 已拒绝或受限，显示设置弹窗")
+                self?.alertState = .permission(isFirstRequest: false)
+                
+            @unknown default:
+                self?.alertState = .error
                 completion(false)
             }
+            
+            self?.updatePermissionState()
         }
     }
     
@@ -99,6 +123,8 @@ class PermissionManager: ObservableObject {
         let currentStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         print("[权限管理] 当前相册权限状态: \(currentStatus.rawValue)")
         photoLibraryStatus = currentStatus
+        
+        updatePermissionState()
     }
     
     // 修改权限确认处理方法
@@ -154,7 +180,7 @@ class PermissionManager: ObservableObject {
         }) { success, error in
             DispatchQueue.main.async {
                 if success {
-                    print("[相册保存] 保存成功")
+                    //print("[相册保存] 保存成功")
                     completion(true)
                 } else {
                     print("[相册保存] 保存失败：\(error?.localizedDescription ?? "未知错误")")
@@ -251,6 +277,31 @@ class PermissionManager: ObservableObject {
                 completion(false)
             }
         }
+        
+        updatePermissionState()
+    }
+    
+    // 添加全局权限状态更新方法
+    func updatePermissionState() {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        photoLibraryStatus = status
+        
+        switch status {
+        case .authorized:
+            permissionState = .authorized
+        case .denied:
+            permissionState = .denied
+        case .notDetermined:
+            permissionState = .notDetermined
+        case .limited:
+            permissionState = .limited
+        case .restricted:
+            permissionState = .denied
+        @unknown default:
+            permissionState = .unknown
+        }
+        
+        objectWillChange.send()
     }
 }
 

@@ -70,6 +70,7 @@ public class CaptureState: ObservableObject {
         }
         
         let processedImage = cropImage(image, scale: currentScale)
+        print("[相册保存] 开始处理图片保存")
         
         // 直接调用权限管理器处理保存
         PermissionManager.shared.handlePhotoLibraryAccess(

@@ -362,6 +362,10 @@ struct ContentView: View {
                     HelpPanel(isPresented: $showHelp)
                         .zIndex(4)  // 确保帮助面板显示在最上层
                 }
+                
+                // 添加全局权限管理视图，确保在最上层
+                PermissionManagerView()
+                    .zIndex(1000)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
@@ -482,6 +486,8 @@ struct ContentView: View {
                 
                 // 预准备震动反馈
                 feedbackGenerator.prepare()
+                
+                permissionManager.updatePermissionState()
             }
             .onDisappear {
                 // 移除所有通知监听
@@ -501,9 +507,6 @@ struct ContentView: View {
                     removal: .opacity.combined(with: .move(edge: .leading))
                 ))
                 .animation(.easeInOut(duration: 0.3), value: showingTwoOfMe)
-        }
-        .alert(item: $permissionManager.alertState) { state in
-            permissionManager.makeAlert()
         }
     }
     

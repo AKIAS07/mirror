@@ -172,149 +172,70 @@ class ImageUploader: ObservableObject {
     
     // 修改上传图片方法
     func uploadImage(for screenID: ScreenID) {
-        // 如果正在处理图片，不执行上传操作
-        if isProcessingImage {
-            return
-        }
-        
         selectedScreenID = screenID
-        
-        // 取消现有的隐藏计时器
         hideTimer?.invalidate()
         hideTimer = nil
         
-        // 检查相册权限状态
-        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        
-        switch status {
-        case .notDetermined:
-            // 首次使用，显示提示弹窗
-            print("------------------------")
-            print("[相册权限] 首次使用，显示提示弹窗")
-            print("------------------------")
-            permissionAlertType = .initial
-            showPermissionAlert = true
-            
-        case .denied:
-            // 之前拒绝过，显示设置页面提示弹窗
-            print("------------------------")
-            print("[相册权限] 之前拒绝，显示设置提示弹窗")
-            print("------------------------")
-            permissionAlertType = .settings
-            showPermissionAlert = true
-            
-        case .authorized, .limited:
-            // 已有权限，直接显示图片选择器
-            print("------------------------")
-            print("[图片选择器] 准备打开")
-            print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
-            print("------------------------")
-            
-            startImageProcessing()
-            showImagePicker = true
-            
-        case .restricted:
-            // 受限制（比如家长控制），隐藏上传控件
-            print("------------------------")
-            print("[相册权限] 访问受限")
-            print("------------------------")
-            hideRectangle()
-            
-        @unknown default:
-            hideRectangle()
-        }
+        // 使用 PermissionManager 处理权限
+        PermissionManager.shared.handlePhotoLibraryAccess(
+            for: UIImage(), // 传入空图片，因为此时只是检查权限
+            completion: { [weak self] success in
+                if success {
+                    DispatchQueue.main.async {
+                        self?.startImageProcessing()
+                        self?.showImagePicker = true
+                    }
+                } else {
+                    self?.hideRectangle()
+                }
+            }
+        )
     }
     
     // 修改下载图片方法
     func downloadImage(for screenID: ScreenID) {
-        
-        print("------------------------")
         print("[下载功能] 开始")
         print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
-        print("------------------------")
         
         // 获取要保存的图片
         let imageToSave = screenID == .original ? _originalPausedImage : _mirroredPausedImage
         
         guard let imageToSave = imageToSave else {
-            print("------------------------")
             print("[下载功能] 错误：没有可保存的图片")
-            print("------------------------")
             hideRectangle()
             return
         }
         
-        // 获取定格时的方向
+        // 获取定格时的方向和缩放比例
         let pausedOrientation = screenID == .original ? pausedOriginalOrientation : pausedMirroredOrientation
-        
-        // 获取当前摄像头缩放比例
         let cameraScale = screenID == .original ? pausedOriginalCameraScale : pausedMirroredCameraScale
         
-        print("[下载功能] 图片信息")
-        print("- 原始尺寸: \(Int(imageToSave.size.width))x\(Int(imageToSave.size.height))")
-        print("- 定格方向: \(pausedOrientation?.rawValue ?? -1)")
-        print("- 摄像头缩放: \(Int(cameraScale * 100))%")
-        
-        // 裁剪图片为分屏大小，传入摄像头缩放比例
+        // 裁剪图片
         let croppedImage = ImageCropUtility.shared.cropImageToScreenSize(
             imageToSave,
             for: screenID,
             offset: currentOffset,
             isLandscape: pausedOrientation?.isLandscape ?? false,
             pausedOrientation: pausedOrientation,
-            scale: 1.0,  // 使用1.0作为基础缩放
-            cameraScale: cameraScale  // 传入保存的摄像头缩放比例
+            scale: 1.0,
+            cameraScale: cameraScale
         )
         
-        print("- 裁剪后尺寸: \(Int(croppedImage.size.width))x\(Int(croppedImage.size.height))")
-        
-        // 检查相册权限并保存图片
-        PHPhotoLibrary.requestAuthorization { [weak self] status in
-            guard let self = self else { return }
-            
-            DispatchQueue.main.async {
-                if status == .authorized || status == .limited {
-                    print("------------------------")
-                    print("[下载功能] 已获得权限")
-                    print("------------------------")
-                    
-                    // 保存裁剪后的图片到相册
-                    PHPhotoLibrary.shared().performChanges({
-                        let request = PHAssetChangeRequest.creationRequestForAsset(from: croppedImage)
-                        request.creationDate = Date()
-                    }) { success, error in
-                        DispatchQueue.main.async {
-                            if success {
-                                print("------------------------")
-                                print("[下载功能] 图片保存成功")
-                                print("------------------------")
-                                // 显示保存成功提示
-                                self.toastMessage = "保存成功"
-                                self.showToast = true
-                                // 2秒后自动隐藏提示
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                    self.showToast = false
-                                    self.hideRectangle()  // 在提示消失后再隐藏下载页面
-                                }
-                            } else {
-                                print("------------------------")
-                                print("[下载功能] 图片保存失败")
-                                if let error = error {
-                                    print("错误信息：\(error.localizedDescription)")
-                                }
-                                print("------------------------")
-                                self.hideRectangle()
-                            }
-                        }
-                    }
-                } else {
-                    print("------------------------")
-                    print("[下载功能] 权限被拒绝")
-                    print("------------------------")
-                    // 显示权限提示弹窗
-                    self.permissionAlertType = .settings
-                    self.showPermissionAlert = true
+        // 使用 PermissionManager 处理权限和保存
+        PermissionManager.shared.handlePhotoLibraryAccess(
+            for: croppedImage
+        ) { [weak self] success in
+            if success {
+                print("[下载功能] 保存成功")
+                self?.toastMessage = "保存成功"
+                self?.showToast = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    self?.showToast = false
+                    self?.hideRectangle()
                 }
+            } else {
+                print("[下载功能] 保存失败")
+                self?.hideRectangle()
             }
         }
     }
@@ -803,6 +724,38 @@ class ImageUploader: ObservableObject {
         return nil
     }
     
+    // 修改图片选择器处理方法
+    func handleImagePicker(image: UIImage?, screenID: ScreenID) {
+        guard let image = image else {
+            hideRectangle()
+            return
+        }
+        
+        // 裁剪图片
+        let croppedImage = ImageCropUtility.shared.cropImageToScreenSize(
+            image,
+            for: screenID
+        )
+        
+        // 保存裁剪后的图片
+        setPausedImage(croppedImage, for: screenID)
+        
+        // 显示上传成功提示
+        toastMessage = "上传成功"
+        showToast = true
+        
+        // 2秒后自动隐藏提示
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            self.showToast = false
+            self.hideRectangle()
+        }
+        
+        // 延迟结束处理状态
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.endImageProcessing()
+        }
+    }
+    
     init() {
         // 添加手电筒状态检查通知监听
         NotificationCenter.default.addObserver(
@@ -1134,86 +1087,19 @@ struct ImagePicker: UIViewControllerRepresentable {
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             if let image = info[.originalImage] as? UIImage {
-                // 获取当前设备方向
-                let orientation = UIDevice.current.orientation
-                
-                // 根据设备方向调整图片
-                let rotatedImage: UIImage
-                if DeviceOrientationManager.shared.isAllowedOrientation(orientation) {
-                    switch orientation {
-                    case .landscapeLeft:
-                        rotatedImage = image.rotate(degrees: 0)  // 向左横屏时顺时针旋转90度
-                    case .landscapeRight:
-                        rotatedImage = image.rotate(degrees: 0) // 向右横屏时逆时针旋转90度
-                    case .portraitUpsideDown:
-                        // 对于倒置方向，两个分屏都保持一致的处理
-                        rotatedImage = image.rotate(degrees: 0)
-                    default:
-                        rotatedImage = image
-                    }
-                } else {
-                    // 如果不是允许的方向，使用最后一个有效方向
-                    let lastValidOrientation = DeviceOrientationManager.shared.validOrientation
-                    switch lastValidOrientation {
-                    case .landscapeLeft:
-                        rotatedImage = image.rotate(degrees: 0)
-                    case .landscapeRight:
-                        rotatedImage = image.rotate(degrees: 0)
-                    case .portraitUpsideDown:
-                        rotatedImage = image.rotate(degrees: 0)
-                    default:
-                        rotatedImage = image
-                    }
-                }
-                
-                // 裁剪旋转后的图片
-                let croppedImage = self.parent.imageUploader?.cropImageToScreenSize(
-                    rotatedImage,
-                    for: self.parent.screenID
-                ) ?? rotatedImage
-                
-                self.parent.selectedImage = croppedImage
-                
-                print("------------------------")
-                print("[图片选择器] 已选择图片")
-                print("原始尺寸：\(Int(image.size.width))x\(Int(image.size.height))")
-                print("旋转后尺寸：\(Int(rotatedImage.size.width))x\(Int(rotatedImage.size.height))")
-                print("裁剪后尺寸：\(Int(croppedImage.size.width))x\(Int(croppedImage.size.height))")
-                print("设备方向：\(orientation.rawValue)")
-                print("目标区域：\(self.parent.screenID == .original ? "Original" : "Mirrored")屏幕")
-                print("------------------------")
-                
-                // 保存裁剪后的图片
-                self.parent.imageUploader?.setPausedImage(croppedImage, for: self.parent.screenID)
-                
                 // 关闭图片选择器
-                self.parent.presentationMode.wrappedValue.dismiss()
+                parent.presentationMode.wrappedValue.dismiss()
                 
-                // 显示上传成功提示
-                self.parent.imageUploader?.showUploadSuccessToast()
-                
-                // 延迟结束处理状态
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.parent.imageUploader?.endImageProcessing()
-                }
+                // 处理选择的图片
+                parent.imageUploader?.handleImagePicker(image: image, screenID: parent.screenID)
             }
         }
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            print("------------------------")
             print("[图片选择器] 已取消选择")
-            print("------------------------")
-            
-            // 关闭图片选择器
             parent.presentationMode.wrappedValue.dismiss()
-            
-            // 执行清理工作并结束处理状态
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if let imageUploader = self.parent.imageUploader {
-                    imageUploader.hideRectangle()
-                    imageUploader.endImageProcessing()
-                }
-            }
+            parent.imageUploader?.hideRectangle()
+            parent.imageUploader?.endImageProcessing()
         }
     }
 } 

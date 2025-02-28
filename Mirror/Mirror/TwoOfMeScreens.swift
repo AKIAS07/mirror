@@ -372,6 +372,8 @@ private struct TouchZoneView: View {
 struct TwoOfMeScreens: View {
     @StateObject private var cameraManager = CameraManager()
     @StateObject private var imageUploader = ImageUploader()
+    @StateObject private var permissionManager = PermissionManager.shared
+    
     @State private var originalImage: UIImage?
     @State private var mirroredImage: UIImage?
     @State private var containerWidth: CGFloat = 0
@@ -1737,6 +1739,21 @@ struct TwoOfMeScreens: View {
             }
         }
         .ignoresSafeArea(.all)
+        
+        // 添加 Alert 处理
+        .alert(item: $permissionManager.alertState) { state in
+            permissionManager.makeAlert()
+        }
+        
+        // 添加全局权限管理视图
+        PermissionManagerView()
+            .zIndex(1000)
+            .onChange(of: permissionManager.alertState) { newValue in
+                if newValue != nil {
+                    // 当 Alert 出现时，停止相机并显示重启提示
+                    handleCameraStop()
+                }
+            }
     }
     
     private func setupVideoProcessing() {
@@ -1914,6 +1931,97 @@ struct TwoOfMeScreens: View {
         default: // 正常竖屏
             return isScreenSwapped ? "icon-bf-color-2" : "icon-bf-color-1"
         }
+    }
+    
+    // 添加相机停止处理方法
+    private func handleCameraStop() {
+        print("------------------------")
+        print("[权限弹窗] 停止相机会话")
+        print("------------------------")
+        
+        // 停止相机会话
+        cameraManager.safelyStopSession()
+        
+        // 显示重启提示
+        showOriginalRestartHint = true
+        showMirroredRestartHint = true
+    }
+    
+    // 修改重启相机方法
+    private func restartCamera() {
+        if !cameraManager.permissionGranted {
+            print("[相机重启] 无相机权限，无法重启")
+            return
+        }
+        
+        print("------------------------")
+        print("[相机重启] 开始")
+        print("------------------------")
+        
+        // 在后台线程启动相机会话
+        DispatchQueue.global(qos: .userInitiated).async {
+            cameraManager.restartCamera()
+            
+            // 在主线程更新 UI 状态
+            DispatchQueue.main.async {
+                showOriginalRestartHint = false
+                showMirroredRestartHint = false
+                print("[相机重启] 完成")
+            }
+        }
+    }
+    
+    // 修改 Original 屏幕视图
+    private var originalScreenView: some View {
+        ZStack {
+            if showOriginalRestartHint {
+                // 显示重启提示
+                RestartHintView(
+                    screenID: .original,
+                    onTap: restartCamera
+                )
+            } else {
+                // 显示正常的相机视图
+                // ... 原有的相机视图代码 ...
+            }
+        }
+    }
+    
+    // 修改 Mirrored 屏幕视图
+    private var mirroredScreenView: some View {
+        ZStack {
+            if showMirroredRestartHint {
+                // 显示重启提示
+                RestartHintView(
+                    screenID: .mirrored,
+                    onTap: restartCamera
+                )
+            } else {
+                // 显示正常的相机视图
+                // ... 原有的相机视图代码 ...
+            }
+        }
+    }
+}
+
+// 添加重启提示视图组件
+struct RestartHintView: View {
+    let screenID: ScreenID
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack {
+                Image(systemName: "arrow.clockwise.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.white)
+                Text("点击重启相机")
+                    .foregroundColor(.white)
+                    .font(.system(size: 16))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
     }
 }
 
