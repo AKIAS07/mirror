@@ -292,7 +292,7 @@ public struct SettingsPanel: View {
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
                             HStack {
                                 Spacer()
-                                Text("边框灯设置")
+                                Text("灯光设置")
                                     .font(.headline)
                                     .foregroundColor(SettingsTheme.titleColor)
                                 Spacer()
@@ -390,12 +390,12 @@ public struct SettingsPanel: View {
                                             .foregroundColor(.white)
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 2)
-                                            .background(Color.gray.opacity(0.7))
+                                            .background(styleManager.isDefaultGesture ? Color.red.opacity(0.5) : Color.blue.opacity(0.5))  
                                             .cornerRadius(8)
                                     }
 
                                     HStack(spacing: 4) {
-                                        Text("边框灯")
+                                        Text("灯光")
                                             .foregroundColor(SettingsTheme.subtitleColor)
                                             .frame(width: 75, alignment: .center)
                                         Text(styleManager.isDefaultGesture ? "单击" : "双击")
@@ -403,7 +403,7 @@ public struct SettingsPanel: View {
                                             .foregroundColor(.white)
                                             .padding(.horizontal, 8)
                                             .padding(.vertical, 2)
-                                            .background(Color.gray.opacity(0.7))
+                                            .background(styleManager.isDefaultGesture ? Color.blue.opacity(0.5) : Color.red.opacity(0.5))
                                             .cornerRadius(8)
                                     }
 
@@ -419,7 +419,7 @@ public struct SettingsPanel: View {
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
                                         .frame(width: 35, height: 35)
-                                        .foregroundColor(.blue)
+                                        .foregroundColor(Color.gray.opacity(0.7))
                                         .padding(0)
                                         .background(Color.gray.opacity(0.2))
                                         .clipShape(Circle())

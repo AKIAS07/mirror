@@ -88,16 +88,10 @@ class PermissionManager: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             switch status {
             case .authorized, .limited:
-                print("[相册权限] 已授权，直接保存")
-                self?.saveImageToPhotoLibrary(image) { success in
-                    DispatchQueue.main.async {
-                        self?.alertState = success ? .success : .error
-                        completion(success)
-                    }
-                }
+                completion(true)
                 
             case .notDetermined:
-                print("[相册权限] 未确定，显示首次授权弹窗")
+                print("[相册权限] 未确定，显示自定义权限弹窗")
                 self?.alertState = .permission(isFirstRequest: true)
                 
             case .denied, .restricted:
@@ -105,11 +99,8 @@ class PermissionManager: ObservableObject {
                 self?.alertState = .permission(isFirstRequest: false)
                 
             @unknown default:
-                self?.alertState = .error
                 completion(false)
             }
-            
-            self?.updatePermissionState()
         }
     }
     
@@ -129,19 +120,17 @@ class PermissionManager: ObservableObject {
     
     // 修改权限确认处理方法
     func handlePhotoLibraryPermissionConfirmed(for image: UIImage, completion: @escaping (Bool) -> Void) {
+        // 用户点击确定后，请求系统权限
         PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] status in
             DispatchQueue.main.async {
-                self?.photoLibraryStatus = status  // 更新状态
+                self?.photoLibraryStatus = status
                 
                 switch status {
                 case .authorized, .limited:
                     print("[相册权限] 用户已授权")
-                    self?.saveImageToPhotoLibrary(image) { success in
-                        DispatchQueue.main.async {
-                            self?.alertState = success ? .success : .error
-                            completion(success)
-                        }
-                    }
+                    // 直接返回成功，让 ScreenshotManager 处理保存
+                    completion(true)
+                    
                 default:
                     print("[相册权限] 用户未授权")
                     self?.alertState = .permission(isFirstRequest: false)
@@ -229,15 +218,12 @@ class PermissionManager: ObservableObject {
                 message: Text("此功能需要您开启相册权限！"),
                 primaryButton: .default(Text(isFirstRequest ? "确定" : "去设置")) {
                     if isFirstRequest {
-                        // 使用保存的图片
                         if let image = self.currentImage {
                             self.handlePhotoLibraryPermissionConfirmed(for: image) { success in
                                 if !success {
                                     self.handleAlertDismiss()
                                 }
                             }
-                        } else {
-                            self.handleAlertDismiss()
                         }
                     } else {
                         self.openSettings()
@@ -310,29 +296,37 @@ struct CameraPermissionView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.yellow.edgesIgnoringSafeArea(.all)
+                Color.black.edgesIgnoringSafeArea(.all)
                 
-                VStack {
+                VStack(spacing: 50) { // 添加固定间距
+                    // 图片保持原位置
                     Image("icon-bf-white")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 100, height: 100)
+                        .frame(width: 150, height: 150)
                         .position(x: geometry.size.width/2, y: geometry.size.height/2-100)
                         .foregroundColor(.white)
                         .font(.largeTitle)
-                    Text("使用此APP需要您开启相机权限")
-                        .foregroundColor(.white)
-                        .position(x: geometry.size.width/2, y: geometry.size.height/2)
-                        .padding()
-                    Button(action: {
-                        PermissionManager.shared.openSettings()
-                    }) {
-                        Text("授权相机")
+                    
+                    // 文字和按钮向上移动并居中
+                    VStack(spacing: 265) { // 文字和按钮之间的间距
+
+                        
+                        Button(action: {
+                            PermissionManager.shared.openSettings()
+                        }) {
+                            Text("授权相机")
+                                .foregroundColor(.white)
+                                .padding()
+                                .background(Color.gray)
+                                .cornerRadius(8)
+                        }
+
+                        Text("使用此APP需要您开启相机权限")
                             .foregroundColor(.white)
                             .padding()
-                            .background(Color.black)
-                            .cornerRadius(8)
                     }
+                    //.offset(y: -300) // 整体向上偏移
                 }
             }
         }

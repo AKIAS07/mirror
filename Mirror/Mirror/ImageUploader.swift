@@ -160,7 +160,8 @@ class ImageUploader: ObservableObject {
             if granted {
                 self?.showImagePicker = true
             } else {
-                self?.hideRectangle()
+                // 权限被拒绝时，确保重置状态
+                self?.resetOverlayState()
             }
         }
     }
@@ -227,7 +228,7 @@ class ImageUploader: ObservableObject {
         ) { [weak self] success in
             if success {
                 print("[下载功能] 保存成功")
-                self?.toastMessage = "保存成功"
+                self?.toastMessage = "已保存到相册"
                 self?.showToast = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     self?.showToast = false
@@ -756,6 +757,30 @@ class ImageUploader: ObservableObject {
         }
     }
     
+    // 添加重置遮罩状态的方法
+    func resetOverlayState() {
+        print("------------------------")
+        print("[ImageUploader] 重置遮罩状态")
+        print("------------------------")
+        
+        withAnimation {
+            // 重置所有状态
+            showOriginalOverlay = false
+            showMirroredOverlay = false
+            isOverlayVisible = false
+            showDownloadOverlay = false
+            isDownloadMode = false
+            showImagePicker = false
+        }
+        
+        // 取消计时器
+        hideTimer?.invalidate()
+        hideTimer = nil
+        
+        // 结束图片处理状态
+        endImageProcessing()
+    }
+    
     init() {
         // 添加手电筒状态检查通知监听
         NotificationCenter.default.addObserver(
@@ -918,7 +943,7 @@ struct OverlayView: View {
                     .contentShape(Rectangle())
             } else {
                 Rectangle()
-                    .fill(Color.white)
+                    .fill(Color.black)
                     .frame(height: centerY)
                     .allowsHitTesting(false)
                     .contentShape(Rectangle())
@@ -948,7 +973,7 @@ struct OverlayView: View {
                         .contentShape(Rectangle())
                         
                 }
-                .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
+                .buttonStyle(PressableButtonStyle(normalColor: .white))
                 
                 // 上传按钮
                 Button(action: {
@@ -970,7 +995,7 @@ struct OverlayView: View {
                         .contentShape(Rectangle())
                         
                 }
-                .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
+                .buttonStyle(PressableButtonStyle(normalColor: .white))
             }
         }
     }
@@ -986,7 +1011,7 @@ struct OverlayView: View {
                     .allowsHitTesting(false)
             } else {
                 Rectangle()
-                    .fill(Color.white)
+                    .fill(Color.black)
                     .frame(height: centerY)
                     .allowsHitTesting(false)
             }
@@ -1011,7 +1036,7 @@ struct OverlayView: View {
                     .frame(width: 80, height: 80)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(PressableButtonStyle(normalColor: screenID == .original ? .white : .black))
+            .buttonStyle(PressableButtonStyle(normalColor: .white))
         }
     }
     

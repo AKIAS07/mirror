@@ -81,8 +81,8 @@ struct RestartCameraView: View {
                 
                 VStack(spacing: 20) {
                     Image(systemName: "camera.circle.fill")
-                        .font(.system(size: 75))
-                        .foregroundColor(styleManager.iconColor)
+                        .font(.system(size: 250))
+                        .foregroundColor(styleManager.iconColor.opacity(0.2))
                         .rotationEffect(orientationManager.getRotationAngle(orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                 }

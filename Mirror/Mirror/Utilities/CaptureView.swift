@@ -14,6 +14,7 @@ public class CaptureState: ObservableObject {
     @Published public var capturedImage: UIImage?
     @Published public var showButtons: Bool = false
     @Published public var currentScale: CGFloat = 1.0
+    @Published public var showSaveSuccess: Bool = false  // 添加保存成功状态
     
     private var isProcessingAlert = false
     
@@ -72,14 +73,70 @@ public class CaptureState: ObservableObject {
         let processedImage = cropImage(image, scale: currentScale)
         print("[相册保存] 开始处理图片保存")
         
-        // 直接调用权限管理器处理保存
-        PermissionManager.shared.handlePhotoLibraryAccess(
-            for: processedImage
-        ) { [weak self] success in
-            if success {
-                print("[相册保存] 保存成功")
-            } else {
-                print("[相册保存] 保存失败")
+        // 检查权限状态
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        
+        switch status {
+        case .authorized, .limited:
+            // 已有权限，直接保存
+            saveImageToPhotoLibrary(processedImage) { [weak self] success in
+                if success {
+                    // 显示自定义成功提示
+                    withAnimation {
+                        self?.showSaveSuccess = true
+                    }
+                    // 1秒后隐藏提示
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        withAnimation {
+                            self?.showSaveSuccess = false
+                        }
+                    }
+                }
+            }
+            
+        case .notDetermined:
+            // 未确定状态，显示自定义权限弹窗
+            PermissionManager.shared.handlePhotoLibraryAccess(for: processedImage) { [weak self] success in
+                if success {
+                    self?.saveImageToPhotoLibrary(processedImage) { success in
+                        if success {
+                            // 显示自定义成功提示
+                            withAnimation {
+                                self?.showSaveSuccess = true
+                            }
+                            // 1秒后隐藏提示
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                withAnimation {
+                                    self?.showSaveSuccess = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+        case .denied, .restricted:
+            // 已拒绝，显示去设置的弹窗
+            PermissionManager.shared.alertState = .permission(isFirstRequest: false)
+            
+        @unknown default:
+            break
+        }
+    }
+    
+    // 添加私有保存方法
+    private func saveImageToPhotoLibrary(_ image: UIImage, completion: @escaping (Bool) -> Void) {
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetChangeRequest.creationRequestForAsset(from: image)
+        }) { success, error in
+            DispatchQueue.main.async {
+                if success {
+                    print("[相册保存] 保存成功")
+                    completion(true)
+                } else {
+                    print("[相册保存] 保存失败：\(error?.localizedDescription ?? "未知错误")")
+                    completion(false)
+                }
             }
         }
     }
@@ -277,6 +334,21 @@ public struct CaptureActionsView: View {
                                             print("分享按钮位置: x=\(frame.midX), y=\(frame.midY)")
                                         }
                                     })
+                                    // 添加保存成功提示
+                                    if captureState.showSaveSuccess {
+                                        Text("已保存到相册")
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(.white)
+                                            .multilineTextAlignment(.center)
+                                            .lineLimit(nil)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .padding(.vertical, 8)
+                                            .padding(.horizontal, 16)
+                                            .background(Color.black.opacity(0.6))
+                                            .cornerRadius(8)
+                                            .rotationEffect(.degrees(getRotationAngle()))
+                                    }
+
                                     
                                     Spacer()
                                 }
@@ -284,6 +356,8 @@ public struct CaptureActionsView: View {
                             .frame(height: 120)
                         }
                         .frame(width: screenBounds.width, height: screenBounds.height)
+                        
+                    
                     }
                 }
             }
@@ -300,5 +374,5 @@ public struct CaptureActionsView: View {
         case .portraitUpsideDown: return 180
         default: return 0
         }
-    }
-} 
+    }   
+}   

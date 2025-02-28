@@ -52,9 +52,9 @@ struct ScreenshotAnimationView: View {
                                 .offset(getTextOffset(geometry))
                         }
                         
-                        // 确认和取消按钮
+                        // 确认、分享和取消按钮
                         if showButtons {
-                            HStack(spacing: 40) {
+                            HStack(spacing:30) {
                                 // 确认按钮
                                 Button(action: {
                                     screenshotManager.saveScreenshot()
@@ -67,8 +67,17 @@ struct ScreenshotAnimationView: View {
                                         hidePreview()
                                     }
                                 }) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 44))
+                                    Image(systemName: "square.and.arrow.down.fill")
+                                        .font(.system(size: 30))
+                                        .foregroundColor(.white)
+                                }
+                                
+                                // 分享按钮
+                                Button(action: {
+                                    screenshotManager.shareScreenshot()
+                                }) {
+                                    Image(systemName: "arrowshape.turn.up.right.fill")
+                                        .font(.system(size: 30))
                                         .foregroundColor(.white)
                                 }
                                 
@@ -77,7 +86,7 @@ struct ScreenshotAnimationView: View {
                                     hidePreview()
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 44))
+                                        .font(.system(size: 30))
                                         .foregroundColor(.white)
                                 }
                             }
@@ -249,6 +258,7 @@ class ScreenshotManager: ObservableObject {
     
     @Published var isFlashing = false
     @Published var previewImage: UIImage?
+    @Published var showPreview = false  // 添加新的状态控制预览显示
     
     private var originalImage: UIImage?
     private var mirroredImage: UIImage?
@@ -286,15 +296,9 @@ class ScreenshotManager: ObservableObject {
     func takeScreenshot() {
         print("[截图] 开始处理")
         
-        // 检查相册权限
-        PermissionManager.shared.checkPhotoLibraryPermission { [weak self] granted in
-            if granted {
-                DispatchQueue.main.async {
-                    self?.performScreenshot()
-                }
-            } else {
-                print("[截图] 错误：没有相册访问权限")
-            }
+        // 直接执行截图，不检查权限
+        DispatchQueue.main.async {
+            self.performScreenshot()
         }
     }
     
@@ -476,18 +480,61 @@ class ScreenshotManager: ObservableObject {
         return combinedImage ?? UIImage()
     }
     
-    // 保存截图到相册
+    // 修改 saveScreenshot 方法
     func saveScreenshot() {
         guard let screenshot = pendingScreenshot else { return }
         
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        
+        switch status {
+        case .authorized, .limited:
+            // 已有权限，直接保存
+            performSaveScreenshot(screenshot) { [weak self] success in
+                if success {
+                    // 显示自定义成功提示文字
+                    withAnimation {
+                        self?.showPreview = false  // 隐藏预览
+                    }
+                }
+            }
+            
+        case .notDetermined:
+            // 未确定状态，先显示自定义权限弹窗
+            PermissionManager.shared.handlePhotoLibraryAccess(for: screenshot) { [weak self] success in
+                if success {
+                    // 用户在系统弹窗中允许后，保存图片
+                    self?.performSaveScreenshot(screenshot) { success in
+                        if success {
+                            // 显示自定义成功提示文字
+                            withAnimation {
+                                self?.showPreview = false  // 隐藏预览
+                            }
+                        }
+                    }
+                }
+            }
+            
+        case .denied, .restricted:
+            // 已拒绝，显示去设置的弹窗
+            PermissionManager.shared.alertState = .permission(isFirstRequest: false)
+            
+        @unknown default:
+            break
+        }
+    }
+    
+    // 修改 performSaveScreenshot 方法，添加完成回调
+    private func performSaveScreenshot(_ screenshot: UIImage, completion: @escaping (Bool) -> Void = { _ in }) {
         PHPhotoLibrary.shared().performChanges({
             PHAssetChangeRequest.creationRequestForAsset(from: screenshot)
         }) { success, error in
             DispatchQueue.main.async {
                 if success {
                     print("[截图] 双屏截图已保存到相册")
+                    completion(true)
                 } else {
                     print("[截图] 保存失败：\(error?.localizedDescription ?? "未知错误")")
+                    completion(false)
                 }
                 self.pendingScreenshot = nil
             }
@@ -515,5 +562,55 @@ class ScreenshotManager: ObservableObject {
             scale: 1.0,  // 这里使用1.0因为我们已经在setPausedImage时应用了缩放
             cameraScale: cameraScale
         )
+    }
+    
+    // 分享截图
+    func shareScreenshot() {
+        guard let screenshot = pendingScreenshot else { return }
+        
+        // 先隐藏预览
+        withAnimation {
+            showPreview = false
+        }
+        
+        // 延迟一小段时间后再显示分享界面
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let activityViewController = UIActivityViewController(
+                activityItems: [screenshot],
+                applicationActivities: nil
+            )
+            
+            // 在 iPad 上需要设置弹出位置
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first {
+                
+                if let popoverController = activityViewController.popoverPresentationController {
+                    popoverController.sourceView = window
+                    popoverController.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                    popoverController.permittedArrowDirections = []
+                }
+                
+                // 获取最顶层的视图控制器
+                if let rootViewController = window.rootViewController {
+                    var topController = rootViewController
+                    while let presentedViewController = topController.presentedViewController {
+                        topController = presentedViewController
+                    }
+                    
+                    // 如果当前有正在显示的视图控制器，先关闭它
+                    if topController.presentedViewController != nil {
+                        topController.dismiss(animated: true) {
+                            topController.present(activityViewController, animated: true) {
+                                print("[截图] 分享界面已显示")
+                            }
+                        }
+                    } else {
+                        topController.present(activityViewController, animated: true) {
+                            print("[截图] 分享界面已显示")
+                        }
+                    }
+                }
+            }
+        }
     }
 } 

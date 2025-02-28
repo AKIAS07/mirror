@@ -1752,6 +1752,8 @@ struct TwoOfMeScreens: View {
                 if newValue != nil {
                     // 当 Alert 出现时，停止相机并显示重启提示
                     handleCameraStop()
+                    // 同时重置 ImageUploader 的状态
+                    imageUploader.resetOverlayState()
                 }
             }
     }
