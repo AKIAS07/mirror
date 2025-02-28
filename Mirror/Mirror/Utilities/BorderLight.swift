@@ -14,7 +14,7 @@ class BorderLightStyleManager: ObservableObject {
             }
         }
     }
-    @Published var selectedWidth: CGFloat = BorderStyle.selectedWidth {
+    @Published var selectedWidth: CGFloat = 16.0 {  // 直接设置默认值为16.0
         didSet {
             // 当宽度改变时，立即更新 BorderStyle 的宽度，以便实时预览
             withAnimation(.easeInOut(duration: 0.3)) {
@@ -81,13 +81,17 @@ class BorderLightStyleManager: ObservableObject {
         } else {
             print("BorderLightStyleManager - 使用默认配置")
             // 使用默认设置
-            self.savedColor = BorderStyle.selectedColor
-            self.savedWidth = BorderStyle.selectedWidth
+            self.savedColor = .white  // 明确指定默认颜色
+            self.savedWidth = 16.0    // 明确指定默认宽度
             self.selectedColor = self.savedColor
             self.selectedWidth = self.savedWidth
             self.isDefaultGesture = true
             self.iconColor = .white
-            self.splitScreenIconColor = .purple  // 使用.purple作为默认值
+            self.splitScreenIconColor = .purple
+            
+            // 更新 BorderStyle
+            BorderStyle.selectedColor = self.savedColor
+            BorderStyle.selectedWidth = self.savedWidth
         }
     }
     

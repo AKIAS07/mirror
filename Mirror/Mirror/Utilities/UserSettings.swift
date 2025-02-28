@@ -329,6 +329,84 @@ class UserSettingsManager {
             mirroredImageScale: mirroredImageScale == 0 ? 1.0 : mirroredImageScale
         )
     }
+    
+    // MARK: - 全局参数重置
+    
+    // 添加全局参数重置方法
+    func resetToDefaultSettings() {
+        print("------------------------")
+        print("[全局参数] 开始重置")
+        
+        // 清除已有的用户配置标记
+        defaults.set(false, forKey: UserSettingsKeys.hasUserConfig)
+        
+        // 重置边框灯颜色 (白色)
+        let defaultColor = Color.white
+        let uiColor = UIColor(defaultColor)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        if uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            defaults.set(red, forKey: UserSettingsKeys.borderLightColorRed)
+            defaults.set(green, forKey: UserSettingsKeys.borderLightColorGreen)
+            defaults.set(blue, forKey: UserSettingsKeys.borderLightColorBlue)
+            defaults.set(alpha, forKey: UserSettingsKeys.borderLightColorAlpha)
+            print("- 边框灯颜色已重置为白色")
+        }
+        
+        // 重置边框灯宽度 (16)
+        defaults.set(16.0, forKey: UserSettingsKeys.borderLightWidth)
+        print("- 边框灯宽度已重置为16")
+        
+        // 重置手势模式 (默认模式：双击拍照，单击灯光)
+        defaults.set(true, forKey: UserSettingsKeys.gestureMode)
+        print("- 手势模式已重置为默认")
+        
+        // 重置主屏图标颜色 (白色)
+        defaults.set(1.0, forKey: UserSettingsKeys.iconColorRed)
+        defaults.set(1.0, forKey: UserSettingsKeys.iconColorGreen)
+        defaults.set(1.0, forKey: UserSettingsKeys.iconColorBlue)
+        defaults.set(1.0, forKey: UserSettingsKeys.iconColorAlpha)
+        print("- 主屏图标颜色已重置为白色")
+        
+        // 重置分屏图标颜色 (紫色)
+        let defaultSplitColor = Color.purple
+        let uiSplitColor = UIColor(defaultSplitColor)
+        var splitRed: CGFloat = 0
+        var splitGreen: CGFloat = 0
+        var splitBlue: CGFloat = 0
+        var splitAlpha: CGFloat = 0
+        
+        if uiSplitColor.getRed(&splitRed, green: &splitGreen, blue: &splitBlue, alpha: &splitAlpha) {
+            defaults.set(splitRed, forKey: UserSettingsKeys.splitScreenIconColorRed)
+            defaults.set(splitGreen, forKey: UserSettingsKeys.splitScreenIconColorGreen)
+            defaults.set(splitBlue, forKey: UserSettingsKeys.splitScreenIconColorBlue)
+            defaults.set(splitAlpha, forKey: UserSettingsKeys.splitScreenIconColorAlpha)
+            defaults.set(false, forKey: UserSettingsKeys.splitScreenIconUseOriginal)
+            print("- 分屏图标颜色已重置为紫色")
+        }
+        
+        // 同步到内存
+        defaults.synchronize()
+        
+        // 更新 BorderLightStyleManager
+        DispatchQueue.main.async {
+            let styleManager = BorderLightStyleManager.shared
+            styleManager.selectedColor = defaultColor
+            styleManager.selectedWidth = 16.0
+            styleManager.isDefaultGesture = true
+            styleManager.iconColor = .white
+            styleManager.splitScreenIconColor = .purple
+            
+            // 发送通知更新UI
+            NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
+        }
+        
+        print("[全局参数] 重置完成")
+        print("------------------------")
+    }
 }
 
 // MARK: - Color 扩展
