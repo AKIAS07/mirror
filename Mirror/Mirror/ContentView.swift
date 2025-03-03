@@ -59,13 +59,9 @@ struct ContentView: View {
     @State private var isControlAreaVisible = true
     
     @State private var lastScreenshotTime: Date = Date()
-    private let screenshotDebounceInterval: TimeInterval = 0.5
+    private let screenshotDebounceInterval: TimeInterval = AppConfig.Debounce.screenshot
     
     @State private var photoLibraryAuthorizationStatus: PHAuthorizationStatus = .notDetermined
-    
-    @State private var showIconAnimation = false
-    @State private var animatingIcon = ""
-    @State private var animationPosition: CGPoint = .zero
     
     // 为每个按钮添加独立的动画状态
     @State private var showLeftIconAnimation = false
@@ -297,12 +293,6 @@ struct ContentView: View {
                             print("遮罩状态更新 - 模式B选中状态：\(ModeBSelected)")
                         }
                         .zIndex(2)
-                        
-                    // 添加闪光动画
-                    if showIconAnimation {
-                        FlashAnimationView()
-                            .zIndex(6)
-                    }
                         
                     // 添加独立的边框视图，放在最上层
                     if cameraManager.isMirrored {

@@ -14,7 +14,8 @@ public class CaptureState: ObservableObject {
     @Published public var capturedImage: UIImage?
     @Published public var showButtons: Bool = false
     @Published public var currentScale: CGFloat = 1.0
-    @Published public var showSaveSuccess: Bool = false  // 添加保存成功状态
+    @Published public var showSaveSuccess: Bool = false
+    @Published public var isCapturing: Bool = false  // 新增：是否正在捕捉过程中
     
     private var isProcessingAlert = false
     
@@ -81,12 +82,11 @@ public class CaptureState: ObservableObject {
             // 已有权限，直接保存
             saveImageToPhotoLibrary(processedImage) { [weak self] success in
                 if success {
-                    // 显示自定义成功提示
                     withAnimation {
                         self?.showSaveSuccess = true
                     }
-                    // 1秒后隐藏提示
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    // 使用配置的显示时间
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Toast.duration) {
                         withAnimation {
                             self?.showSaveSuccess = false
                         }
@@ -100,12 +100,11 @@ public class CaptureState: ObservableObject {
                 if success {
                     self?.saveImageToPhotoLibrary(processedImage) { success in
                         if success {
-                            // 显示自定义成功提示
                             withAnimation {
                                 self?.showSaveSuccess = true
                             }
-                            // 1秒后隐藏提示
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            // 使用配置的显示时间
+                            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Toast.duration) {
                                 withAnimation {
                                     self?.showSaveSuccess = false
                                 }
@@ -276,9 +275,9 @@ public struct CaptureActionsView: View {
                             })
                     }
                     
-                    // 添加闪光动画
-                    FlashAnimationView()
-                        .zIndex(3)
+                    // // 添加闪光动画
+                    // FlashAnimationView()
+                    //     .zIndex(3)
                     
                     // 半透明背景层（用于点击隐藏按钮）
                     Color.black.opacity(0.01)

@@ -32,9 +32,14 @@ struct CameraContainer: View {
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
     @State private var lastScreenshotTime: Date = Date()
-    private let screenshotDebounceInterval: TimeInterval = 0.5
+    private let screenshotDebounceInterval: TimeInterval = AppConfig.Debounce.screenshot
     
     let captureState: CaptureState
+    
+    @State private var captureTimer: Timer?
+    private let captureDelay: TimeInterval = AppConfig.AnimationConfig.Capture.delay
+    
+    @State private var showIconAnimation: Bool = false
     
     init(session: AVCaptureSession, 
          isMirrored: Bool, 
@@ -112,29 +117,51 @@ struct CameraContainer: View {
                                         onPinchEnded(scale)
                                     }
                             )
-                            // 根据手势设置处理点击事件
                             .onTapGesture(count: styleManager.isDefaultGesture ? 2 : 1) {
                                 print("------------------------")
-                                print("\(styleManager.isDefaultGesture ? "双击" : "单击")相机画面 - 捕捉截图")
+                                print("\(styleManager.isDefaultGesture ? "双击" : "单击")相机画面 - 准备捕捉截图")
                                 print("当前模式：\(isMirrored ? "镜像模式" : "正常模式")")
                                 print("当前缩放比例：\(currentScale)")
                                 
-                                // 捕捉当前画面并设置缩放比例
-                                captureState.capturedImage = image
-                                captureState.currentScale = currentScale
-                                
-                                // 显示操作按钮并隐藏控制区域
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    captureState.showButtons = true
-                                    isControlAreaVisible = false
-                                }
+                                // 设置捕捉状态
+                                captureState.isCapturing = true
                                 
                                 // 触发震动反馈
                                 let generator = UIImpactFeedbackGenerator(style: .medium)
                                 generator.prepare()
                                 generator.impactOccurred()
                                 
-                                print("------------------------")
+                                // 立即显示闪光动画
+                                withAnimation {
+                                    showIconAnimation = true
+                                }
+                                
+                                // 延迟隐藏闪光动画
+                                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                                    withAnimation {
+                                        showIconAnimation = false
+                                    }
+                                }
+                                
+                                // 延迟捕捉
+                                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
+                                    // 捕捉当前画面
+                                    if let latestImage = processedImage {
+                                        captureState.capturedImage = latestImage
+                                        captureState.currentScale = currentScale
+                                        
+                                        // 显示操作按钮并隐藏控制区域
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            captureState.showButtons = true
+                                            isControlAreaVisible = false
+                                            captureState.isCapturing = false
+                                        }
+                                        
+                                        print("------------------------")
+                                        print("截图已捕捉")
+                                        print("------------------------")
+                                    }
+                                }
                             }
                     }
                     
@@ -161,6 +188,12 @@ struct CameraContainer: View {
                     }
                 } else {
                     RestartCameraView(action: restartAction)
+                }
+                
+                // 添加闪光动画
+                if showIconAnimation {
+                    FlashAnimationView()
+                        .zIndex(6)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -205,7 +238,10 @@ struct CameraContainer: View {
         processor.isMirrored = isMirrored
         processor.imageHandler = { image in
             DispatchQueue.main.async {
-                self.processedImage = image
+                // 只有在非捕捉状态或捕捉延迟期间才更新画面
+                if !captureState.showButtons || captureState.isCapturing {
+                    self.processedImage = image
+                }
             }
         }
         

@@ -12,12 +12,12 @@ extension Color {
 struct FlashAnimationView: View {
     @State private var isVisible = false
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
-    var frame: CGRect? = nil  // 添加可选的 frame 参数
+    var frame: CGRect? = nil
     
     var body: some View {
         Rectangle()
             .fill(styleManager.selectedColor)
-            .opacity(isVisible ? 1 : 0)
+            .opacity(isVisible ? 1 : 0) // 降低不透明度以使效果更柔和
             .if(frame != nil) { view in
                 view.frame(width: frame!.width, height: frame!.height)
                     .position(x: frame!.midX, y: frame!.midY)
@@ -27,12 +27,13 @@ struct FlashAnimationView: View {
                     .edgesIgnoringSafeArea(.all)
             }
             .onAppear {
-                withAnimation(.easeInOut(duration: 0.3)) {
+                // 立即显示闪光
+                withAnimation(.easeIn(duration: AppConfig.AnimationConfig.Flash.fadeInDuration)) {
                     isVisible = true
                 }
-                // 0.3秒后消失
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                    withAnimation(.easeOut(duration: AppConfig.AnimationConfig.Flash.fadeOutDuration)) {
                         isVisible = false
                     }
                 }
