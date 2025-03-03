@@ -1717,8 +1717,8 @@ struct TwoOfMeScreens: View {
             .onChange(of: isOriginalPaused) { newValue in
                 if newValue {
                     showOriginalFlash = true
-                    // 动画结束后自动隐藏
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    // 使用配置的闪光持续时间
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.flashDuration) {
                         showOriginalFlash = false
                     }
                 }
@@ -1726,8 +1726,8 @@ struct TwoOfMeScreens: View {
             .onChange(of: isMirroredPaused) { newValue in
                 if newValue {
                     showMirroredFlash = true
-                    // 动画结束后自动隐藏
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    // 使用配置的闪光持续时间
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.flashDuration) {
                         showMirroredFlash = false
                     }
                 }
@@ -1839,18 +1839,24 @@ struct TwoOfMeScreens: View {
                 print("定格画面比例: \(Int(currentImageScale * 100))%")
                 print("------------------------")
 
-                if let image = originalImage {
-                    // 根据设备方向旋转图片
-                    let rotatedImage = rotateImageForCurrentOrientation(image)
-                    pausedOriginalImage = rotatedImage
-                    
-                    // 传入摄像头基准缩放比例，确保裁剪后的图片大小与摄像头画面一致
-                    imageUploader.setPausedImage(
-                        rotatedImage,
-                        for: .original,
-                        scale: currentImageScale,
-                        cameraScale: originalCameraScale  // 添加摄像头基准比例参数
-                    )
+                // 显示闪光动画
+                showOriginalFlash = true
+                
+                // 延迟捕捉画面
+                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.captureDelay) {
+                    if let image = originalImage {
+                        // 根据设备方向旋转图片
+                        let rotatedImage = rotateImageForCurrentOrientation(image)
+                        pausedOriginalImage = rotatedImage
+                        
+                        // 传入摄像头基准缩放比例
+                        imageUploader.setPausedImage(
+                            rotatedImage,
+                            for: .original,
+                            scale: currentImageScale,
+                            cameraScale: originalCameraScale
+                        )
+                    }
                 }
             }
             
@@ -1884,18 +1890,24 @@ struct TwoOfMeScreens: View {
                 print("定格画面比例: \(Int(currentMirroredImageScale * 100))%")
                 print("------------------------")
 
-                if let image = mirroredImage {
-                    // 根据设备方向旋转图片
-                    let rotatedImage = rotateImageForCurrentOrientation(image)
-                    pausedMirroredImage = rotatedImage
-                    
-                    // 传入摄像头基准缩放比例，确保裁剪后的图片大小与摄像头画面一致
-                    imageUploader.setPausedImage(
-                        rotatedImage,
-                        for: .mirrored,
-                        scale: currentMirroredImageScale,
-                        cameraScale: mirroredCameraScale  // 添加摄像头基准比例参数
-                    )
+                // 显示闪光动画
+                showMirroredFlash = true
+                
+                // 延迟捕捉画面
+                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.captureDelay) {
+                    if let image = mirroredImage {
+                        // 根据设备方向旋转图片
+                        let rotatedImage = rotateImageForCurrentOrientation(image)
+                        pausedMirroredImage = rotatedImage
+                        
+                        // 传入摄像头基准缩放比例
+                        imageUploader.setPausedImage(
+                            rotatedImage,
+                            for: .mirrored,
+                            scale: currentMirroredImageScale,
+                            cameraScale: mirroredCameraScale
+                        )
+                    }
                 }
             }
         }

@@ -23,6 +23,12 @@ struct AppConfig {
         struct Toast {
             static let duration: TimeInterval = 1.0
         }
+        
+        // 分屏定格配置
+        struct TwoOfMe {
+            static let captureDelay: TimeInterval = 0.5  // 与主页保持一致
+            static let flashDuration: TimeInterval = Flash.displayDuration  // 使用与主页相同的闪光持续时间
+        }
     }
     
     // 防抖配置
