@@ -3,6 +3,7 @@ import SwiftUI
 // Pro 标签组件
 public struct ProLabel: View {
     let text: String
+    @StateObject private var proManager = ProManager.shared
     
     public var body: some View {
         Text(text)
@@ -19,6 +20,16 @@ public struct ProLabel: View {
                     )
                     .frame(width: 35, height: 15)
             )
+            // 只在非 Pro 用户时添加点击事件
+            .onTapGesture(perform: proManager.isPro ? {} : {
+                proManager.showProUpgrade()
+            })
+            // 只在非 Pro 用户时显示弹窗
+            .sheet(isPresented: $proManager.showProUpgradeSheet, content: {
+                if !proManager.isPro {
+                    ProUpgradeView(dismiss: { proManager.showProUpgradeSheet = false })
+                }
+            })
     }
 }
 

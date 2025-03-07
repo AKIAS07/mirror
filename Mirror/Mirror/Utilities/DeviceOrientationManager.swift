@@ -8,6 +8,9 @@ class DeviceOrientationManager: ObservableObject {
     private var lastValidOrientation: UIDeviceOrientation = .portrait
     @Published private(set) var isOrientationLocked: Bool = false  // 添加方向锁定状态
     
+    // 添加对 ProManager 的引用
+    private let proManager = ProManager.shared
+    
     private let allowedOrientations: [UIDeviceOrientation] = [
         .portrait,
         .portraitUpsideDown,
@@ -16,7 +19,40 @@ class DeviceOrientationManager: ObservableObject {
     ]
     
     private init() {
+        // 监听 ProManager 的 isPro 变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleProStatusChange),
+            name: NSNotification.Name("ProStatusDidChange"),
+            object: nil
+        )
+        
+        // 初始化时立即获取当前方向
+        if let initialOrientation = getCurrentValidOrientation() {
+            self.currentOrientation = initialOrientation
+            self.lastValidOrientation = initialOrientation
+        }
         startOrientationMonitoring()
+    }
+    
+    @objc private func handleProStatusChange() {
+        if !proManager.isPro {
+            // 如果不是 Pro 用户，强制恢复到竖屏
+            forcePortraitOrientation()
+        }
+    }
+    
+    private func forcePortraitOrientation() {
+        currentOrientation = .portrait
+        lastValidOrientation = .portrait
+        print("------------------------")
+        print("[设备方向] 强制竖屏 (非Pro用户)")
+        print("------------------------")
+    }
+    
+    private func getCurrentValidOrientation() -> UIDeviceOrientation? {
+        let orientation = UIDevice.current.orientation
+        return allowedOrientations.contains(orientation) ? orientation : nil
     }
     
     private func startOrientationMonitoring() {
@@ -28,11 +64,16 @@ class DeviceOrientationManager: ObservableObject {
             name: UIDevice.orientationDidChangeNotification,
             object: nil
         )
+        
+        print("------------------------")
+        print("[设备方向] 开始监测")
+        print("当前方向：\(getOrientationDescription(currentOrientation))")
+        print("------------------------")
     }
     
     @objc private func handleOrientationChange() {
-        // 如果方向被锁定，不处理方向变化
-        if isOrientationLocked {
+        // 如果不是 Pro 用户或方向被锁定，不处理方向变化
+        if !proManager.isPro || isOrientationLocked {
             return
         }
         
@@ -47,7 +88,6 @@ class DeviceOrientationManager: ObservableObject {
             print("当前方向：\(getOrientationDescription(newOrientation))")
             print("------------------------")
         }
-        // 不再在这里更新 currentOrientation
     }
     
     // 获取当前有效方向

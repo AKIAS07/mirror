@@ -79,6 +79,8 @@ struct ContentView: View {
     
     @StateObject private var permissionManager = PermissionManager.shared
     
+    @StateObject private var proManager = ProManager.shared
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -478,6 +480,16 @@ struct ContentView: View {
                 feedbackGenerator.prepare()
                 
                 permissionManager.updatePermissionState()
+                
+                // 检查是否需要自动进入双屏
+                if ProManager.shared.isPro && UserSettingsManager.shared.loadAutoEnterTwoOfMe() {
+                    print("------------------------")
+                    print("[自动进入] 双屏模式")
+                    print("------------------------")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        handleEnterTwoOfMe()
+                    }
+                }
             }
             .onDisappear {
                 // 移除所有通知监听
@@ -497,6 +509,16 @@ struct ContentView: View {
                     removal: .opacity.combined(with: .move(edge: .leading))
                 ))
                 .animation(.easeInOut(duration: 0.3), value: showingTwoOfMe)
+        }
+        .sheet(isPresented: $proManager.showProUpgradeSheet) {
+            ProUpgradeView(
+                dismiss: { proManager.showProUpgradeSheet = false },
+                onDismiss: {
+                    if proManager.isFromMiddleButton {
+                        handleEnterTwoOfMe()
+                    }
+                }
+            )
         }
     }
     
@@ -674,7 +696,7 @@ struct ContentView: View {
         )
     }
     
-    // 更新中间按钮创建函数
+    // 修改中间按钮创建函数
     private func createMiddleButton(geometry: GeometryProxy) -> some View {
         let styleManager = BorderLightStyleManager.shared
         let iconName = styleManager.splitScreenIconImage
@@ -687,45 +709,60 @@ struct ContentView: View {
                 // 触发震动反馈
                 heavyFeedbackGenerator.impactOccurred()
                 
-                // 更新动画逻辑
-                middleAnimationPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height - 25 + dragVerticalOffset)
-                withAnimation {
-                    showMiddleIconAnimation = true
-                }
-                
-                if cameraManager.isMirrored {
-                    if ModeASelected {
-                        UIScreen.main.brightness = previousBrightness
-                        print("进入 Two of Me 前 - 模式A恢复原始亮度：\(previousBrightness)")
-                        ModeASelected = false
-                    }
+                // 设置动画位置
+                middleAnimationPosition = CGPoint(
+                    x: geometry.size.width/2, 
+                    y: geometry.size.height - 25 + dragVerticalOffset  // 向上移动200pt
+                )
+
+                if ProManager.shared.isPro {
+                    // Pro 用户直接进入 TwoOfMe 页面
+                    handleEnterTwoOfMe()
                 } else {
-                    if ModeBSelected {
-                        UIScreen.main.brightness = previousBrightness
-                        print("进入 Two of Me 前 - 模式B恢复原始亮度：\(previousBrightness)")
-                        ModeBSelected = false
-                    }
-                }
-                
-                UIScreen.main.brightness = previousBrightness
-                print("进入 Two of Me 前 - 强制恢复原始亮度：\(previousBrightness)")
-                
-                // 立即停止相机并显示重启提示
-                cameraManager.safelyStopSession()
-                isCameraActive = false
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
-                    withAnimation {
-                        showMiddleIconAnimation = false
-                        print("进入 Two of Me 模式")
-                        showingTwoOfMe = true
-                    }
+                    // 非 Pro 用户显示升级弹窗
+                    ProManager.shared.showProUpgrade(isFromMiddleButton: true)
                 }
             },
             deviceOrientation: orientationManager.currentOrientation,
             useCustomColor: !iconName.hasPrefix("color") && iconName != "icon-bf-color-1",
             customColor: styleManager.splitScreenIconColor
         )
+    }
+    
+    // 修改辅助函数，添加括号
+    private func handleEnterTwoOfMe() {  // 添加括号
+        withAnimation {
+            showMiddleIconAnimation = true
+        }
+        
+        if cameraManager.isMirrored {
+            if ModeASelected {
+                UIScreen.main.brightness = previousBrightness
+                print("进入 Two of Me 前 - 模式A恢复原始亮度：\(previousBrightness)")
+                ModeASelected = false
+            }
+        } else {
+            if ModeBSelected {
+                UIScreen.main.brightness = previousBrightness
+                print("进入 Two of Me 前 - 模式B恢复原始亮度：\(previousBrightness)")
+                ModeBSelected = false
+            }
+        }
+        
+        UIScreen.main.brightness = previousBrightness
+        print("进入 Two of Me 前 - 强制恢复原始亮度：\(previousBrightness)")
+        
+        // 立即停止相机并显示重启提示
+        cameraManager.safelyStopSession()
+        isCameraActive = false
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            withAnimation {
+                showMiddleIconAnimation = false
+                print("进入 Two of Me 模式")
+                showingTwoOfMe = true
+            }
+        }
     }
     
     // 更新右按钮创建函数

@@ -484,12 +484,20 @@ public struct HelpPanel: View {
                                             },
                                             proLabel: true
                                         )
+                                        // LabeledHighlightRow(
+                                        //     highlightText: "单指",
+                                        //     description: HStack(spacing: 4) {
+                                        //         Text("移动图片位置")
+                                        //     },
+                                        //     proLabel: true
+                                        // )
                                         LabeledHighlightRow(
-                                            highlightText: "单指",
+                                            highlightText: "长按",
                                             description: HStack(spacing: 4) {
-                                                Text("移动图片位置")
+                                                Text("照明灯功能")
                                             },
-                                            proLabel: true
+                                            proLabel: true,
+                                            systemImage: "sun.max.fill"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "长按",
@@ -502,16 +510,8 @@ public struct HelpPanel: View {
                                             description: HStack(spacing: 4) {
                                                 Text("图片下载")
                                             },
-                                            freeLabel: true,
+                                            proLabel: true,
                                             systemImage: "square.and.arrow.down"
-                                        )
-                                        LabeledHighlightRow(
-                                            highlightText: "长按",
-                                            description: HStack(spacing: 4) {
-                                                Text("照明灯功能")
-                                            },
-                                            freeLabel: true,
-                                            systemImage: "sun.max.fill"
                                         )
 
                                     }
@@ -527,7 +527,7 @@ public struct HelpPanel: View {
 
                         // 版本信息
                         VStack(spacing: SettingsTheme.buttonSpacing) {
-                            Text("Mirror")
+                            Text("Mira")
                                 .font(.headline)
                                 .foregroundColor(.gray)
                             Text("Version 1.0.0")

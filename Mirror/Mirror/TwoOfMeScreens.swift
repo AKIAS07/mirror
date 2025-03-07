@@ -1111,6 +1111,8 @@ struct TwoOfMeScreens: View {
     
     @State private var isEdgeDismissOverlayActive = false  // 添加遮罩状态
     
+    @StateObject private var proManager = ProManager.shared
+    
     init() {
         // 不再需要设置边框灯管理器引用
     }
@@ -1663,6 +1665,17 @@ struct TwoOfMeScreens: View {
                 
                 // 同步屏幕交换状态到截图管理器
                 screenshotManager.updateScreenSwapState(isScreensSwapped)
+                
+                // 添加强制重启通知监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("ForceTwoOfMeRestart"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    // 显示重启提示
+                    showOriginalRestartHint = true
+                    showMirroredRestartHint = true
+                }
             }
             .onDisappear {
                 UIDevice.current.endGeneratingDeviceOrientationNotifications()
@@ -1739,6 +1752,11 @@ struct TwoOfMeScreens: View {
                 // 同步屏幕交换状态到截图管理器
                 screenshotManager.updateScreenSwapState(newValue)
             }
+            // 在 TwoOfMeScreens 的 body 中添加监听
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ProStatusDidChange"))) { _ in
+                // 当 Pro 状态改变时，更新触控区1的状态
+                isZone1Enabled = ProManager.shared.isTouchZone1Enabled
+            }
         }
         .ignoresSafeArea(.all)
         
@@ -1758,6 +1776,31 @@ struct TwoOfMeScreens: View {
                     imageUploader.resetOverlayState()
                 }
             }
+        
+        // 添加 Pro 升级弹窗
+        .sheet(isPresented: $proManager.showProUpgradeSheet) {
+            ProUpgradeView(dismiss: {
+                proManager.showProUpgradeSheet = false
+            })
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ProStatusDidChange"))) { _ in
+            // 当 Pro 状态改变时，可以在这里添加其他处理逻辑
+            if !proManager.isPro {
+                // 如果需要，可以在这里重置缩放状态
+                originalCameraScale = 1.0
+                mirroredCameraScale = 1.0
+                currentCameraScale = 1.0
+                currentMirroredCameraScale = 1.0
+                originalImageScale = 1.0
+                mirroredImageScale = 1.0
+                currentImageScale = 1.0
+                currentMirroredImageScale = 1.0
+                
+                // 重置偏移量
+                originalOffset = .zero
+                mirroredOffset = .zero
+            }
+        }
     }
     
     private func setupVideoProcessing() {
@@ -2044,6 +2087,17 @@ struct TwoOfMeScreens: View {
                 // 显示正常的相机视图
                 // ... 原有的相机视图代码 ...
             }
+        }
+    }
+    
+    // 修改触控区1的点击处理
+    private func handleTouchZone1Tap() {
+        // 先检查 Pro 权限
+        ProManager.shared.handleTwoOfMeProCheck(cameraManager: cameraManager)
+        
+        // 如果是 Pro 用户，继续执行原有逻辑
+        if ProManager.shared.isPro {
+            // ... 原有的触控区1点击处理逻辑 ...
         }
     }
 }

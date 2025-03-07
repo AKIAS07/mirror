@@ -202,30 +202,33 @@ struct TouchZoneOne: View {
         .gesture(
             LongPressGesture(minimumDuration: 0.5)
                 .onEnded { _ in
-                    if bothScreensRestarting {
-                        onDisabledAction()
-                        return
-                    }
-                    // 触发长按震动反馈
-                    heavyFeedbackGenerator.impactOccurred()
-                    print("------------------------")
-                    print("触控区1长按时间达到")
-                    print("触发震动反馈")
-                    print("------------------------")
-                    
-                    // 在这里直接开始显示中央透明矩形的延迟任务
-                    if !isDraggingTouchZone {
-                        // 取消之前的延迟任务（如果存在）
-                        showContainerWorkItem?.cancel()
-                        
-                        // 创建新的延迟任务
-                        let workItem = DispatchWorkItem {
-                            handleContainerVisibility(showContainer: true)
+                    // 检查 Pro 权限
+                    ProManager.shared.checkTouchZone1Access {
+                        if bothScreensRestarting {
+                            onDisabledAction()
+                            return
                         }
-                        showContainerWorkItem = workItem
+                        // 触发长按震动反馈
+                        heavyFeedbackGenerator.impactOccurred()
+                        print("------------------------")
+                        print("触控区1长按时间达到")
+                        print("触发震动反馈")
+                        print("------------------------")
                         
-                        // 延迟0.3秒执行
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+                        // 在这里直接开始显示中央透明矩形的延迟任务
+                        if !isDraggingTouchZone {
+                            // 取消之前的延迟任务（如果存在）
+                            showContainerWorkItem?.cancel()
+                            
+                            // 创建新的延迟任务
+                            let workItem = DispatchWorkItem {
+                                handleContainerVisibility(showContainer: true)
+                            }
+                            showContainerWorkItem = workItem
+                            
+                            // 延迟0.3秒执行
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
+                        }
                     }
                 }
         )
@@ -233,129 +236,219 @@ struct TouchZoneOne: View {
             LongPressGesture(minimumDuration: 0.5)
                 .sequenced(before: DragGesture(minimumDistance: 0))
                 .onChanged { value in
-                    switch value {
-                    case .first(_):
-                        break
-                    case .second(true, let drag):
-                        if let drag = drag {
-                            let translation = drag.translation
-                            let distance = sqrt(pow(translation.width, 2) + pow(translation.height, 2))
-                            
-                            if distance > 5 {  // 只处理移动超过阈值的情况
-                                // 重置长按震动状态
-                                hasTriggeredLongPressHaptic = false
+                    // 检查 Pro 权限
+                    ProManager.shared.checkTouchZone1Access {
+                        switch value {
+                        case .first(_):
+                            break
+                        case .second(true, let drag):
+                            if let drag = drag {
+                                let translation = drag.translation
+                                let distance = sqrt(pow(translation.width, 2) + pow(translation.height, 2))
                                 
-                                // 取消延迟显示任务
-                                showContainerWorkItem?.cancel()
-                                showContainerWorkItem = nil
-                                
-                                // 如果已经显示了交换按钮，立即隐藏
-                                if showContainer {
-                                    showContainer = false
-                                    containerWidth = 0
-                                }
-                                
-                                isDraggingTouchZone = true
-                                
-                                // 应用阻尼效果
-                                let rawOffset = translation.width
-                                dragOffset = rawOffset
-                                
-                                // 每隔100ms打印一次状态，减少日志输出频率
-                                let now = Date()
-                                if now.timeIntervalSince(lastOutputTime) >= 0.1 {
-                                    print("------------------------")
-                                    print("触控区1正在拖动")
-                                    print("原始偏移：\(Int(rawOffset))pt")
-                                    print("阻尼后偏移：\(Int(rawOffset * dragDampingFactor))pt")
-                                    print("------------------------")
-                                    lastOutputTime = now
+                                if distance > 5 {  // 只处理移动超过阈值的情况
+                                    // 重置长按震动状态
+                                    hasTriggeredLongPressHaptic = false
+                                    
+                                    // 取消延迟显示任务
+                                    showContainerWorkItem?.cancel()
+                                    showContainerWorkItem = nil
+                                    
+                                    // 如果已经显示了交换按钮，立即隐藏
+                                    if showContainer {
+                                        showContainer = false
+                                        containerWidth = 0
+                                    }
+                                    
+                                    isDraggingTouchZone = true
+                                    
+                                    // 应用阻尼效果
+                                    let rawOffset = translation.width
+                                    dragOffset = rawOffset
+                                    
+                                    // 每隔100ms打印一次状态，减少日志输出频率
+                                    let now = Date()
+                                    if now.timeIntervalSince(lastOutputTime) >= 0.1 {
+                                        print("------------------------")
+                                        print("触控区1正在拖动")
+                                        print("原始偏移：\(Int(rawOffset))pt")
+                                        print("阻尼后偏移：\(Int(rawOffset * dragDampingFactor))pt")
+                                        print("------------------------")
+                                        lastOutputTime = now
+                                    }
                                 }
                             }
+                        case .second(false, _):
+                            hasTriggeredLongPressHaptic = false
+                            break
                         }
-                    case .second(false, _):
-                        hasTriggeredLongPressHaptic = false
-                        break
                     }
                 }
                 .onEnded { _ in
-                    // 重置长按震动状态
-                    hasTriggeredLongPressHaptic = false
-                    
-                    if isZone1Enabled && isDraggingTouchZone {
-                        isDraggingTouchZone = false
-                        let totalOffset = touchZonePosition.xOffset + (dragOffset * dragDampingFactor)
+                    // 检查 Pro 权限
+                    ProManager.shared.checkTouchZone1Access {
+                        // 重置长按震动状态
+                        hasTriggeredLongPressHaptic = false
                         
-                        // 根据最终位置决定停靠位置
-                        withAnimation(
-                            .interpolatingSpring(
-                                duration: animationDuration,
-                                bounce: 0.2,
-                                initialVelocity: 0.5
-                            )
-                        ) {
-                            if totalOffset < -50 {
-                                touchZonePosition = .left
-                            } else if totalOffset > 50 {
-                                touchZonePosition = .right
-                            } else {
-                                touchZonePosition = .center
+                        if isZone1Enabled && isDraggingTouchZone {
+                            isDraggingTouchZone = false
+                            let totalOffset = touchZonePosition.xOffset + (dragOffset * dragDampingFactor)
+                            
+                            // 根据最终位置决定停靠位置
+                            withAnimation(
+                                .interpolatingSpring(
+                                    duration: animationDuration,
+                                    bounce: 0.2,
+                                    initialVelocity: 0.5
+                                )
+                            ) {
+                                if totalOffset < -50 {
+                                    touchZonePosition = .left
+                                } else if totalOffset > 50 {
+                                    touchZonePosition = .right
+                                } else {
+                                    touchZonePosition = .center
+                                }
+                                dragOffset = 0
                             }
-                            dragOffset = 0
+                            
+                            // 触发震动反馈
+                            feedbackGenerator.impactOccurred()
+                            
+                            // 打印最终位置
+                            print("------------------------")
+                            print("触控区1拖动结束")
+                            print("最终位置：\(touchZonePosition)")
+                            print("------------------------")
                         }
-                        
-                        // 触发震动反馈
-                        feedbackGenerator.impactOccurred()
-                        
-                        // 打印最终位置
-                        print("------------------------")
-                        print("触控区1拖动结束")
-                        print("最终位置：\(touchZonePosition)")
-                        print("------------------------")
                     }
                 }
         )
         .onTapGesture {
-            if bothScreensRestarting {
-                onDisabledAction()
-                return
-            }
-            
-            if isZone1Enabled {
-                let now = Date()
-                let timeSinceLastTap = now.timeIntervalSince(zone1LastTapTime)
+            // 检查 Pro 权限
+            ProManager.shared.checkTouchZone1Access {
+                if bothScreensRestarting {
+                    onDisabledAction()
+                    return
+                }
                 
-                if timeSinceLastTap > 0.3 {  // 单击逻辑
-                    zone1TapCount = 1
+                if isZone1Enabled {
+                    let now = Date()
+                    let timeSinceLastTap = now.timeIntervalSince(zone1LastTapTime)
                     
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        if self.zone1TapCount == 1 {
+                    if timeSinceLastTap > 0.3 {  // 单击逻辑
+                        zone1TapCount = 1
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            if self.zone1TapCount == 1 {
+                                if anyScreenRestarting {  // 检查是否有任何屏幕在重启
+                                    self.onPhotoDisabledAction()
+                                    return
+                                }
+                                
+                                // 触发单击震动反馈
+                                self.feedbackGenerator.impactOccurred()
+                                
+                                if self.styleManager.isDefaultGesture {  // 默认模式：单击控制边框灯
+                                    print("------------------------")
+                                    print("触控区1单击控制边框灯（默认模式）")
+                                    print("------------------------")
+                                    
+                                    // 显示边框灯动画
+                                    showBorderLightAnimation()
+                                    
+                                    if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
+                                        self.borderLightManager.turnOffAllLights()
+                                        print("所有边框灯已关闭")
+                                    } else {
+                                        self.borderLightManager.turnOnAllLights()
+                                        print("所有边框灯已开启")
+                                    }
+                                } else {  // 交换模式：单击拍照
+                                    print("------------------------")
+                                    print("触控区1单击拍照（交换模式）")
+                                    print("------------------------")
+                                    
+                                    // 显示拍照动画
+                                    showPhotoAnimation()
+
+                                    // 如果两个屏幕都未定格，则先定格再截图
+                                    if !isOriginalPaused && !isMirroredPaused {
+                                        handleScreenshot()
+                                    } else if self.isOriginalPaused && self.isMirroredPaused {
+                                        // 如果两个屏幕都已定格，则退出定格状态
+                                        print("------------------------")
+                                        print("退出定格状态")
+                                        print("------------------------")
+                                        
+                                        // 先关闭所有手电筒
+                                        imageUploader.closeAllFlashlights()
+                                        
+                                        // 然后退出定格状态
+                                        self.isOriginalPaused = false
+                                        self.isMirroredPaused = false
+                                        self.pausedOriginalImage = nil
+                                        self.pausedMirroredImage = nil
+                                        
+                                        print("两个屏幕已退出定格")
+                                        
+                                    } else {
+                                        // 处理一个定格一个未定格的情况
+                                        print("------------------------")
+                                        print("一个屏幕已定格，定格另一个屏幕")
+                                        print("------------------------")
+                                        
+                                        // 处理Original屏幕
+                                        if !isOriginalPaused {
+                                            handleOriginalScreenPause()
+                                        }
+                                        
+                                        // 处理Mirrored屏幕
+                                        if !isMirroredPaused {
+                                            handleMirroredScreenPause()
+                                        }
+                                        
+                                        print("------------------------")
+                                        print("开始执行截图")
+                                        print("Original定格状态: \(isOriginalPaused)")
+                                        print("Mirrored定格状态: \(isMirroredPaused)")
+                                        print("------------------------")
+                                        
+                                        // 更新截图管理器的图像引用并执行截图
+                                        self.screenshotManager.setImages(
+                                            original: self.pausedOriginalImage ?? self.originalImage,
+                                            mirrored: self.pausedMirroredImage ?? self.mirroredImage,
+                                            originalCameraScale: self.currentCameraScale,
+                                            mirroredCameraScale: self.currentMirroredCameraScale
+                                        )
+                                        self.screenshotManager.takeScreenshot()
+                                    }
+                                }
+                            }
+                        }
+                    } else {  // 双击逻辑
+                        zone1TapCount += 1
+                        if zone1TapCount == 2 {
                             if anyScreenRestarting {  // 检查是否有任何屏幕在重启
                                 self.onPhotoDisabledAction()
                                 return
                             }
                             
-                            // 触发单击震动反馈
-                            self.feedbackGenerator.impactOccurred()
+                            // 触发双击震动反馈
+                            lightFeedbackGenerator.impactOccurred(intensity: 0.8)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                self.lightFeedbackGenerator.impactOccurred(intensity: 1.0)
+                            }
                             
-                            if self.styleManager.isDefaultGesture {  // 默认模式：单击控制边框灯
+                            print("------------------------")
+                            print("触控区1被双击")
+                            print("区域：中央透明矩形")
+                            print("------------------------")
+                            
+                            // 根据手势设置决定双击功能
+                            if self.styleManager.isDefaultGesture {  // 默认模式：双击拍照
                                 print("------------------------")
-                                print("触控区1单击控制边框灯（默认模式）")
-                                print("------------------------")
-                                
-                                // 显示边框灯动画
-                                showBorderLightAnimation()
-                                
-                                if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
-                                    self.borderLightManager.turnOffAllLights()
-                                    print("所有边框灯已关闭")
-                                } else {
-                                    self.borderLightManager.turnOnAllLights()
-                                    print("所有边框灯已开启")
-                                }
-                            } else {  // 交换模式：单击拍照
-                                print("------------------------")
-                                print("触控区1单击拍照（交换模式）")
+                                print("触控区1双击拍照（默认模式）")
                                 print("------------------------")
                                 
                                 // 显示拍照动画
@@ -412,107 +505,22 @@ struct TouchZoneOne: View {
                                     )
                                     self.screenshotManager.takeScreenshot()
                                 }
+                            } else {  // 交换模式：双击控制边框灯
+                                // 显示边框灯动画
+                                showBorderLightAnimation()
+                                
+                                if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
+                                    self.borderLightManager.turnOffAllLights()
+                                    print("所有边框灯已关闭")
+                                } else {
+                                    self.borderLightManager.turnOnAllLights()
+                                    print("所有边框灯已开启")
+                                }
                             }
                         }
                     }
-                } else {  // 双击逻辑
-                    zone1TapCount += 1
-                    if zone1TapCount == 2 {
-                        if anyScreenRestarting {  // 检查是否有任何屏幕在重启
-                            self.onPhotoDisabledAction()
-                            return
-                        }
-                        
-                        // 触发双击震动反馈
-                        lightFeedbackGenerator.impactOccurred(intensity: 0.8)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            self.lightFeedbackGenerator.impactOccurred(intensity: 1.0)
-                        }
-                        
-                        print("------------------------")
-                        print("触控区1被双击")
-                        print("区域：中央透明矩形")
-                        print("------------------------")
-                        
-                        // 根据手势设置决定双击功能
-                        if self.styleManager.isDefaultGesture {  // 默认模式：双击拍照
-                            print("------------------------")
-                            print("触控区1双击拍照（默认模式）")
-                            print("------------------------")
-                            
-                            // 显示拍照动画
-                            showPhotoAnimation()
-
-                            // 如果两个屏幕都未定格，则先定格再截图
-                            if !isOriginalPaused && !isMirroredPaused {
-                                handleScreenshot()
-                            } else if self.isOriginalPaused && self.isMirroredPaused {
-                                // 如果两个屏幕都已定格，则退出定格状态
-                                print("------------------------")
-                                print("退出定格状态")
-                                print("------------------------")
-                                
-                                // 先关闭所有手电筒
-                                imageUploader.closeAllFlashlights()
-                                
-                                // 然后退出定格状态
-                                self.isOriginalPaused = false
-                                self.isMirroredPaused = false
-                                self.pausedOriginalImage = nil
-                                self.pausedMirroredImage = nil
-                                
-                                print("两个屏幕已退出定格")
-                                
-                            } else {
-                                // 处理一个定格一个未定格的情况
-                                print("------------------------")
-                                print("一个屏幕已定格，定格另一个屏幕")
-                                print("------------------------")
-                                
-                                // 处理Original屏幕
-                                if !isOriginalPaused {
-                                    handleOriginalScreenPause()
-                                }
-                                
-                                // 处理Mirrored屏幕
-                                if !isMirroredPaused {
-                                    handleMirroredScreenPause()
-                                }
-                                
-                                print("------------------------")
-                                print("开始执行截图")
-                                print("Original定格状态: \(isOriginalPaused)")
-                                print("Mirrored定格状态: \(isMirroredPaused)")
-                                print("------------------------")
-                                
-                                // 更新截图管理器的图像引用并执行截图
-                                self.screenshotManager.setImages(
-                                    original: self.pausedOriginalImage ?? self.originalImage,
-                                    mirrored: self.pausedMirroredImage ?? self.mirroredImage,
-                                    originalCameraScale: self.currentCameraScale,
-                                    mirroredCameraScale: self.currentMirroredCameraScale
-                                )
-                                self.screenshotManager.takeScreenshot()
-                            }
-                        } else {  // 交换模式：双击控制边框灯
-                            // 显示边框灯动画
-                            showBorderLightAnimation()
-                            
-                            if self.borderLightManager.showOriginalHighlight || self.borderLightManager.showMirroredHighlight {
-                                self.borderLightManager.turnOffAllLights()
-                                print("所有边框灯已关闭")
-                            } else {
-                                self.borderLightManager.turnOnAllLights()
-                                print("所有边框灯已开启")
-                            }
-                        }
-                    }
+                    zone1LastTapTime = now
                 }
-                zone1LastTapTime = now
-            } else {
-                print("------------------------")
-                print("触控区1禁用")
-                print("------------------------")
             }
         }
         .onAppear {

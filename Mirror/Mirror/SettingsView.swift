@@ -145,12 +145,14 @@ public struct SettingsPanel: View {
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     @ObservedObject private var borderLightManager = BorderLightManager.shared
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
+    @ObservedObject private var proManager = ProManager.shared
     @State private var showSaveSuccess = false
     @State private var showSaveAlert = false
     @State private var hasUnsavedChanges = false
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
     @State private var isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
     @State private var flashIntensity = AppConfig.AnimationConfig.Flash.intensity
+    @State private var autoEnterTwoOfMe: Bool = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
     
     private var isLandscape: Bool {
         orientationManager.currentOrientation == .landscapeLeft || orientationManager.currentOrientation == .landscapeRight
@@ -199,6 +201,7 @@ public struct SettingsPanel: View {
         var splitScreenIconImage: String = BorderLightStyleManager.shared.splitScreenIconImage
         var isFlashEnabled: Bool = AppConfig.AnimationConfig.Flash.isEnabled
         var flashIntensity: AppConfig.AnimationConfig.Flash.Intensity = AppConfig.AnimationConfig.Flash.intensity
+        var autoEnterTwoOfMe: Bool = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
         
         // 修改构造函数
         init() {
@@ -210,6 +213,7 @@ public struct SettingsPanel: View {
             self.splitScreenIconImage = BorderLightStyleManager.shared.splitScreenIconImage
             self.isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
             self.flashIntensity = AppConfig.AnimationConfig.Flash.intensity
+            self.autoEnterTwoOfMe = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
         }
     }
     
@@ -222,7 +226,8 @@ public struct SettingsPanel: View {
                initialState.splitScreenIconColor != styleManager.splitScreenIconColor ||
                initialState.splitScreenIconImage != styleManager.splitScreenIconImage ||
                initialState.isFlashEnabled != isFlashEnabled ||
-               initialState.flashIntensity != flashIntensity
+               initialState.flashIntensity != flashIntensity ||
+               initialState.autoEnterTwoOfMe != autoEnterTwoOfMe
     }
     
     // 保存设置
@@ -278,8 +283,17 @@ public struct SettingsPanel: View {
         AppConfig.AnimationConfig.Flash.isEnabled = initialState.isFlashEnabled
         AppConfig.AnimationConfig.Flash.intensity = initialState.flashIntensity
         
+        // 恢复自动进入双屏设置
+        autoEnterTwoOfMe = initialState.autoEnterTwoOfMe
+        UserSettingsManager.shared.saveAutoEnterTwoOfMe(initialState.autoEnterTwoOfMe)
+        
         // 发送通知更新 UI
         NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
+    }
+    
+    // 添加背景色获取方法
+    private func getSettingBackground(_ type: SettingType) -> Color {
+        proManager.isFreeSetting(type) ? SettingsTheme.backgroundColor : Color(UIColor.systemGray5)
     }
     
     public var body: some View {
@@ -417,7 +431,7 @@ public struct SettingsPanel: View {
                             }
                         }
                         .padding(SettingsTheme.padding)
-                        .background(SettingsTheme.backgroundColor)
+                        .background(getSettingBackground(.light))
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
@@ -477,10 +491,11 @@ public struct SettingsPanel: View {
                             }
                         }
                         .padding(SettingsTheme.padding)
-                        .background(SettingsTheme.backgroundColor)
+                        .background(getSettingBackground(.flash))
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+                        .overlay(proManager.proFeatureOverlay(.flash))
                         
                         // 手势设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
@@ -552,10 +567,11 @@ public struct SettingsPanel: View {
                             }
                         }
                         .padding(SettingsTheme.padding)
-                        .background(SettingsTheme.backgroundColor)
+                        .background(getSettingBackground(.gesture))
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+                        .overlay(proManager.proFeatureOverlay(.gesture))
                         
                         // 主屏蝴蝶颜色设置
                         VStack(alignment: .center, spacing: SettingsTheme.contentSpacing) {
@@ -583,7 +599,7 @@ public struct SettingsPanel: View {
                             .frame(maxWidth: .infinity)
                         }
                         .padding(SettingsTheme.padding)
-                        .background(SettingsTheme.backgroundColor)
+                        .background(getSettingBackground(.theme))
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
@@ -623,15 +639,51 @@ public struct SettingsPanel: View {
                             .frame(maxWidth: .infinity)
                         }
                         .padding(SettingsTheme.padding)
-                        .background(SettingsTheme.backgroundColor)
+                        .background(getSettingBackground(.companion))
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+                        .overlay(proManager.proFeatureOverlay(.companion))
                         
+                        // 系统设置
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                            ZStack {
+                                HStack {
+                                    Spacer()
+                                    Text("系统设置")
+                                        .font(.headline)
+                                        .foregroundColor(SettingsTheme.titleColor)
+                                    Spacer()
+                                }
+                                HStack {
+                                    ProLabel(text: "Pro")
+                                        .padding(.leading, 50)
+                                    Spacer()
+                                }
+                            }
+                            
+                            HStack {
+                                Text("开启App时直接进入双屏模式")
+                                    .foregroundColor(SettingsTheme.subtitleColor)
+                                Spacer()
+                                Toggle("", isOn: $autoEnterTwoOfMe)
+                                    .labelsHidden()
+                                    .onChange(of: autoEnterTwoOfMe) { newValue in
+                                        // 保存设置
+                                        UserSettingsManager.shared.saveAutoEnterTwoOfMe(newValue)
+                                    }
+                            }
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(getSettingBackground(.system))
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+                        .overlay(proManager.proFeatureOverlay(.system))
                         
                         // 版本信息
                         VStack(spacing: SettingsTheme.buttonSpacing) {
-                            Text("Mirror")
+                            Text("Mira")
                                 .font(.headline)
                                 .foregroundColor(.gray)
                             Text("Version 1.0.0")

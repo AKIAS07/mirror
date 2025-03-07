@@ -180,20 +180,40 @@ class ImageUploader: ObservableObject {
         hideTimer?.invalidate()
         hideTimer = nil
         
-        // 使用 PermissionManager 处理权限
-        PermissionManager.shared.handlePhotoLibraryAccess(
-            for: UIImage(), // 传入空图片，因为此时只是检查权限
-            completion: { [weak self] success in
-                if success {
-                    DispatchQueue.main.async {
-                        self?.startImageProcessing()
-                        self?.showImagePicker = true
-                    }
-                } else {
-                    self?.hideRectangle()
+        // 检查相册权限
+        PHPhotoLibrary.requestAuthorization { status in
+            DispatchQueue.main.async {
+                switch status {
+                case .authorized, .limited:
+                    self.startImageProcessing()
+                    self.showImagePicker = true
+                    print("------------------------")
+                    print("[图片选择器] 开启")
+                    print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
+                    print("------------------------")
+                    
+                case .denied, .restricted:
+                    print("------------------------")
+                    print("[相册权限] 已拒绝或受限")
+                    print("------------------------")
+                    self.permissionAlertType = .settings
+                    self.showPermissionAlert = true
+                    
+                case .notDetermined:
+                    print("------------------------")
+                    print("[相册权限] 未确定")
+                    print("------------------------")
+                    self.permissionAlertType = .initial
+                    self.showPermissionAlert = true
+                    
+                @unknown default:
+                    print("------------------------")
+                    print("[相册权限] 未知状态")
+                    print("------------------------")
+                    self.hideRectangle()
                 }
             }
-        )
+        }
     }
     
     // 修改下载图片方法
@@ -1010,6 +1030,28 @@ struct OverlayView: View {
                 }
                 .buttonStyle(PressableButtonStyle(normalColor: .white))
             }
+            
+            // Pro 检查遮罩层 - 和背景矩形一样大
+            if !ProManager.shared.isPro {
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(height: centerY)  // 使用和背景矩形一样的高度
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // 触发震动反馈
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.prepare()
+                        generator.impactOccurred()
+                        
+                        print("------------------------")
+                        print("[上传/下载功能] 已禁用")
+                        print("原因：需要Pro版本")
+                        print("------------------------")
+                        
+                        // 显示升级弹窗
+                        ProManager.shared.showProUpgrade()
+                    }
+            }
         }
     }
     
@@ -1050,6 +1092,28 @@ struct OverlayView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(PressableButtonStyle(normalColor: .white))
+            
+            // Pro 检查遮罩层 - 和背景矩形一样大
+            if !ProManager.shared.isPro {
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(height: centerY)  // 使用和背景矩形一样的高度
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // 触发震动反馈
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.prepare()
+                        generator.impactOccurred()
+                        
+                        print("------------------------")
+                        print("[上传/下载功能] 已禁用")
+                        print("原因：需要Pro版本")
+                        print("------------------------")
+                        
+                        // 显示升级弹窗
+                        ProManager.shared.showProUpgrade()
+                    }
+            }
         }
     }
     

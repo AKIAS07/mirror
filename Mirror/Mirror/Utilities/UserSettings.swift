@@ -26,6 +26,7 @@ private enum UserSettingsKeys {
     static let flashEnabled = "FlashEnabled"
     static let flashIntensity = "FlashIntensity"
     static let splitScreenIconImage = "splitScreenIconImage"
+    static let autoEnterTwoOfMe = "autoEnterTwoOfMe"
 }
 
 // 用户设置管理器
@@ -508,6 +509,26 @@ class UserSettingsManager {
         
         print("[全局参数] 重置完成")
         print("------------------------")
+    }
+    
+    // MARK: - 自动进入双屏设置
+    
+    func saveAutoEnterTwoOfMe(_ enabled: Bool) {
+        defaults.set(enabled, forKey: UserSettingsKeys.autoEnterTwoOfMe)
+        defaults.synchronize()
+        print("------------------------")
+        print("[系统设置] 自动进入双屏")
+        print("状态：\(enabled ? "开启" : "关闭")")
+        print("------------------------")
+    }
+    
+    func loadAutoEnterTwoOfMe() -> Bool {
+        let enabled = defaults.bool(forKey: UserSettingsKeys.autoEnterTwoOfMe)
+        print("------------------------")
+        print("[系统设置] 加载自动进入双屏设置")
+        print("状态：\(enabled ? "开启" : "关闭")")
+        print("------------------------")
+        return enabled
     }
 }
 

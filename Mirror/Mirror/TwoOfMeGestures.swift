@@ -54,6 +54,18 @@ class TwoOfMeGestureManager {
         }
     }
 
+    // 添加 Pro 权限检查方法
+    private static func checkProAccess() -> Bool {
+        let isPro = ProManager.shared.isPro
+        if !isPro {
+            print("------------------------")
+            print("[双指手势] 已禁用")
+            print("原因：需要Pro版本")
+            print("------------------------")
+        }
+        return isPro
+    }
+
     // 创建双击和单击手势
     static func createTapGestures(
         for screenID: ScreenID,
@@ -201,6 +213,9 @@ class TwoOfMeGestureManager {
     ) -> some Gesture {
         MagnificationGesture()
             .onChanged { scale in
+                // 添加 Pro 权限检查
+                guard checkProAccess() else { return }
+                
                 if screenID == .original ? isZone2Enabled : isZone3Enabled {
                     if screenID == .original {
                         if isOriginalPaused {
@@ -277,6 +292,9 @@ class TwoOfMeGestureManager {
                 }
             }
             .onEnded { endScale in
+                // 添加 Pro 权限检查
+                guard checkProAccess() else { return }
+                
                 // 移除动画
                 if screenID == .original {
                     if isOriginalPaused {
@@ -385,6 +403,9 @@ class TwoOfMeGestureManager {
     ) -> some Gesture {
         DragGesture(minimumDistance: 5)
             .onChanged { value in
+                // 添加 Pro 权限检查
+                guard checkProAccess() else { return }
+                
                 if imageUploader.isFlashlightActive(for: screenID) {
                     return
                 }
@@ -434,6 +455,9 @@ class TwoOfMeGestureManager {
                 }
             }
             .onEnded { _ in
+                // 添加 Pro 权限检查
+                guard checkProAccess() else { return }
+                
                 // 检查当前分屏的手电筒状态
                 if imageUploader.isFlashlightActive(for: screenID) {
                     return
