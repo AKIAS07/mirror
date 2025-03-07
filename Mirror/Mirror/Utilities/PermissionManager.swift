@@ -83,12 +83,20 @@ class PermissionManager: ObservableObject {
         currentImage = image
         
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        print("[相册权限] 当前状态: \(status.rawValue)")
+        print("------------------------")
+        print("[相册权限] 检查权限")
+        print("当前状态: \(status.rawValue)")
+        print("图片是否存在: \(image != nil)")
+        print("------------------------")
         
         DispatchQueue.main.async { [weak self] in
             switch status {
             case .authorized, .limited:
-                completion(true)
+                print("[相册权限] 已授权，开始保存图片")
+                self?.saveImageToPhotoLibrary(image) { success in
+                    print("[相册权限] 保存结果: \(success ? "成功" : "失败")")
+                    completion(success)
+                }
                 
             case .notDetermined:
                 print("[相册权限] 未确定，显示自定义权限弹窗")
@@ -99,6 +107,7 @@ class PermissionManager: ObservableObject {
                 self?.alertState = .permission(isFirstRequest: false)
                 
             @unknown default:
+                print("[相册权限] 未知状态")
                 completion(false)
             }
         }
@@ -120,16 +129,21 @@ class PermissionManager: ObservableObject {
     
     // 修改权限确认处理方法
     func handlePhotoLibraryPermissionConfirmed(for image: UIImage, completion: @escaping (Bool) -> Void) {
-        // 用户点击确定后，请求系统权限
+        print("------------------------")
+        print("[相册权限] 用户确认授权")
+        print("------------------------")
+        
         PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] status in
             DispatchQueue.main.async {
                 self?.photoLibraryStatus = status
                 
                 switch status {
                 case .authorized, .limited:
-                    print("[相册权限] 用户已授权")
-                    // 直接返回成功，让 ScreenshotManager 处理保存
-                    completion(true)
+                    print("[相册权限] 用户已授权，开始保存图片")
+                    self?.saveImageToPhotoLibrary(image) { success in
+                        print("[相册权限] 保存结果: \(success ? "成功" : "失败")")
+                        completion(success)
+                    }
                     
                 default:
                     print("[相册权限] 用户未授权")
@@ -164,15 +178,30 @@ class PermissionManager: ObservableObject {
     // MARK: - 辅助方法
     
     private func saveImageToPhotoLibrary(_ image: UIImage, completion: @escaping (Bool) -> Void) {
+        print("------------------------")
+        print("[相册保存] 开始保存图片")
+        print("图片尺寸: \(image.size.width) x \(image.size.height)")
+        print("------------------------")
+
         PHPhotoLibrary.shared().performChanges({
-            PHAssetChangeRequest.creationRequestForAsset(from: image)
+            // 创建保存请求
+            let request = PHAssetChangeRequest.creationRequestForAsset(from: image)
+            print("[相册保存] 创建请求: \(request)")
         }) { success, error in
             DispatchQueue.main.async {
                 if success {
-                    //print("[相册保存] 保存成功")
+                    print("------------------------")
+                    print("[相册保存] 保存成功")
+                    print("------------------------")
                     completion(true)
                 } else {
-                    print("[相册保存] 保存失败：\(error?.localizedDescription ?? "未知错误")")
+                    print("------------------------")
+                    print("[相册保存] 保存失败")
+                    if let error = error {
+                        print("错误信息: \(error.localizedDescription)")
+                        print("错误详情: \(error)")
+                    }
+                    print("------------------------")
                     completion(false)
                 }
             }

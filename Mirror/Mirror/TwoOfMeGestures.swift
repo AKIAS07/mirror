@@ -2,6 +2,58 @@ import SwiftUI
 
 // 手势管理器
 class TwoOfMeGestureManager {
+    // 添加重置缩放比例的管理方法
+    private static func handleScaleReset(
+        screenID: ScreenID,
+        isEnteringPausedState: Bool,
+        currentImageScale: Binding<CGFloat>,
+        originalImageScale: Binding<CGFloat>,
+        currentMirroredImageScale: Binding<CGFloat>,
+        mirroredImageScale: Binding<CGFloat>
+    ) {
+        if isEnteringPausedState {
+            // 进入定格状态时，延迟重置缩放比例
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.captureDelay) {
+                if screenID == .original {
+                    currentImageScale.wrappedValue = 1.0
+                    originalImageScale.wrappedValue = 1.0
+                    
+                    print("------------------------")
+                    print("[Original屏幕自动缩放]")
+                    print("定格后自动重置缩放比例为100%")
+                    print("------------------------")
+                } else {
+                    currentMirroredImageScale.wrappedValue = 1.0
+                    mirroredImageScale.wrappedValue = 1.0
+                    
+                    print("------------------------")
+                    print("[Mirrored屏幕自动缩放]")
+                    print("定格后自动重置缩放比例为100%")
+                    print("------------------------")
+                }
+            }
+        } else {
+            // 退出定格状态时，立即重置缩放比例
+            if screenID == .original {
+                currentImageScale.wrappedValue = 1.0
+                originalImageScale.wrappedValue = 1.0
+                
+                print("------------------------")
+                print("[Original屏幕自动缩放]")
+                print("退出定格时立即重置缩放比例为100%")
+                print("------------------------")
+            } else {
+                currentMirroredImageScale.wrappedValue = 1.0
+                mirroredImageScale.wrappedValue = 1.0
+                
+                print("------------------------")
+                print("[Mirrored屏幕自动缩放]")
+                print("退出定格时立即重置缩放比例为100%")
+                print("------------------------")
+            }
+        }
+    }
+
     // 创建双击和单击手势
     static func createTapGestures(
         for screenID: ScreenID,
@@ -10,6 +62,8 @@ class TwoOfMeGestureManager {
         isDefaultGesture: Bool,
         isScreensSwapped: Bool,
         layoutDescription: String,
+        isOriginalPaused: Bool,
+        isMirroredPaused: Bool,
         currentImageScale: Binding<CGFloat>,
         originalImageScale: Binding<CGFloat>,
         currentMirroredImageScale: Binding<CGFloat>,
@@ -45,29 +99,22 @@ class TwoOfMeGestureManager {
                             print("位置：\(isScreensSwapped ? (screenID == .original ? "下部" : "上部") : (screenID == .original ? "上部" : "下部"))")
                             print("进入触控区\(screenID == .original ? "2a" : "3a")")
                             
+                            // 记录当前状态
+                            let wasOriginalPaused = screenID == .original ? isOriginalPaused : false
+                            let wasMirroredPaused = screenID == .mirrored ? isMirroredPaused : false
+                            
                             togglePauseState(screenID)
                             
-                            // 在Original屏幕被定格时，自动将画面缩放比例重置为100%
-                            if screenID == .original {
-                                currentImageScale.wrappedValue = 1.0
-                                originalImageScale.wrappedValue = 1.0
-                                
-                                print("------------------------")
-                                print("[Original屏幕自动缩放]")
-                                print("定格后自动重置缩放比例为100%")
-                                print("------------------------")
-                            }
-                                                        
-                            // 在Mirrored屏幕被定格时，自动将画面缩放比例重置为100%
-                            if screenID == .mirrored {
-                                currentMirroredImageScale.wrappedValue = 1.0
-                                mirroredImageScale.wrappedValue = 1.0
-                                
-                                print("------------------------")
-                                print("[Mirrored屏幕自动缩放]")
-                                print("定格后自动重置缩放比例为100%")
-                                print("------------------------")
-                            }
+                            // 使用管理方法处理缩放重置
+                            handleScaleReset(
+                                screenID: screenID,
+                                isEnteringPausedState: !wasOriginalPaused && !wasMirroredPaused,
+                                currentImageScale: currentImageScale,
+                                originalImageScale: originalImageScale,
+                                currentMirroredImageScale: currentMirroredImageScale,
+                                mirroredImageScale: mirroredImageScale
+                            )
+                            
                             print("当前布局：\(layoutDescription)")
                             print("------------------------")
                         } else {
@@ -100,29 +147,22 @@ class TwoOfMeGestureManager {
                             print("位置：\(isScreensSwapped ? (screenID == .original ? "下部" : "上部") : (screenID == .original ? "上部" : "下部"))")
                             print("进入触控区\(screenID == .original ? "2a" : "3a")")
                             
+                            // 记录当前状态
+                            let wasOriginalPaused = screenID == .original ? isOriginalPaused : false
+                            let wasMirroredPaused = screenID == .mirrored ? isMirroredPaused : false
+                            
                             togglePauseState(screenID)
                             
-                            // 在Original屏幕被定格时，自动将画面缩放比例重置为100%
-                            if screenID == .original {
-                                currentImageScale.wrappedValue = 1.0
-                                originalImageScale.wrappedValue = 1.0
-                                
-                                print("------------------------")
-                                print("[Original屏幕自动缩放]")
-                                print("定格后自动重置缩放比例为100%")
-                                print("------------------------")
-                            }
-                                                        
-                            // 在Mirrored屏幕被定格时，自动将画面缩放比例重置为100%
-                            if screenID == .mirrored {
-                                currentMirroredImageScale.wrappedValue = 1.0
-                                mirroredImageScale.wrappedValue = 1.0
-                                
-                                print("------------------------")
-                                print("[Mirrored屏幕自动缩放]")
-                                print("定格后自动重置缩放比例为100%")
-                                print("------------------------")
-                            }
+                            // 使用管理方法处理缩放重置
+                            handleScaleReset(
+                                screenID: screenID,
+                                isEnteringPausedState: !wasOriginalPaused && !wasMirroredPaused,
+                                currentImageScale: currentImageScale,
+                                originalImageScale: originalImageScale,
+                                currentMirroredImageScale: currentMirroredImageScale,
+                                mirroredImageScale: mirroredImageScale
+                            )
+                            
                             print("当前布局：\(layoutDescription)")
                             print("------------------------")
                         }

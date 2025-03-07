@@ -296,9 +296,11 @@ class ScreenshotManager: ObservableObject {
     func takeScreenshot() {
         print("[截图] 开始处理")
         
-        // 直接执行截图，不检查权限
+        // 直接执行截图，不触发闪光动画
         DispatchQueue.main.async {
             self.performScreenshot()
+            // 添加这一行，显示预览
+            self.showPreview = true
         }
     }
     
@@ -369,12 +371,6 @@ class ScreenshotManager: ObservableObject {
         self.pendingScreenshot = finalScreenshot
         
         print("[截图] 最终截图尺寸：\(Int(finalScreenshot.size.width))x\(Int(finalScreenshot.size.height))")
-        
-        // 触发闪光动画
-        self.isFlashing = true
-        Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { _ in
-            self.isFlashing = false
-        }
     }
     
     // 修改 createCombinedImage 方法
@@ -470,6 +466,32 @@ class ScreenshotManager: ObservableObject {
         layout.first.draw(in: layout.firstFrame)
         layout.second.draw(in: layout.secondFrame)
         
+        // 在中心添加触控区1的图标
+        if let iconImage = getIconImage(for: DeviceOrientationManager.shared.currentOrientation) {
+            // 计算图标大小 (40x40 pt)
+            let iconSize = CGSize(width: 40, height: 40)
+            
+            // 计算图标位置（居中）
+            let iconX = (finalSize.width - iconSize.width) / 2
+            let iconY = (finalSize.height - iconSize.height) / 2
+            let iconRect = CGRect(origin: CGPoint(x: iconX, y: iconY), size: iconSize)
+            
+            // 获取图标颜色
+            let iconColor = BorderLightStyleManager.shared.splitScreenIconColor
+            
+            if iconColor == .purple || BorderLightStyleManager.shared.splitScreenIconImage.hasPrefix("color") {
+                // 直接绘制原始图标（彩色图标）
+                iconImage.draw(in: iconRect)
+            } else {
+                // 为其他颜色创建着色的图标
+                if let cgImage = iconImage.cgImage {
+                    let tintedImage = UIImage(cgImage: cgImage, scale: iconImage.scale, orientation: iconImage.imageOrientation)
+                        .withTintColor(UIColor(iconColor), renderingMode: .alwaysTemplate)
+                    tintedImage.draw(in: iconRect)
+                }
+            }
+        }
+        
         let combinedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
         
@@ -478,6 +500,48 @@ class ScreenshotManager: ObservableObject {
         print("------------------------")
         
         return combinedImage ?? UIImage()
+    }
+    
+    // 添加获取图标图片的辅助方法
+    private func getIconImage(for orientation: UIDeviceOrientation) -> UIImage? {
+        let styleManager = BorderLightStyleManager.shared
+        
+        // 确定图标名称
+        let iconName: String
+        if styleManager.splitScreenIconImage.hasPrefix("color") {
+            // 如果是自定义颜色图标，直接使用
+            iconName = styleManager.splitScreenIconImage
+        } else if styleManager.splitScreenIconColor == .purple {
+            // 使用彩色图标逻辑
+            switch orientation {
+            case .landscapeLeft:
+                iconName = isScreenSwapped ? "icon-bf-color-3" : "icon-bf-color-4"
+            case .landscapeRight:
+                iconName = isScreenSwapped ? "icon-bf-color-4" : "icon-bf-color-3"
+            case .portraitUpsideDown:
+                iconName = isScreenSwapped ? "icon-bf-color-1" : "icon-bf-color-2"
+            default: // 正常竖屏
+                iconName = isScreenSwapped ? "icon-bf-color-2" : "icon-bf-color-1"
+            }
+        } else {
+            // 使用白色轮廓图标
+            iconName = "icon-bf-white"
+        }
+        
+        // 获取图片
+        let image = UIImage(named: iconName)
+        
+        // 如果是紫色模式，直接返回原始彩色图标
+        if styleManager.splitScreenIconColor == .purple {
+            return image
+        }
+        
+        // 对于其他颜色，需要应用颜色
+        if let cgImage = image?.cgImage {
+            return UIImage(cgImage: cgImage, scale: image?.scale ?? 1.0, orientation: image?.imageOrientation ?? .up)
+        }
+        
+        return image
     }
     
     // 修改 saveScreenshot 方法

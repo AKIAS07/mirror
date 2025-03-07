@@ -191,7 +191,7 @@ struct CameraContainer: View {
                 }
                 
                 // 添加闪光动画
-                if showIconAnimation {
+                if showIconAnimation && AppConfig.AnimationConfig.Flash.isEnabled {
                     FlashAnimationView()
                         .zIndex(6)
                 }

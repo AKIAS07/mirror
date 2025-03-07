@@ -396,7 +396,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Mirror Muse";
+				INFOPLIST_KEY_CFBundleDisplayName = "Mira Pro";
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以显示镜像功能";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "需要访问您的相册以选择上传的图片";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -439,7 +439,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Mirror Muse";
+				INFOPLIST_KEY_CFBundleDisplayName = "Mira Pro";
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以显示镜像功能";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "需要访问您的相册以选择上传的图片";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

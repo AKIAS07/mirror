@@ -27,19 +27,19 @@ struct ColorOption: Identifiable, Hashable {
 // 主屏蝴蝶颜色选项
 let mainScreenColors: [ColorOption] = [
     ColorOption(color: .white, image: "icon-bf-white", background: Color.gray.opacity(0.5), useOriginalColor: false),
+    ColorOption(color: Color(red: 240/255, green: 234/255, blue: 218/255), image: "icon-bf-white", background: Color.gray.opacity(0.5), useOriginalColor: false),
     ColorOption(color: Color(red: 190/255, green: 152/255, blue: 170/255), image: "icon-bf-white", background: nil, useOriginalColor: false),
-    ColorOption(color: Color(red: 200/255, green: 183/255, blue: 166/255), image: "icon-bf-white", background: nil, useOriginalColor: false),
-    ColorOption(color: Color(red: 240/255, green: 234/255, blue: 218/255), image: "icon-bf-white", background: Color.gray.opacity(0.5), useOriginalColor: false)
+    //ColorOption(color: Color(red: 200/255, green: 183/255, blue: 166/255), image: "icon-bf-white", background: nil, useOriginalColor: false)
+    
 ]
 
 // 分屏蝴蝶颜色选项
 let splitScreenColors: [ColorOption] = [
     ColorOption(color: .purple, image: "icon-bf-color-1", background: nil, useOriginalColor: true),
-    ColorOption(color: Color(red: 62/255, green: 63/255, blue: 76/255), image: "icon-bf-white", background: nil, useOriginalColor: false),
-    ColorOption(color: Color(red: 159/255, green: 137/255, blue: 158/255), image: "icon-bf-white", background: nil, useOriginalColor: false),
-    ColorOption(color: Color(red: 93/255, green: 165/255, blue: 177/255), image: "icon-bf-white", background: nil, useOriginalColor: false),
-    ColorOption(color: Color(red: 150/255, green: 194/255, blue: 78/255), image: "icon-bf-white", background: nil, useOriginalColor: false),
-    ColorOption(color: Color(red: 251/255, green: 210/255, blue: 106/255), image: "icon-bf-white", background: nil, useOriginalColor: false),
-    ColorOption(color: Color(red: 178/255, green: 104/255, blue: 111/255), image: "icon-bf-white", background: nil, useOriginalColor: false)
-   
+    ColorOption(color: .clear, image: "color1", background: nil, useOriginalColor: true),
+    ColorOption(color: .clear, image: "color2", background: nil, useOriginalColor: true), 
+    ColorOption(color: .clear, image: "color3", background: nil, useOriginalColor: true),
+    ColorOption(color: .clear, image: "color4", background: nil, useOriginalColor: true),
+    ColorOption(color: .clear, image: "color5", background: nil, useOriginalColor: true),
+    ColorOption(color: .clear, image: "color6", background: nil, useOriginalColor: true)
 ] 

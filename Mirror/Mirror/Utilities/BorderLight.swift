@@ -50,6 +50,13 @@ class BorderLightStyleManager: ObservableObject {
     
     @Published var isPreviewMode: Bool = false  // 添加预览模式状态
     
+    @Published var splitScreenIconImage: String = "icon-bf-color-1" {
+        didSet {
+            print("分屏蝴蝶图片已更新：\(splitScreenIconImage)")
+            NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
+        }
+    }
+    
     // 添加计算属性，根据手势模式返回对应的点击次数
     var captureGestureCount: Int {
         return isDefaultGesture ? 2 : 1  // 默认模式为双击，交换模式为单击
@@ -72,6 +79,7 @@ class BorderLightStyleManager: ObservableObject {
             self.isDefaultGesture = settings.loadGestureMode()
             self.iconColor = settings.loadIconColor()
             self.splitScreenIconColor = settings.loadSplitScreenIconColor()
+            self.splitScreenIconImage = settings.loadSplitScreenIconImage()
             
             // 更新 BorderStyle
             BorderStyle.selectedColor = self.savedColor
@@ -88,6 +96,7 @@ class BorderLightStyleManager: ObservableObject {
             self.isDefaultGesture = true
             self.iconColor = .white
             self.splitScreenIconColor = .purple
+            self.splitScreenIconImage = "icon-bf-color-1"
             
             // 更新 BorderStyle
             BorderStyle.selectedColor = self.savedColor
@@ -136,6 +145,7 @@ class BorderLightStyleManager: ObservableObject {
         UserSettingsManager.shared.saveGestureMode(isDefault: isDefaultGesture)
         UserSettingsManager.shared.saveIconColor(iconColor)
         UserSettingsManager.shared.saveSplitScreenIconColor(splitScreenIconColor)
+        UserSettingsManager.shared.saveSplitScreenIconImage(splitScreenIconImage)
     }
     
     // 恢复到上次保存的设置
@@ -160,6 +170,18 @@ class BorderLightStyleManager: ObservableObject {
         return abs(red1 - red2) < tolerance && 
                abs(green1 - green2) < tolerance && 
                abs(blue1 - blue2) < tolerance
+    }
+    
+    // 修改保存分屏蝴蝶颜色的方法
+    func saveSplitScreenIconSettings(_ option: ColorOption) {
+        if option.image.hasPrefix("color") {
+            splitScreenIconImage = option.image
+            splitScreenIconColor = .clear
+        } else {
+            splitScreenIconColor = option.color
+            splitScreenIconImage = option.image
+        }
+        UserSettingsManager.shared.saveSplitScreenIconSettings(option)
     }
 }
 

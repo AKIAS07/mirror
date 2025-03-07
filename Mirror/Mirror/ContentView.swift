@@ -677,10 +677,8 @@ struct ContentView: View {
     // 更新中间按钮创建函数
     private func createMiddleButton(geometry: GeometryProxy) -> some View {
         let styleManager = BorderLightStyleManager.shared
-        let firstSplitScreenColor = splitScreenColors[0]
-        let shouldUseOriginalColor = firstSplitScreenColor.useOriginalColor && compareColors(styleManager.splitScreenIconColor, firstSplitScreenColor.color)
-        let iconName = shouldUseOriginalColor ? "icon-bf-color-1" : "icon-bf-white"
-
+        let iconName = styleManager.splitScreenIconImage
+        
         return CircleButton(
             imageName: iconName,
             systemName: nil,
@@ -725,7 +723,7 @@ struct ContentView: View {
                 }
             },
             deviceOrientation: orientationManager.currentOrientation,
-            useCustomColor: !shouldUseOriginalColor,
+            useCustomColor: !iconName.hasPrefix("color") && iconName != "icon-bf-color-1",
             customColor: styleManager.splitScreenIconColor
         )
     }

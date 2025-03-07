@@ -51,7 +51,6 @@ class ImageUploader: ObservableObject {
     // 添加手电筒状态追踪
     @Published private var isFlashlightActiveOriginal = false
     @Published private var isFlashlightActiveMirrored = false
-    @Published var showFlashlightAlert = false
     
     // 添加亮度控制相关属性
     private var originalBrightness: CGFloat = UIScreen.main.brightness
@@ -71,6 +70,10 @@ class ImageUploader: ObservableObject {
     // 添加保存定格时摄像头比例的属性
     private var pausedOriginalCameraScale: CGFloat = 1.0
     private var pausedMirroredCameraScale: CGFloat = 1.0
+    
+    // 添加闪光动画状态属性
+    @Published var showOriginalFlash = false
+    @Published var showMirroredFlash = false
     
     // 修改图片处理状态控制方法
     func startImageProcessing() {
@@ -254,7 +257,8 @@ class ImageUploader: ObservableObject {
         scale: CGFloat = 1.0,
         cameraScale: CGFloat = 1.0,
         isDualScreenMode: Bool = false,
-        otherScreenImage: UIImage? = nil
+        otherScreenImage: UIImage? = nil,
+        disableFlash: Bool = false
     ) {
         print("------------------------")
         print("[setPausedImage] 参数验证")
@@ -430,6 +434,24 @@ class ImageUploader: ObservableObject {
         print("Original: \(Int(pausedOriginalCameraScale * 100))%")
         print("Mirrored: \(Int(pausedMirroredCameraScale * 100))%")
         
+        // 处理闪光动画
+        if !disableFlash {
+            // 只有在非双屏模式且闪光灯开启时才显示闪光动画
+            if !isDualScreenMode && AppConfig.AnimationConfig.Flash.isEnabled {
+                if screenID == .original {
+                    self.showOriginalFlash = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                        self.showOriginalFlash = false
+                    }
+                } else {
+                    self.showMirroredFlash = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                        self.showMirroredFlash = false
+                    }
+                }
+            }
+        }
+        
         print("------------------------")
     }
     
@@ -482,13 +504,25 @@ class ImageUploader: ObservableObject {
         switch screenID {
         case .original:
             if isFlashlightActiveMirrored {
-                showFlashlightAlert = true
+                // 修改为显示文字提示而不是 alert
+                toastMessage = "无法同时开启"
+                showToast = true
+                // 2秒后自动隐藏提示
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    self.showToast = false
+                }
                 return false
             }
             return true
         case .mirrored:
             if isFlashlightActiveOriginal {
-                showFlashlightAlert = true
+                // 修改为显示文字提示而不是 alert
+                toastMessage = "无法同时开启"
+                showToast = true
+                // 2秒后自动隐藏提示
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    self.showToast = false
+                }
                 return false
             }
             return true
@@ -873,47 +907,26 @@ struct OverlayView: View {
                             }
                         )
                     }
-                    .alert(isPresented: $imageUploader.showFlashlightAlert) {
-                        Alert(
-                            title: Text("提示"),
-                            message: Text("双屏无法同时开启全屏灯!"),
-                            dismissButton: .default(Text("确定"))
-                        )
-                    }
                     
-                    // 提示视图移到这里，确保显示在最上层
+                    // 提示视图
                     if imageUploader.showToast {
-                        ZStack {
-                            if imageUploader.showDownloadOverlay {
-                                // 下载成功提示
-                                VStack {
-                                    Image(systemName: "square.and.arrow.down.fill")
-                                        .font(.system(size: 80))
-                                        .opacity(0)
-                                        .padding(.bottom, 30)
-                                    
-                                    Text(imageUploader.toastMessage)
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 10)
-                                        .background(Color.black.opacity(0.7))
-                                        .cornerRadius(10)
-                                }
-                            } else {
-                                // 上传成功提示
+                        GeometryReader { geometry in
+                            ZStack {
                                 Text(imageUploader.toastMessage)
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 10)
-                                    .background(Color.black.opacity(0.7))
+                                    .background(Color.black)
                                     .cornerRadius(10)
                             }
+                            .padding(.bottom, 30)
+                            .rotationEffect(getRotationAngle(deviceOrientation))
+                            .frame(width: 210, height: 210)
+                            .contentShape(Rectangle())
+                            .animation(.easeInOut(duration: 0.5), value: deviceOrientation)
+                            .position(x: geometry.size.width/2, y: geometry.size.height/2)  // 在整个屏幕的正中间
+                            .zIndex(999)
                         }
-                        .rotationEffect(getRotationAngle(deviceOrientation))
-                        .frame(width: 210, height: 210)
-                        .contentShape(Rectangle())
-                        .animation(.easeInOut(duration: 0.5), value: deviceOrientation)
-                        .zIndex(999) // 确保显示在最上层
                     }
                 }
             }

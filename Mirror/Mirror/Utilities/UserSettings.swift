@@ -23,6 +23,9 @@ private enum UserSettingsKeys {
     static let mirroredCameraScale = "mirroredCameraScale"
     static let originalImageScale = "originalImageScale"
     static let mirroredImageScale = "mirroredImageScale"
+    static let flashEnabled = "FlashEnabled"
+    static let flashIntensity = "FlashIntensity"
+    static let splitScreenIconImage = "splitScreenIconImage"
 }
 
 // 用户设置管理器
@@ -143,6 +146,62 @@ class UserSettingsManager {
         }
     }
     
+    // 保存分屏蝴蝶设置
+    func saveSplitScreenIconSettings(_ option: ColorOption) {
+        defaults.set(option.image, forKey: UserSettingsKeys.splitScreenIconImage)
+        
+        if !option.image.hasPrefix("color") {
+            // 只有非图片选项才保存颜色
+            let uiColor = UIColor(option.color)
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+            uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+            
+            defaults.set(red, forKey: UserSettingsKeys.splitScreenIconColorRed)
+            defaults.set(green, forKey: UserSettingsKeys.splitScreenIconColorGreen)
+            defaults.set(blue, forKey: UserSettingsKeys.splitScreenIconColorBlue)
+            defaults.set(alpha, forKey: UserSettingsKeys.splitScreenIconColorAlpha)
+        }
+        
+        defaults.synchronize()
+    }
+    
+    // 保存分屏蝴蝶图片
+    func saveSplitScreenIconImage(_ image: String) {
+        defaults.set(image, forKey: UserSettingsKeys.splitScreenIconImage)
+        defaults.synchronize()
+        print("保存分屏蝴蝶图片：\(image)")
+    }
+    
+    // MARK: - 闪光灯设置
+    
+    // 保存闪光灯设置
+    func saveFlashSettings(isEnabled: Bool, intensity: AppConfig.AnimationConfig.Flash.Intensity) {
+        print("------------------------")
+        print("[闪光灯] 保存设置")
+        defaults.set(isEnabled, forKey: UserSettingsKeys.flashEnabled)
+        defaults.set(intensity.rawValue, forKey: UserSettingsKeys.flashIntensity)
+        defaults.synchronize()
+        print("- 开启状态：\(isEnabled ? "开启" : "关闭")")
+        print("- 闪光强度：\(intensity.description)")
+        print("------------------------")
+    }
+    
+    // 加载闪光灯设置
+    func loadFlashSettings() -> (isEnabled: Bool, intensity: AppConfig.AnimationConfig.Flash.Intensity) {
+        print("------------------------")
+        print("[闪光灯] 加载设置")
+        
+        let isEnabled = defaults.bool(forKey: UserSettingsKeys.flashEnabled)
+        let intensityRawValue = defaults.double(forKey: UserSettingsKeys.flashIntensity)
+        let intensity = AppConfig.AnimationConfig.Flash.Intensity.allCases.first { $0.rawValue == intensityRawValue } ?? .medium
+        
+        print("- 开启状态：\(isEnabled ? "开启" : "关闭")")
+        print("- 闪光强度：\(intensity.description)")
+        print("------------------------")
+        
+        return (isEnabled: isEnabled, intensity: intensity)
+    }
+    
     // MARK: - 加载设置
     
     // 加载边框灯颜色
@@ -218,6 +277,32 @@ class UserSettingsManager {
         return .purple
     }
     
+    // 加载分屏蝴蝶设置
+    func loadSplitScreenIconSettings() -> (image: String, color: Color) {
+        let image = defaults.string(forKey: UserSettingsKeys.splitScreenIconImage) ?? "icon-bf-color-1"
+        
+        if image.hasPrefix("color") {
+            return (image, .clear)
+        }
+        
+        // 加载颜色
+        if let red = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorRed) as? CGFloat,
+           let green = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorGreen) as? CGFloat,
+           let blue = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorBlue) as? CGFloat,
+           let alpha = defaults.object(forKey: UserSettingsKeys.splitScreenIconColorAlpha) as? CGFloat {
+            return (image, Color(UIColor(red: red, green: green, blue: blue, alpha: alpha)))
+        }
+        
+        return (image, .purple)
+    }
+    
+    // 加载分屏蝴蝶图片
+    func loadSplitScreenIconImage() -> String {
+        let image = defaults.string(forKey: UserSettingsKeys.splitScreenIconImage) ?? "icon-bf-color-1"
+        print("加载分屏蝴蝶图片：\(image)")
+        return image
+    }
+    
     // MARK: - 应用设置
     
     // 应用所有保存的设置
@@ -241,6 +326,14 @@ class UserSettingsManager {
             
             // 应用分屏蝴蝶颜色
             styleManager.splitScreenIconColor = self.loadSplitScreenIconColor()
+            
+            // 应用分屏蝴蝶图片
+            styleManager.splitScreenIconImage = self.loadSplitScreenIconImage()
+            
+            // 应用闪光灯设置
+            let flashSettings = self.loadFlashSettings()
+            AppConfig.AnimationConfig.Flash.isEnabled = flashSettings.isEnabled
+            AppConfig.AnimationConfig.Flash.intensity = flashSettings.intensity
             
             print("所有用户设置已应用")
         }
@@ -388,6 +481,14 @@ class UserSettingsManager {
             print("- 分屏图标颜色已重置为紫色")
         }
         
+        // 重置闪光灯设置
+        defaults.set(false, forKey: UserSettingsKeys.flashEnabled)
+        defaults.set(AppConfig.AnimationConfig.Flash.Intensity.medium.rawValue, forKey: UserSettingsKeys.flashIntensity)
+        print("- 闪光灯设置已重置（关闭状态，中等强度）")
+        
+        // 重置分屏图片
+        defaults.set("icon-bf-color-1", forKey: UserSettingsKeys.splitScreenIconImage)
+        
         // 同步到内存
         defaults.synchronize()
         
@@ -399,6 +500,7 @@ class UserSettingsManager {
             styleManager.isDefaultGesture = true
             styleManager.iconColor = .white
             styleManager.splitScreenIconColor = .purple
+            styleManager.splitScreenIconImage = "icon-bf-color-1"
             
             // 发送通知更新UI
             NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)

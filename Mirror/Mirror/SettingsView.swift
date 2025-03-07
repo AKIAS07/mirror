@@ -16,7 +16,7 @@ public struct SettingsTheme {
     static let titleColor = Color(red: 0.3, green: 0.3, blue: 0.3)  // 深灰色替代 UIColor.darkGray
     static let subtitleColor = Color.gray
     static let backgroundColor = Color.white
-    static let backgroundColor2 = Color.yellow.opacity(0.2)
+    static let backgroundColor2 = Color.yellow.opacity(0.1)
     static let panelBackgroundColor = Color(red: 0.95, green: 0.95, blue: 0.97)  // 浅灰色替代 UIColor.systemGray6
     static let borderColor = Color.gray
     static let selectedBorderColor = Color.black
@@ -75,6 +75,11 @@ private struct ColorButton: View {
     
     // 添加颜色比较辅助方法
     private func compareColors(_ color1: Color, _ color2: Color) -> Bool {
+        // 如果是图片选项,直接比较图片名称
+        if option.image.hasPrefix("color") {
+            return option.image == styleManager.splitScreenIconImage
+        }
+        
         let uiColor1 = UIColor(color1)
         let uiColor2 = UIColor(color2)
         var red1: CGFloat = 0, green1: CGFloat = 0, blue1: CGFloat = 0, alpha1: CGFloat = 0
@@ -91,12 +96,12 @@ private struct ColorButton: View {
     
     private var isColorSelected: Bool {
         // 主屏小蝴蝶的选择逻辑
-        if mainScreenColors.contains(where: { $0.image == option.image && compareColors($0.color, option.color) }) {
+        if mainScreenColors.contains(where: { $0.image == option.image }) {
             return compareColors(option.color, styleManager.iconColor)
         }
         // 分屏蝴蝶的选择逻辑
-        else if splitScreenColors.contains(where: { $0.image == option.image && compareColors($0.color, option.color) }) {
-            return compareColors(option.color, styleManager.splitScreenIconColor)
+        else if splitScreenColors.contains(where: { $0.image == option.image }) {
+            return styleManager.splitScreenIconImage == option.image
         }
         return false
     }
@@ -111,7 +116,7 @@ private struct ColorButton: View {
                 }
                 .background(option.background)
                 .clipShape(Circle())
-                .padding(isColorSelected ? 4 : 0)  // 固定 padding 值
+                .padding(isColorSelected ? 4 : 0)
                 .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
                 .overlay(
                     Circle().stroke(
@@ -144,6 +149,8 @@ public struct SettingsPanel: View {
     @State private var showSaveAlert = false
     @State private var hasUnsavedChanges = false
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
+    @State private var isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
+    @State private var flashIntensity = AppConfig.AnimationConfig.Flash.intensity
     
     private var isLandscape: Bool {
         orientationManager.currentOrientation == .landscapeLeft || orientationManager.currentOrientation == .landscapeRight
@@ -189,6 +196,21 @@ public struct SettingsPanel: View {
         var isDefaultGesture: Bool = BorderLightStyleManager.shared.isDefaultGesture
         var iconColor: Color = BorderLightStyleManager.shared.iconColor
         var splitScreenIconColor: Color = BorderLightStyleManager.shared.splitScreenIconColor
+        var splitScreenIconImage: String = BorderLightStyleManager.shared.splitScreenIconImage
+        var isFlashEnabled: Bool = AppConfig.AnimationConfig.Flash.isEnabled
+        var flashIntensity: AppConfig.AnimationConfig.Flash.Intensity = AppConfig.AnimationConfig.Flash.intensity
+        
+        // 修改构造函数
+        init() {
+            self.borderLightColor = BorderLightStyleManager.shared.selectedColor
+            self.borderLightWidth = BorderLightStyleManager.shared.selectedWidth
+            self.isDefaultGesture = BorderLightStyleManager.shared.isDefaultGesture
+            self.iconColor = BorderLightStyleManager.shared.iconColor
+            self.splitScreenIconColor = BorderLightStyleManager.shared.splitScreenIconColor
+            self.splitScreenIconImage = BorderLightStyleManager.shared.splitScreenIconImage
+            self.isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
+            self.flashIntensity = AppConfig.AnimationConfig.Flash.intensity
+        }
     }
     
     // 检查是否有未保存的更改
@@ -197,13 +219,22 @@ public struct SettingsPanel: View {
                initialState.borderLightWidth != styleManager.selectedWidth ||
                initialState.isDefaultGesture != styleManager.isDefaultGesture ||
                initialState.iconColor != styleManager.iconColor ||
-               initialState.splitScreenIconColor != styleManager.splitScreenIconColor
+               initialState.splitScreenIconColor != styleManager.splitScreenIconColor ||
+               initialState.splitScreenIconImage != styleManager.splitScreenIconImage ||
+               initialState.isFlashEnabled != isFlashEnabled ||
+               initialState.flashIntensity != flashIntensity
     }
     
     // 保存设置
     private func saveSettings() {
         UserSettingsManager.shared.saveCurrentConfig()
         styleManager.saveCurrentSettings()
+        
+        // 使用 UserSettingsManager 保存闪光灯设置
+        UserSettingsManager.shared.saveFlashSettings(
+            isEnabled: isFlashEnabled,
+            intensity: flashIntensity
+        )
         
         // 同步 TwoOfMe 相关设置
         NotificationCenter.default.post(
@@ -225,6 +256,30 @@ public struct SettingsPanel: View {
                 showSaveSuccess = false
             }
         }
+    }
+    
+    // 修改恢复设置的逻辑
+    private func restoreSettings() {
+        // 恢复边框灯设置
+        styleManager.selectedColor = initialState.borderLightColor
+        styleManager.selectedWidth = initialState.borderLightWidth
+        
+        // 恢复手势设置
+        styleManager.isDefaultGesture = initialState.isDefaultGesture
+        
+        // 恢复图标颜色设置
+        styleManager.iconColor = initialState.iconColor
+        styleManager.splitScreenIconColor = initialState.splitScreenIconColor
+        styleManager.splitScreenIconImage = initialState.splitScreenIconImage
+        
+        // 恢复闪光灯设置
+        isFlashEnabled = initialState.isFlashEnabled
+        flashIntensity = initialState.flashIntensity
+        AppConfig.AnimationConfig.Flash.isEnabled = initialState.isFlashEnabled
+        AppConfig.AnimationConfig.Flash.intensity = initialState.flashIntensity
+        
+        // 发送通知更新 UI
+        NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
     }
     
     public var body: some View {
@@ -290,7 +345,7 @@ public struct SettingsPanel: View {
                     VStack(spacing: SettingsTheme.itemSpacing) {
                         // 边框灯设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            HStack {
+                            HStack(spacing: 4) {
                                 Spacer()
                                 Text("灯光设置")
                                     .font(.headline)
@@ -344,7 +399,7 @@ public struct SettingsPanel: View {
                             
                             // 宽度选择
                             HStack {
-                                Text("宽度")
+                                Text("边灯宽度")
                                     .foregroundColor(SettingsTheme.subtitleColor)
                                 Picker("", selection: $styleManager.selectedWidth) {
                                     Text("1").tag(CGFloat(8))
@@ -366,15 +421,82 @@ public struct SettingsPanel: View {
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+
+
+                        // 闪光灯设置
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                            ZStack {
+                                HStack {
+                                    Spacer()
+                                    Text("闪光设置")
+                                        .font(.headline)
+                                        .foregroundColor(SettingsTheme.titleColor)
+                                    Spacer()
+                                }
+                                HStack {
+                                    ProLabel(text: "Pro")
+                                        .padding(.leading, 50)
+                                    Spacer()
+                                }
+                            }
+                            
+                            // 开关设置
+                            HStack {
+                                Text("开启闪光")
+                                    .foregroundColor(SettingsTheme.subtitleColor)
+                                Spacer()
+                                Toggle("", isOn: $isFlashEnabled)
+                                    .labelsHidden()
+                                    .onChange(of: isFlashEnabled) { newValue in
+                                        // 更新 AppConfig
+                                        AppConfig.AnimationConfig.Flash.isEnabled = newValue
+                                        // 保存设置
+                                        UserDefaults.standard.set(newValue, forKey: "FlashEnabled")
+                                    }
+                            }
+                            
+                            // 强度设置
+                            HStack {
+                                Text("闪光强度")
+                                    .foregroundColor(SettingsTheme.subtitleColor)
+                                Picker("", selection: $flashIntensity) {
+                                    ForEach(AppConfig.AnimationConfig.Flash.Intensity.allCases, id: \.self) { intensity in
+                                        Text(intensity.description).tag(intensity)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(maxWidth: .infinity)
+                                .disabled(!isFlashEnabled) // 当闪光灯关闭时禁用强度选择
+                                .opacity(isFlashEnabled ? 1.0 : 0.5) // 当闪光灯关闭时降低透明度
+                                .onChange(of: flashIntensity) { newValue in
+                                    // 更新 AppConfig
+                                    AppConfig.AnimationConfig.Flash.intensity = newValue
+                                    // 保存设置
+                                    UserDefaults.standard.set(newValue.rawValue, forKey: "FlashIntensity")
+                                }
+                            }
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(SettingsTheme.backgroundColor)
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
                         // 手势设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            HStack {
-                                Spacer()
-                                Text("手势设置")
-                                    .font(.headline)
-                                    .foregroundColor(SettingsTheme.titleColor)
-                                Spacer()
+                            ZStack {
+                                HStack {
+                                    Spacer()
+                                    Text("手势设置")
+                                        .font(.headline)
+                                        .foregroundColor(SettingsTheme.titleColor)
+                                    Spacer()
+                                }
+                                HStack {
+                                    ProLabel(text: "Pro")
+                                        .padding(.leading, 50)
+                                    Spacer()
+                                }
                             }
                             
                             HStack {
@@ -395,7 +517,7 @@ public struct SettingsPanel: View {
                                     }
 
                                     HStack(spacing: 4) {
-                                        Text("灯光")
+                                        Text("边灯")
                                             .foregroundColor(SettingsTheme.subtitleColor)
                                             .frame(width: 75, alignment: .center)
                                         Text(styleManager.isDefaultGesture ? "单击" : "双击")
@@ -437,9 +559,9 @@ public struct SettingsPanel: View {
                         
                         // 主屏蝴蝶颜色设置
                         VStack(alignment: .center, spacing: SettingsTheme.contentSpacing) {
-                            HStack {
+                            HStack(spacing: 4) {
                                 Spacer()
-                                Text("主屏陪伴设置")
+                                Text("主题设置")
                                     .font(.headline)
                                     .foregroundColor(SettingsTheme.titleColor)
                                 Spacer()
@@ -468,24 +590,33 @@ public struct SettingsPanel: View {
                         
                         // 双屏陪伴设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                            HStack {
-                                Spacer()
-                                Text("双屏陪伴设置")
-                                    .font(.headline)
-                                    .foregroundColor(SettingsTheme.titleColor)
-                                Spacer()
+                            ZStack {
+                                HStack {
+                                    Spacer()
+                                    Text("陪伴设置")
+                                        .font(.headline)
+                                        .foregroundColor(SettingsTheme.titleColor)
+                                    Spacer()
+                                }
+                                HStack {
+                                    ProLabel(text: "Pro")
+                                        .padding(.leading, 50)
+                                    Spacer()
+                                }
                             }
                             
                             HStack(spacing: SettingsTheme.buttonSpacing) {
                                 ForEach(splitScreenColors) { option in
                                     ColorButton(
                                         option: option,
-                                        isSelected: styleManager.splitScreenIconColor == option.color
-                                    ) {
-                                        styleManager.splitScreenIconColor = option.color
-                                        styleManager.saveCurrentSettings()
-                                        NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
-                                    }
+                                        isSelected: styleManager.splitScreenIconImage == option.image,
+                                        action: {
+                                            // 更新选择逻辑
+                                            styleManager.saveSplitScreenIconSettings(option)
+                                            styleManager.saveCurrentSettings()
+                                            NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
+                                        }
+                                    )
                                 }
                                 Spacer()
                             }
@@ -496,6 +627,7 @@ public struct SettingsPanel: View {
                         .cornerRadius(12)
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+                        
                         
                         // 版本信息
                         VStack(spacing: SettingsTheme.buttonSpacing) {
@@ -601,6 +733,11 @@ public struct SettingsPanel: View {
             .offset(x: offsetX, y: offsetY)
             .rotationEffect(.degrees(rotationAngle))
             .onAppear {
+                // 使用 UserSettingsManager 加载闪光灯设置
+                let flashSettings = UserSettingsManager.shared.loadFlashSettings()
+                isFlashEnabled = flashSettings.isEnabled
+                flashIntensity = flashSettings.intensity
+                
                 // 保存当前亮度并设置为最大
                 previousBrightness = UIScreen.main.brightness
                 UIScreen.main.brightness = 1.0
@@ -656,8 +793,8 @@ public struct SettingsPanel: View {
                     }
                 },
                 secondaryButton: .destructive(Text("不保存")) {
-                    // 恢复到上次保存的设置
-                    styleManager.restoreSettings()
+                    // 调用恢复设置方法
+                    restoreSettings()
                     withAnimation {
                         isPresented = false
                     }

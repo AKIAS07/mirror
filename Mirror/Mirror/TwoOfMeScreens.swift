@@ -135,6 +135,8 @@ private struct ScreenGestureView: View {
                 isDefaultGesture: isDefaultGesture,
                 isScreensSwapped: isScreensSwapped,
                 layoutDescription: layoutDescription,
+                isOriginalPaused: isOriginalPaused,
+                isMirroredPaused: isMirroredPaused,
                 currentImageScale: $currentScale,
                 originalImageScale: $originalScale,
                 currentMirroredImageScale: $currentMirroredScale,
@@ -244,7 +246,7 @@ private struct ScreenContentView: View {
             }
             
             // 闪光动画
-            if showFlash {
+            if showFlash && AppConfig.AnimationConfig.Flash.isEnabled {
                 FlashAnimationView(frame: CGRect(
                     x: 0,
                     y: 0,
@@ -1514,9 +1516,9 @@ struct TwoOfMeScreens: View {
                 )
                 .zIndex(4)
                 
-                // 截图动画 (zIndex = 5)
+                // 截图动画 (zIndex = 998)
                 ScreenshotAnimationView(
-                    isVisible: $screenshotManager.isFlashing,
+                    isVisible: $screenshotManager.showPreview,  // 修改这里，使用 showPreview 而不是 isFlashing
                     touchZonePosition: touchZonePosition
                 )
                 .zIndex(998)
@@ -1717,8 +1719,8 @@ struct TwoOfMeScreens: View {
             .onChange(of: isOriginalPaused) { newValue in
                 if newValue {
                     showOriginalFlash = true
-                    // 使用配置的闪光持续时间
-                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.flashDuration) {
+                    // 动画结束后自动隐藏
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                         showOriginalFlash = false
                     }
                 }
@@ -1726,8 +1728,8 @@ struct TwoOfMeScreens: View {
             .onChange(of: isMirroredPaused) { newValue in
                 if newValue {
                     showMirroredFlash = true
-                    // 使用配置的闪光持续时间
-                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.flashDuration) {
+                    // 动画结束后自动隐藏
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                         showMirroredFlash = false
                     }
                 }
@@ -1811,13 +1813,11 @@ struct TwoOfMeScreens: View {
         switch screenID {
         case .original:
             if isOriginalPaused {
-                // 退出定格状态
+                // 退出定格状态的逻辑保持不变
                 isOriginalPaused = false
                 pausedOriginalImage = nil
                 imageUploader.setPausedImage(nil, for: .original)
-                // 重置偏移量
                 originalOffset = .zero
-                // 同步缩放比例到实时画面
                 originalCameraScale = originalImageScale
                 currentCameraScale = currentImageScale
                 
@@ -1827,48 +1827,62 @@ struct TwoOfMeScreens: View {
                 print("定格画面比例: \(Int(currentImageScale * 100))%")
                 print("------------------------")
             } else {
-                // 进入定格状态
-                isOriginalPaused = true
+                // 先显示闪光动画
+                showOriginalFlash = true
+                
+                // 在定格前先记录当前的缩放值
+                let captureScale = currentImageScale       // 修改这里：使用 currentImageScale
+                let captureCameraScale = originalCameraScale
+                
                 // 同步实时画面的缩放比例到定格画面
                 originalImageScale = originalCameraScale
                 currentImageScale = currentCameraScale
                 
                 print("------------------------")
-                print("[定格进入] Original屏幕")
+                print("[定格准备] Original屏幕")
                 print("实时画面比例: \(Int(currentCameraScale * 100))%")
                 print("定格画面比例: \(Int(currentImageScale * 100))%")
                 print("------------------------")
 
-                // 显示闪光动画
-                showOriginalFlash = true
-                
                 // 延迟捕捉画面
                 DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.captureDelay) {
-                    if let image = originalImage {
-                        // 根据设备方向旋转图片
-                        let rotatedImage = rotateImageForCurrentOrientation(image)
-                        pausedOriginalImage = rotatedImage
+                    if let image = self.originalImage {
+                        // 进入定格状态
+                        self.isOriginalPaused = true
                         
-                        // 传入摄像头基准缩放比例
-                        imageUploader.setPausedImage(
+                        // 根据设备方向旋转图片
+                        let rotatedImage = self.rotateImageForCurrentOrientation(image)
+                        self.pausedOriginalImage = rotatedImage
+                        
+                        // 使用之前记录的缩放值
+                        self.imageUploader.setPausedImage(
                             rotatedImage,
                             for: .original,
-                            scale: currentImageScale,
-                            cameraScale: originalCameraScale
+                            scale: captureScale,          // 使用记录的缩放值
+                            cameraScale: captureCameraScale  // 使用记录的相机缩放值
                         )
+                        
+                        print("------------------------")
+                        print("[定格完成] Original屏幕")
+                        print("缩放比例: \(Int(captureScale * 100))%")
+                        print("相机比例: \(Int(captureCameraScale * 100))%")
+                        print("------------------------")
                     }
+                }
+                
+                // 延迟隐藏闪光动画
+                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                    self.showOriginalFlash = false
                 }
             }
             
         case .mirrored:
             if isMirroredPaused {
-                // 退出定格状态
+                // 退出定格状态的逻辑保持不变
                 isMirroredPaused = false
                 pausedMirroredImage = nil
                 imageUploader.setPausedImage(nil, for: .mirrored)
-                // 重置偏移量
                 mirroredOffset = .zero
-                // 同步缩放比例到实时画面
                 mirroredCameraScale = mirroredImageScale
                 currentMirroredCameraScale = currentMirroredImageScale
                 
@@ -1878,36 +1892,52 @@ struct TwoOfMeScreens: View {
                 print("定格画面比例: \(Int(currentMirroredImageScale * 100))%")
                 print("------------------------")
             } else {
-                // 进入定格状态
-                isMirroredPaused = true
+                // 先显示闪光动画
+                showMirroredFlash = true
+                
+                // 在定格前先记录当前的缩放值
+                let captureScale = currentMirroredImageScale  // 修改这里：使用 currentMirroredImageScale
+                let captureCameraScale = mirroredCameraScale
+                
                 // 同步实时画面的缩放比例到定格画面
                 mirroredImageScale = mirroredCameraScale
                 currentMirroredImageScale = currentMirroredCameraScale
                 
                 print("------------------------")
-                print("[定格进入] Mirrored屏幕")
+                print("[定格准备] Mirrored屏幕")
                 print("实时画面比例: \(Int(currentMirroredCameraScale * 100))%")
                 print("定格画面比例: \(Int(currentMirroredImageScale * 100))%")
                 print("------------------------")
 
-                // 显示闪光动画
-                showMirroredFlash = true
-                
                 // 延迟捕捉画面
                 DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.TwoOfMe.captureDelay) {
-                    if let image = mirroredImage {
-                        // 根据设备方向旋转图片
-                        let rotatedImage = rotateImageForCurrentOrientation(image)
-                        pausedMirroredImage = rotatedImage
+                    if let image = self.mirroredImage {
+                        // 进入定格状态
+                        self.isMirroredPaused = true
                         
-                        // 传入摄像头基准缩放比例
-                        imageUploader.setPausedImage(
+                        // 根据设备方向旋转图片
+                        let rotatedImage = self.rotateImageForCurrentOrientation(image)
+                        self.pausedMirroredImage = rotatedImage
+                        
+                        // 使用之前记录的缩放值
+                        self.imageUploader.setPausedImage(
                             rotatedImage,
                             for: .mirrored,
-                            scale: currentMirroredImageScale,
-                            cameraScale: mirroredCameraScale
+                            scale: captureScale,          // 使用记录的缩放值
+                            cameraScale: captureCameraScale  // 使用记录的相机缩放值
                         )
+                        
+                        print("------------------------")
+                        print("[定格完成] Mirrored屏幕")
+                        print("缩放比例: \(Int(captureScale * 100))%")
+                        print("相机比例: \(Int(captureCameraScale * 100))%")
+                        print("------------------------")
                     }
+                }
+                
+                // 延迟隐藏闪光动画
+                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                    self.showMirroredFlash = false
                 }
             }
         }

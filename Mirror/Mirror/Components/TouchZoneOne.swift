@@ -4,7 +4,7 @@ import SwiftUI
 extension View {
     @ViewBuilder
     func apply(colorModifier shouldApply: Bool) -> some View {
-        if shouldApply {
+        if shouldApply && !BorderLightStyleManager.shared.splitScreenIconImage.hasPrefix("color") {
             self.colorMultiply(BorderLightStyleManager.shared.splitScreenIconColor)
         } else {
             self
@@ -179,13 +179,13 @@ struct TouchZoneOne: View {
                 Image(getIconName(deviceOrientation))
                     .resizable()
                     .frame(width: 40, height: 40)
-                    .scaleEffect(dragScale)  // 添加缩放效果
-                    .opacity(1.0 - (dragScale - 1.0) * 0.1)  // 根据缩放比例计算透明度(1.0到0.3)
+                    .scaleEffect(dragScale)
+                    .opacity(1.0 - (dragScale - 1.0) * 0.1)
                     .contentShape(Rectangle())
                     .rotationEffect(getRotationAngle(deviceOrientation))
                     .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
-                    .animation(.easeInOut(duration: 0.2), value: dragScale)  // 缩放和透明度共用同一个动画
-                    .apply(colorModifier: styleManager.splitScreenIconColor != Color.purple)
+                    .animation(.easeInOut(duration: 0.2), value: dragScale)
+                    .apply(colorModifier: styleManager.splitScreenIconColor != .purple)
                     .position(x: screenWidth/2 + touchZonePosition.xOffset + (dragOffset * dragDampingFactor), y: screenHeight/2)
             }
             
@@ -363,101 +363,7 @@ struct TouchZoneOne: View {
 
                                 // 如果两个屏幕都未定格，则先定格再截图
                                 if !isOriginalPaused && !isMirroredPaused {
-                                    print("------------------------")
-                                    print("[双屏定格] 开始")
-                                    print("Original摄像头缩放: \(Int(self.currentCameraScale * 100))%")
-                                    print("Mirrored摄像头缩放: \(Int(self.currentMirroredCameraScale * 100))%")
-                                    print("------------------------")
-                                    
-                                    // 先设置定格状态
-                                    self.isOriginalPaused = true
-                                    self.isMirroredPaused = true
-                                    
-                                    // 然后设置定格图像
-                                    if let originalImg = self.originalImage, let mirroredImg = self.mirroredImage {
-                                        print("[双屏定格] 图片信息:")
-                                        print("Original图片尺寸: \(Int(originalImg.size.width))x\(Int(originalImg.size.height))")
-                                        print("Mirrored图片尺寸: \(Int(mirroredImg.size.width))x\(Int(mirroredImg.size.height))")
-                                        
-                                        // 处理图片旋转
-                                        let (rotatedOriginalImg, rotatedMirroredImg) = handleImageRotation(
-                                            originalImg: originalImg,
-                                            mirroredImg: mirroredImg
-                                        )
-                                        
-                                        // 先设置 Original 屏幕的定格图片
-                                        imageUploader.setPausedImage(
-                                            rotatedOriginalImg,
-                                            for: .original,
-                                            scale: self.currentCameraScale,
-                                            cameraScale: self.currentCameraScale,
-                                            isDualScreenMode: true,
-                                            otherScreenImage: rotatedMirroredImg
-                                        )
-                                        
-                                        // 等待一个很短的时间确保 Original 屏幕的设置完成
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                            // 然后设置 Mirrored 屏幕的定格图片
-                                            self.imageUploader.setPausedImage(
-                                                rotatedMirroredImg,
-                                                for: .mirrored,
-                                                scale: self.currentMirroredCameraScale,
-                                                cameraScale: self.currentMirroredCameraScale,
-                                                isDualScreenMode: true,
-                                                otherScreenImage: rotatedOriginalImg
-                                            )
-                                            
-                                            // 验证定格结果
-                                            if let pausedOriginal = self.pausedOriginalImage {
-                                                print("[双屏定格] Original定格成功")
-                                                print("定格后尺寸: \(Int(pausedOriginal.size.width))x\(Int(pausedOriginal.size.height))")
-                                            } else {
-                                                print("[错误] Original定格失败: pausedOriginalImage 为空")
-                                            }
-                                            
-                                            if let pausedMirrored = self.pausedMirroredImage {
-                                                print("[双屏定格] Mirrored定格成功")
-                                                print("定格后尺寸: \(Int(pausedMirrored.size.width))x\(Int(pausedMirrored.size.height))")
-                                            } else {
-                                                print("[错误] Mirrored定格失败: pausedMirroredImage 为空")
-                                            }
-                                            
-                                            // 更新截图管理器的图像引用并执行截图
-                                            self.screenshotManager.setImages(
-                                                original: rotatedOriginalImg,
-                                                mirrored: rotatedMirroredImg,
-                                                originalCameraScale: self.currentCameraScale,
-                                                mirroredCameraScale: self.currentMirroredCameraScale
-                                            )
-                                            self.screenshotManager.takeScreenshot()
-                                        }
-                                        
-                                    } else {
-                                        print("[错误] 无法获取原始图片:")
-                                        print("Original图片: \(self.originalImage != nil ? "存在" : "为空")")
-                                        print("Mirrored图片: \(self.mirroredImage != nil ? "存在" : "为空")")
-                                    }
-                                    
-                                    print("------------------------")
-                                    print("[双屏定格] 状态检查")
-                                    print("Original定格状态: \(self.isOriginalPaused)")
-                                    print("Mirrored定格状态: \(self.isMirroredPaused)")
-                                    print("Original图片是否存在: \(self.pausedOriginalImage != nil)")
-                                    print("Mirrored图片是否存在: \(self.pausedMirroredImage != nil)")
-                                    print("------------------------")
-                                    
-                                    // 显示动画
-                                    withAnimation {
-                                        showMiddleIconAnimation = true
-                                    }
-                                    
-                                    // 延迟隐藏动画
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
-                                        withAnimation {
-                                            showMiddleIconAnimation = false
-                                        }
-                                    }
-                                    
+                                    handleScreenshot()
                                 } else if self.isOriginalPaused && self.isMirroredPaused {
                                     // 如果两个屏幕都已定格，则退出定格状态
                                     print("------------------------")
@@ -483,56 +389,12 @@ struct TouchZoneOne: View {
                                     
                                     // 处理Original屏幕
                                     if !isOriginalPaused {
-                                        isOriginalPaused = true
-                                        if let originalImg = originalImage {
-                                            switch self.orientationManager.currentOrientation {
-                                            case .landscapeLeft:
-                                                pausedOriginalImage = originalImg.rotate(degrees: -90)
-                                            case .landscapeRight:
-                                                pausedOriginalImage = originalImg.rotate(degrees: 90)
-                                            case .portraitUpsideDown:
-                                                pausedOriginalImage = originalImg.rotate(degrees: 180)
-                                            default:
-                                                pausedOriginalImage = originalImg
-                                            }
-                                            print("Original画面已定格")
-                                            // 使用双屏模式设置定格图片，以触发自动缩放
-                                            imageUploader.setPausedImage(
-                                                self.pausedOriginalImage,
-                                                for: .original,
-                                                scale: self.currentCameraScale,
-                                                cameraScale: self.currentCameraScale,
-                                                isDualScreenMode: true,  // 设置为双屏模式
-                                                otherScreenImage: self.pausedMirroredImage  // 传入另一个屏幕的图片
-                                            )
-                                        }
+                                        handleOriginalScreenPause()
                                     }
                                     
                                     // 处理Mirrored屏幕
                                     if !isMirroredPaused {
-                                        isMirroredPaused = true
-                                        if let mirroredImg = mirroredImage {
-                                            switch self.orientationManager.currentOrientation {
-                                            case .landscapeLeft:
-                                                self.pausedMirroredImage = mirroredImg.rotate(degrees: -90)
-                                            case .landscapeRight:
-                                                self.pausedMirroredImage = mirroredImg.rotate(degrees: 90)
-                                            case .portraitUpsideDown:
-                                                self.pausedMirroredImage = mirroredImg.rotate(degrees: 180)
-                                            default:
-                                                self.pausedMirroredImage = mirroredImg
-                                            }
-                                            print("Mirrored画面已定格")
-                                            // 使用双屏模式设置定格图片，以触发自动缩放
-                                            imageUploader.setPausedImage(
-                                                self.pausedMirroredImage,
-                                                for: .mirrored,
-                                                scale: self.currentMirroredCameraScale,
-                                                cameraScale: self.currentMirroredCameraScale,
-                                                isDualScreenMode: true,  // 设置为双屏模式
-                                                otherScreenImage: self.pausedOriginalImage  // 传入另一个屏幕的图片
-                                            )
-                                        }
+                                        handleMirroredScreenPause()
                                     }
                                     
                                     print("------------------------")
@@ -545,7 +407,7 @@ struct TouchZoneOne: View {
                                     self.screenshotManager.setImages(
                                         original: self.pausedOriginalImage ?? self.originalImage,
                                         mirrored: self.pausedMirroredImage ?? self.mirroredImage,
-                                        originalCameraScale: self.currentCameraScale,  // 添加 Original 摄像头缩放比例
+                                        originalCameraScale: self.currentCameraScale,
                                         mirroredCameraScale: self.currentMirroredCameraScale
                                     )
                                     self.screenshotManager.takeScreenshot()
@@ -583,101 +445,7 @@ struct TouchZoneOne: View {
 
                             // 如果两个屏幕都未定格，则先定格再截图
                             if !isOriginalPaused && !isMirroredPaused {
-                                print("------------------------")
-                                print("[双屏定格] 开始")
-                                print("Original摄像头缩放: \(Int(self.currentCameraScale * 100))%")
-                                print("Mirrored摄像头缩放: \(Int(self.currentMirroredCameraScale * 100))%")
-                                print("------------------------")
-                                
-                                // 先设置定格状态
-                                self.isOriginalPaused = true
-                                self.isMirroredPaused = true
-                                
-                                // 然后设置定格图像
-                                if let originalImg = self.originalImage, let mirroredImg = self.mirroredImage {
-                                    print("[双屏定格] 图片信息:")
-                                    print("Original图片尺寸: \(Int(originalImg.size.width))x\(Int(originalImg.size.height))")
-                                    print("Mirrored图片尺寸: \(Int(mirroredImg.size.width))x\(Int(mirroredImg.size.height))")
-                                    
-                                    // 处理图片旋转
-                                    let (rotatedOriginalImg, rotatedMirroredImg) = handleImageRotation(
-                                        originalImg: originalImg,
-                                        mirroredImg: mirroredImg
-                                    )
-                                    
-                                    // 先设置 Original 屏幕的定格图片
-                                    imageUploader.setPausedImage(
-                                        rotatedOriginalImg,
-                                        for: .original,
-                                        scale: self.currentCameraScale,
-                                        cameraScale: self.currentCameraScale,
-                                        isDualScreenMode: true,
-                                        otherScreenImage: rotatedMirroredImg
-                                    )
-                                    
-                                    // 等待一个很短的时间确保 Original 屏幕的设置完成
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        // 然后设置 Mirrored 屏幕的定格图片
-                                        self.imageUploader.setPausedImage(
-                                            rotatedMirroredImg,
-                                            for: .mirrored,
-                                            scale: self.currentMirroredCameraScale,
-                                            cameraScale: self.currentMirroredCameraScale,
-                                            isDualScreenMode: true,
-                                            otherScreenImage: rotatedOriginalImg
-                                        )
-                                        
-                                        // 验证定格结果
-                                        if let pausedOriginal = self.pausedOriginalImage {
-                                            print("[双屏定格] Original定格成功")
-                                            print("定格后尺寸: \(Int(pausedOriginal.size.width))x\(Int(pausedOriginal.size.height))")
-                                        } else {
-                                            print("[错误] Original定格失败: pausedOriginalImage 为空")
-                                        }
-                                        
-                                        if let pausedMirrored = self.pausedMirroredImage {
-                                            print("[双屏定格] Mirrored定格成功")
-                                            print("定格后尺寸: \(Int(pausedMirrored.size.width))x\(Int(pausedMirrored.size.height))")
-                                        } else {
-                                            print("[错误] Mirrored定格失败: pausedMirroredImage 为空")
-                                        }
-                                        
-                                        // 更新截图管理器的图像引用并执行截图
-                                        self.screenshotManager.setImages(
-                                            original: rotatedOriginalImg,
-                                            mirrored: rotatedMirroredImg,
-                                            originalCameraScale: self.currentCameraScale,
-                                            mirroredCameraScale: self.currentMirroredCameraScale
-                                        )
-                                        self.screenshotManager.takeScreenshot()
-                                    }
-                                    
-                                } else {
-                                    print("[错误] 无法获取原始图片:")
-                                    print("Original图片: \(self.originalImage != nil ? "存在" : "为空")")
-                                    print("Mirrored图片: \(self.mirroredImage != nil ? "存在" : "为空")")
-                                }
-                                
-                                print("------------------------")
-                                print("[双屏定格] 状态检查")
-                                print("Original定格状态: \(self.isOriginalPaused)")
-                                print("Mirrored定格状态: \(self.isMirroredPaused)")
-                                print("Original图片是否存在: \(self.pausedOriginalImage != nil)")
-                                print("Mirrored图片是否存在: \(self.pausedMirroredImage != nil)")
-                                print("------------------------")
-                                
-                                // 显示动画
-                                withAnimation {
-                                    showMiddleIconAnimation = true
-                                }
-                                
-                                // 延迟隐藏动画
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
-                                    withAnimation {
-                                        showMiddleIconAnimation = false
-                                    }
-                                }
-                                
+                                handleScreenshot()
                             } else if self.isOriginalPaused && self.isMirroredPaused {
                                 // 如果两个屏幕都已定格，则退出定格状态
                                 print("------------------------")
@@ -703,56 +471,12 @@ struct TouchZoneOne: View {
                                 
                                 // 处理Original屏幕
                                 if !isOriginalPaused {
-                                    isOriginalPaused = true
-                                    if let originalImg = originalImage {
-                                        switch self.orientationManager.currentOrientation {
-                                        case .landscapeLeft:
-                                            pausedOriginalImage = originalImg.rotate(degrees: -90)
-                                        case .landscapeRight:
-                                            pausedOriginalImage = originalImg.rotate(degrees: 90)
-                                        case .portraitUpsideDown:
-                                            pausedOriginalImage = originalImg.rotate(degrees: 180)
-                                        default:
-                                            pausedOriginalImage = originalImg
-                                        }
-                                        print("Original画面已定格")
-                                        // 使用双屏模式设置定格图片，以触发自动缩放
-                                        imageUploader.setPausedImage(
-                                            self.pausedOriginalImage,
-                                            for: .original,
-                                            scale: self.currentCameraScale,
-                                            cameraScale: self.currentCameraScale,
-                                            isDualScreenMode: true,  // 设置为双屏模式
-                                            otherScreenImage: self.pausedMirroredImage  // 传入另一个屏幕的图片
-                                        )
-                                    }
+                                    handleOriginalScreenPause()
                                 }
                                 
                                 // 处理Mirrored屏幕
                                 if !isMirroredPaused {
-                                    isMirroredPaused = true
-                                    if let mirroredImg = mirroredImage {
-                                        switch self.orientationManager.currentOrientation {
-                                        case .landscapeLeft:
-                                            self.pausedMirroredImage = mirroredImg.rotate(degrees: -90)
-                                        case .landscapeRight:
-                                            self.pausedMirroredImage = mirroredImg.rotate(degrees: 90)
-                                        case .portraitUpsideDown:
-                                            self.pausedMirroredImage = mirroredImg.rotate(degrees: 180)
-                                        default:
-                                            self.pausedMirroredImage = mirroredImg
-                                        }
-                                        print("Mirrored画面已定格")
-                                        // 使用双屏模式设置定格图片，以触发自动缩放
-                                        imageUploader.setPausedImage(
-                                            self.pausedMirroredImage,
-                                            for: .mirrored,
-                                            scale: self.currentMirroredCameraScale,
-                                            cameraScale: self.currentMirroredCameraScale,
-                                            isDualScreenMode: true,  // 设置为双屏模式
-                                            otherScreenImage: self.pausedOriginalImage  // 传入另一个屏幕的图片
-                                        )
-                                    }
+                                    handleMirroredScreenPause()
                                 }
                                 
                                 print("------------------------")
@@ -765,7 +489,7 @@ struct TouchZoneOne: View {
                                 self.screenshotManager.setImages(
                                     original: self.pausedOriginalImage ?? self.originalImage,
                                     mirrored: self.pausedMirroredImage ?? self.mirroredImage,
-                                    originalCameraScale: self.currentCameraScale,  // 添加 Original 摄像头缩放比例
+                                    originalCameraScale: self.currentCameraScale,
                                     mirroredCameraScale: self.currentMirroredCameraScale
                                 )
                                 self.screenshotManager.takeScreenshot()
@@ -836,9 +560,13 @@ struct TouchZoneOne: View {
     }
     
     private func getIconName(_ orientation: UIDeviceOrientation) -> String {
-        // 根据分屏蝴蝶颜色设置选择图标
-        if styleManager.splitScreenIconColor == Color.purple {
-            // 选择彩色时使用默认的彩色图标逻辑
+        // 如果是 color1-6 图片，直接返回对应图片
+        if styleManager.splitScreenIconImage.hasPrefix("color") {
+            return styleManager.splitScreenIconImage
+        }
+        
+        // 否则使用原来的逻辑
+        if styleManager.splitScreenIconColor == .purple {
             switch orientation {
             case .landscapeLeft:
                 return isScreenSwapped ? "icon-bf-color-3" : "icon-bf-color-4"
@@ -956,5 +684,223 @@ struct TouchZoneOne: View {
         
         // 使用新的方法名
         ScreenshotManager.shared.takeScreenshot()
+    }
+    
+    // 在 TouchZoneOne struct 中添加新的方法
+    private func handleScreenshot() {
+        print("------------------------")
+        print("[双屏截图] 开始处理")
+        print("------------------------")
+        
+        // 如果两个屏幕都未定格，则先定格再截图
+        if !isOriginalPaused && !isMirroredPaused {
+            handleBothScreensUnpaused()
+        } else if isOriginalPaused && isMirroredPaused {
+            // 如果两个屏幕都已定格，则退出定格状态
+            handleBothScreensPaused()
+        } else {
+            // 处理一个定格一个未定格的情况
+            handlePartiallyPausedScreens()
+        }
+    }
+
+    // 处理两个屏幕都未定格的情况
+    private func handleBothScreensUnpaused() {
+        print("------------------------")
+        print("[双屏定格] 开始")
+        print("Original摄像头缩放: \(Int(self.currentCameraScale * 100))%")
+        print("Mirrored摄像头缩放: \(Int(self.currentMirroredCameraScale * 100))%")
+        print("------------------------")
+        
+        // 先设置定格状态
+        self.isOriginalPaused = true
+        self.isMirroredPaused = true
+        
+        // 然后设置定格图像
+        if let originalImg = self.originalImage, let mirroredImg = self.mirroredImage {
+            print("[双屏定格] 图片信息:")
+            print("Original图片尺寸: \(Int(originalImg.size.width))x\(Int(originalImg.size.height))")
+            print("Mirrored图片尺寸: \(Int(mirroredImg.size.width))x\(Int(mirroredImg.size.height))")
+            
+            // 处理图片旋转
+            let (rotatedOriginalImg, rotatedMirroredImg) = handleImageRotation(
+                originalImg: originalImg,
+                mirroredImg: mirroredImg
+            )
+            
+            // 先设置 Original 屏幕的定格图片，禁用闪光动画
+            imageUploader.setPausedImage(
+                rotatedOriginalImg,
+                for: .original,
+                scale: self.currentCameraScale,
+                cameraScale: self.currentCameraScale,
+                isDualScreenMode: true,  // 标记为双屏模式
+                otherScreenImage: rotatedMirroredImg,
+                disableFlash: true  // 添加参数禁用闪光
+            )
+            
+            // 等待一个很短的时间确保 Original 屏幕的设置完成
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                // 然后设置 Mirrored 屏幕的定格图片，禁用闪光动画
+                self.imageUploader.setPausedImage(
+                    rotatedMirroredImg,
+                    for: .mirrored,
+                    scale: self.currentMirroredCameraScale,
+                    cameraScale: self.currentMirroredCameraScale,
+                    isDualScreenMode: true,  // 标记为双屏模式
+                    otherScreenImage: rotatedOriginalImg,
+                    disableFlash: true  // 添加参数禁用闪光
+                )
+                
+                self.verifyAndTakeScreenshot(originalImg: rotatedOriginalImg, mirroredImg: rotatedMirroredImg)
+            }
+        } else {
+            print("[错误] 无法获取原始图片:")
+            print("Original图片: \(self.originalImage != nil ? "存在" : "为空")")
+            print("Mirrored图片: \(self.mirroredImage != nil ? "存在" : "为空")")
+        }
+        
+        showPauseAnimation()
+    }
+
+    // 处理两个屏幕都已定格的情况
+    private func handleBothScreensPaused() {
+        print("------------------------")
+        print("退出定格状态")
+        print("------------------------")
+        
+        // 先关闭所有手电筒
+        imageUploader.closeAllFlashlights()
+        
+        // 然后退出定格状态
+        self.isOriginalPaused = false
+        self.isMirroredPaused = false
+        self.pausedOriginalImage = nil
+        self.pausedMirroredImage = nil
+        
+        print("两个屏幕已退出定格")
+    }
+
+    // 处理一个定格一个未定格的情况
+    private func handlePartiallyPausedScreens() {
+        print("------------------------")
+        print("一个屏幕已定格，定格另一个屏幕")
+        print("------------------------")
+        
+        // 处理Original屏幕
+        if !isOriginalPaused {
+            handleOriginalScreenPause()
+        }
+        
+        // 处理Mirrored屏幕
+        if !isMirroredPaused {
+            handleMirroredScreenPause()
+        }
+        
+        print("------------------------")
+        print("开始执行截图")
+        print("Original定格状态: \(isOriginalPaused)")
+        print("Mirrored定格状态: \(isMirroredPaused)")
+        print("------------------------")
+        
+        // 更新截图管理器的图像引用并执行截图
+        self.screenshotManager.setImages(
+            original: self.pausedOriginalImage ?? self.originalImage,
+            mirrored: self.pausedMirroredImage ?? self.mirroredImage,
+            originalCameraScale: self.currentCameraScale,
+            mirroredCameraScale: self.currentMirroredCameraScale
+        )
+        self.screenshotManager.takeScreenshot()
+    }
+
+    // 处理 Original 屏幕的定格
+    private func handleOriginalScreenPause() {
+        isOriginalPaused = true
+        if let originalImg = originalImage {
+            switch self.orientationManager.currentOrientation {
+            case .landscapeLeft:
+                pausedOriginalImage = originalImg.rotate(degrees: -90)
+            case .landscapeRight:
+                pausedOriginalImage = originalImg.rotate(degrees: 90)
+            case .portraitUpsideDown:
+                pausedOriginalImage = originalImg.rotate(degrees: 180)
+            default:
+                pausedOriginalImage = originalImg
+            }
+            print("Original画面已定格")
+            imageUploader.setPausedImage(
+                self.pausedOriginalImage,
+                for: .original,
+                scale: self.currentCameraScale,
+                cameraScale: self.currentCameraScale,
+                isDualScreenMode: true,
+                otherScreenImage: self.pausedMirroredImage
+            )
+        }
+    }
+
+    // 处理 Mirrored 屏幕的定格
+    private func handleMirroredScreenPause() {
+        isMirroredPaused = true
+        if let mirroredImg = mirroredImage {
+            switch self.orientationManager.currentOrientation {
+            case .landscapeLeft:
+                self.pausedMirroredImage = mirroredImg.rotate(degrees: -90)
+            case .landscapeRight:
+                self.pausedMirroredImage = mirroredImg.rotate(degrees: 90)
+            case .portraitUpsideDown:
+                self.pausedMirroredImage = mirroredImg.rotate(degrees: 180)
+            default:
+                self.pausedMirroredImage = mirroredImg
+            }
+            print("Mirrored画面已定格")
+            imageUploader.setPausedImage(
+                self.pausedMirroredImage,
+                for: .mirrored,
+                scale: self.currentMirroredCameraScale,
+                cameraScale: self.currentMirroredCameraScale,
+                isDualScreenMode: true,
+                otherScreenImage: self.pausedOriginalImage
+            )
+        }
+    }
+
+    // 验证定格结果并执行截图
+    private func verifyAndTakeScreenshot(originalImg: UIImage, mirroredImg: UIImage) {
+        if let pausedOriginal = self.pausedOriginalImage {
+            print("[双屏定格] Original定格成功")
+            print("定格后尺寸: \(Int(pausedOriginal.size.width))x\(Int(pausedOriginal.size.height))")
+        } else {
+            print("[错误] Original定格失败: pausedOriginalImage 为空")
+        }
+        
+        if let pausedMirrored = self.pausedMirroredImage {
+            print("[双屏定格] Mirrored定格成功")
+            print("定格后尺寸: \(Int(pausedMirrored.size.width))x\(Int(pausedMirrored.size.height))")
+        } else {
+            print("[错误] Mirrored定格失败: pausedMirroredImage 为空")
+        }
+        
+        // 更新截图管理器的图像引用并执行截图
+        self.screenshotManager.setImages(
+            original: originalImg,
+            mirrored: mirroredImg,
+            originalCameraScale: self.currentCameraScale,
+            mirroredCameraScale: self.currentMirroredCameraScale
+        )
+        self.screenshotManager.takeScreenshot()
+    }
+
+    // 显示定格动画
+    private func showPauseAnimation() {
+        withAnimation {
+            showMiddleIconAnimation = false
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            withAnimation {
+                showMiddleIconAnimation = false
+            }
+        }
     }
 } 

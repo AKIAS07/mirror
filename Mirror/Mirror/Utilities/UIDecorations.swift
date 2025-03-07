@@ -15,29 +15,30 @@ struct FlashAnimationView: View {
     var frame: CGRect? = nil
     
     var body: some View {
-        Rectangle()
-            .fill(styleManager.selectedColor)
-            .opacity(isVisible ? 1 : 0) // 降低不透明度以使效果更柔和
-            .if(frame != nil) { view in
-                view.frame(width: frame!.width, height: frame!.height)
-                    .position(x: frame!.midX, y: frame!.midY)
-            }
-            .if(frame == nil) { view in
-                view.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .edgesIgnoringSafeArea(.all)
-            }
-            .onAppear {
-                // 立即显示闪光
-                withAnimation(.easeIn(duration: AppConfig.AnimationConfig.Flash.fadeInDuration)) {
-                    isVisible = true
+        if AppConfig.AnimationConfig.Flash.isEnabled {
+            Rectangle()
+                .fill(styleManager.selectedColor)
+                .opacity(isVisible ? AppConfig.AnimationConfig.Flash.intensity.rawValue : 0) // 使用配置的强度
+                .if(frame != nil) { view in
+                    view.frame(width: frame!.width, height: frame!.height)
+                        .position(x: frame!.midX, y: frame!.midY)
                 }
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
-                    withAnimation(.easeOut(duration: AppConfig.AnimationConfig.Flash.fadeOutDuration)) {
-                        isVisible = false
+                .if(frame == nil) { view in
+                    view.frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .edgesIgnoringSafeArea(.all)
+                }
+                .onAppear {
+                    withAnimation(.easeIn(duration: AppConfig.AnimationConfig.Flash.fadeInDuration)) {
+                        isVisible = true
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                        withAnimation(.easeOut(duration: AppConfig.AnimationConfig.Flash.fadeOutDuration)) {
+                            isVisible = false
+                        }
                     }
                 }
-            }
+        }
     }
 }
 
