@@ -173,61 +173,58 @@ class CameraManager: ObservableObject {
             session.inputs.forEach { session.removeInput($0) }
             session.outputs.forEach { session.removeOutput($0) }
             
-            // 设置视频输入
-            guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
-                throw NSError(domain: "CameraManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "无法获取前置相机"])
-            }
-            
-            // 配置相机设备以获得最佳质量
-            try videoDevice.lockForConfiguration()
-            if videoDevice.isExposureModeSupported(.continuousAutoExposure) {
-                videoDevice.exposureMode = .continuousAutoExposure
-            }
-            if videoDevice.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
-                videoDevice.whiteBalanceMode = .continuousAutoWhiteBalance
-            }
-            if videoDevice.isFocusModeSupported(.continuousAutoFocus) {
-                videoDevice.focusMode = .continuousAutoFocus
-            }
-            videoDevice.unlockForConfiguration()
-            
-            let videoInput = try AVCaptureDeviceInput(device: videoDevice)
-            guard session.canAddInput(videoInput) else {
-                throw NSError(domain: "CameraManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "无法添加相机输入"])
-            }
-            
-            session.addInput(videoInput)
-            currentCameraInput = videoInput
-            
-            // 设置视频输出
-            videoOutput.videoSettings = [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-            ]
-            videoOutput.alwaysDiscardsLateVideoFrames = true
-            
-            guard session.canAddOutput(videoOutput) else {
-                throw NSError(domain: "CameraManager", code: 3, userInfo: [NSLocalizedDescriptionKey: "无法添加视频输出"])
-            }
-            
-            session.addOutput(videoOutput)
-            
-            if let connection = videoOutput.connection(with: .video) {
-                if connection.isVideoMirroringSupported {
-                    connection.isVideoMirrored = true
+            // 获取后置摄像头
+            if let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
+                // 创建输入
+                let input = try AVCaptureDeviceInput(device: backCamera)
+                if session.canAddInput(input) {
+                    session.addInput(input)
+                    currentCameraInput = input
                 }
-                connection.videoOrientation = .portrait
-            }
-            
-            // 尝试设置最高质量预设
-            if session.canSetSessionPreset(.hd4K3840x2160) {
-                session.sessionPreset = .hd4K3840x2160
-                print("相机质量设置：4K (3840x2160)")
-            } else if session.canSetSessionPreset(.hd1920x1080) {
-                session.sessionPreset = .hd1920x1080
-                print("相机质量设置：1080p (1920x1080)")
-            } else if session.canSetSessionPreset(.hd1280x720) {
-                session.sessionPreset = .hd1280x720
-                print("相机质量设置：720p (1280x720)")
+                
+                // 配置相机设备以获得最佳质量
+                try backCamera.lockForConfiguration()
+                if backCamera.isExposureModeSupported(.continuousAutoExposure) {
+                    backCamera.exposureMode = .continuousAutoExposure
+                }
+                if backCamera.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
+                    backCamera.whiteBalanceMode = .continuousAutoWhiteBalance
+                }
+                if backCamera.isFocusModeSupported(.continuousAutoFocus) {
+                    backCamera.focusMode = .continuousAutoFocus
+                }
+                backCamera.unlockForConfiguration()
+                
+                // 设置视频输出
+                videoOutput.videoSettings = [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+                ]
+                videoOutput.alwaysDiscardsLateVideoFrames = true
+                
+                guard session.canAddOutput(videoOutput) else {
+                    throw NSError(domain: "CameraManager", code: 3, userInfo: [NSLocalizedDescriptionKey: "无法添加视频输出"])
+                }
+                
+                session.addOutput(videoOutput)
+                
+                if let connection = videoOutput.connection(with: .video) {
+                    if connection.isVideoMirroringSupported {
+                        connection.isVideoMirrored = true
+                    }
+                    connection.videoOrientation = .portrait
+                }
+                
+                // 尝试设置最高质量预设
+                if session.canSetSessionPreset(.hd4K3840x2160) {
+                    session.sessionPreset = .hd4K3840x2160
+                    print("相机质量设置：4K (3840x2160)")
+                } else if session.canSetSessionPreset(.hd1920x1080) {
+                    session.sessionPreset = .hd1920x1080
+                    print("相机质量设置：1080p (1920x1080)")
+                } else if session.canSetSessionPreset(.hd1280x720) {
+                    session.sessionPreset = .hd1280x720
+                    print("相机质量设置：720p (1280x720)")
+                }
             }
             
             session.commitConfiguration()
