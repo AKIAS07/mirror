@@ -37,9 +37,10 @@ let mainScreenColors: [ColorOption] = [
 let splitScreenColors: [ColorOption] = [
     ColorOption(color: .purple, image: "icon-bf-color-1", background: nil, useOriginalColor: true),
     ColorOption(color: .clear, image: "color1", background: nil, useOriginalColor: true),
-    ColorOption(color: .clear, image: "color2", background: nil, useOriginalColor: true), 
+    ColorOption(color: .clear, image: "color2", background: nil, useOriginalColor: true),
+    ColorOption(color: .clear, image: "color7", background: nil, useOriginalColor: true), 
     ColorOption(color: .clear, image: "color3", background: nil, useOriginalColor: true),
+    ColorOption(color: .clear, image: "color6", background: nil, useOriginalColor: true),
     ColorOption(color: .clear, image: "color4", background: nil, useOriginalColor: true),
-    ColorOption(color: .clear, image: "color5", background: nil, useOriginalColor: true),
-    ColorOption(color: .clear, image: "color6", background: nil, useOriginalColor: true)
+    ColorOption(color: .clear, image: "color5", background: nil, useOriginalColor: true)
 ] 

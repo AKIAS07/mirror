@@ -1,55 +1,85 @@
 {
   "images" : [
     {
-      "filename" : "icon-bf-logo1-40.png",
+      "filename" : "icon-bf-rainbow2-40.png",
       "idiom" : "iphone",
       "scale" : "2x",
       "size" : "20x20"
     },
     {
-      "filename" : "icon-bf-logo1-60.png",
+      "filename" : "icon-bf-rainbow2-60.png",
       "idiom" : "iphone",
       "scale" : "3x",
       "size" : "20x20"
     },
     {
-      "filename" : "icon-bf-logo1-58.png",
+      "filename" : "icon-bf-rainbow2-58.png",
       "idiom" : "iphone",
       "scale" : "2x",
       "size" : "29x29"
     },
     {
-      "filename" : "icon-bf-logo1-87.png",
+      "filename" : "icon-bf-rainbow2-87.png",
       "idiom" : "iphone",
       "scale" : "3x",
       "size" : "29x29"
     },
     {
-      "filename" : "icon-bf-logo1-80.png",
+      "filename" : "icon-bf-rainbow2-80.png",
       "idiom" : "iphone",
       "scale" : "2x",
       "size" : "40x40"
     },
     {
-      "filename" : "icon-bf-logo1-120.png",
+      "filename" : "icon-bf-rainbow2-120.png",
       "idiom" : "iphone",
       "scale" : "3x",
       "size" : "40x40"
     },
     {
-      "filename" : "icon-bf-logo1-120.png",
+      "filename" : "icon-bf-rainbow2-120.png",
       "idiom" : "iphone",
       "scale" : "2x",
       "size" : "60x60"
     },
     {
-      "filename" : "icon-bf-logo1-180.png",
+      "filename" : "icon-bf-rainbow2-180.png",
       "idiom" : "iphone",
       "scale" : "3x",
       "size" : "60x60"
     },
     {
-      "filename" : "icon-bf-logo1-1024.png",
+      "filename" : "icon-bf-rainbow2-40.png",
+      "idiom" : "ipad",
+      "scale" : "2x",
+      "size" : "20x20"
+    },
+    {
+      "filename" : "icon-bf-rainbow2-58.png",
+      "idiom" : "ipad",
+      "scale" : "2x",
+      "size" : "29x29"
+    },
+    {
+      "filename" : "icon-bf-rainbow2-80.png",
+      "idiom" : "ipad",
+      "scale" : "2x",
+      "size" : "40x40"
+    },
+    {
+      "filename" : "icon-bf-rainbow2-152.png",
+      "idiom" : "ipad",
+      "scale" : "2x",
+      "size" : "76x76"
+    },
+    {
+      "filename" : "icon-bf-rainbow2-167.png",
+      "idiom" : "ipad",
+      "scale" : "2x",
+      "size" : "83.5x83.5"
+    },
+    {
+      "filename" : "icon-bf-rainbow2-1024.png",
       "idiom" : "ios-marketing",
       "scale" : "1x",
       "size" : "1024x1024"

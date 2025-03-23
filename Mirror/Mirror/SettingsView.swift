@@ -30,7 +30,7 @@ public struct SettingsTheme {
     // 间距
     static let itemSpacing: CGFloat = 24  // 设置项之间的间距
     static let contentSpacing: CGFloat = 16  // 设置项内容的间距
-    static let buttonSpacing: CGFloat = 10  // 按钮之间的间距
+    static let buttonSpacing: CGFloat = 7  // 按钮之间的间距
     static let padding: CGFloat = 10  // 内边距
     
     // 阴影
@@ -683,17 +683,17 @@ public struct SettingsPanel: View {
                         
                         // 版本信息
                         VStack(spacing: SettingsTheme.buttonSpacing) {
-                            Text("Mira")
+                            Text("Mira Pro")
                                 .font(.headline)
                                 .foregroundColor(.gray)
-                            Text("Version 1.0.0")
+                            Text("Version 1.0")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                             
                             // 添加评价按钮
                             Button(action: {
                                 // App Store 链接占位符
-                                if let url = URL(string: "https://apps.apple.com/app/idXXXXXXXXXX") {
+                                if let url = URL(string: "https://apps.apple.com/app/id6743115750") {
                                     UIApplication.shared.open(url)
                                 }
                             }) {
@@ -718,56 +718,56 @@ public struct SettingsPanel: View {
                             }
                             
                             // 添加更多应用栏目
-                            VStack(spacing: 12) {
-                                Text("更多应用")
-                                    .font(.headline)
-                                    .foregroundColor(.gray)
-                                    .padding(.top, 16)
+                            // VStack(spacing: 12) {
+                            //     Text("更多应用")
+                            //         .font(.headline)
+                            //         .foregroundColor(.gray)
+                            //         .padding(.top, 16)
                                 
-                                HStack(spacing: 24) {
-                                    // 第一个应用
-                                    Button(action: {
-                                        if let url = URL(string: "https://apps.apple.com/app/idYYYYYYYYYY") {
-                                            UIApplication.shared.open(url)
-                                        }
-                                    }) {
-                                        VStack(spacing: 4) {
-                                            Image("app-1-icon") // 替换为实际的应用图标
-                                                .resizable()
-                                                .frame(width: 50, height: 50)
-                                                .cornerRadius(12)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                                )
-                                            Text("应用名称1")
-                                                .font(.system(size: 12))
-                                                .foregroundColor(.gray)
-                                        }
-                                    }
+                            //     HStack(spacing: 24) {
+                            //         // 第一个应用
+                            //         Button(action: {
+                            //             if let url = URL(string: "https://apps.apple.com/app/idYYYYYYYYYY") {
+                            //                 UIApplication.shared.open(url)
+                            //             }
+                            //         }) {
+                            //             VStack(spacing: 4) {
+                            //                 Image("app-1-icon") // 替换为实际的应用图标
+                            //                     .resizable()
+                            //                     .frame(width: 50, height: 50)
+                            //                     .cornerRadius(12)
+                            //                     .overlay(
+                            //                         RoundedRectangle(cornerRadius: 12)
+                            //                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            //                     )
+                            //                 Text("敬请期待")
+                            //                     .font(.system(size: 12))
+                            //                     .foregroundColor(.gray)
+                            //             }
+                            //         }
                                     
-                                    // 第二个应用
-                                    Button(action: {
-                                        if let url = URL(string: "https://apps.apple.com/app/idZZZZZZZZZZ") {
-                                            UIApplication.shared.open(url)
-                                        }
-                                    }) {
-                                        VStack(spacing: 4) {
-                                            Image("app-2-icon") // 替换为实际的应用图标
-                                                .resizable()
-                                                .frame(width: 50, height: 50)
-                                                .cornerRadius(12)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 12)
-                                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                                )
-                                            Text("应用名称2")
-                                                .font(.system(size: 12))
-                                                .foregroundColor(.gray)
-                                        }
-                                    }
-                                }
-                            }
+                            //         // 第二个应用
+                            //         Button(action: {
+                            //             if let url = URL(string: "https://apps.apple.com/app/idZZZZZZZZZZ") {
+                            //                 UIApplication.shared.open(url)
+                            //             }
+                            //         }) {
+                            //             VStack(spacing: 4) {
+                            //                 Image("app-2-icon") // 替换为实际的应用图标
+                            //                     .resizable()
+                            //                     .frame(width: 50, height: 50)
+                            //                     .cornerRadius(12)
+                            //                     .overlay(
+                            //                         RoundedRectangle(cornerRadius: 12)
+                            //                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            //                     )
+                            //                 Text("敬请期待")
+                            //                     .font(.system(size: 12))
+                            //                     .foregroundColor(.gray)
+                            //             }
+                            //         }
+                            //     }
+                            // }
                         }
                         .padding(.top, SettingsTheme.buttonSpacing)
                         .padding(.bottom, SettingsTheme.buttonSpacing)

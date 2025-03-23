@@ -86,7 +86,7 @@ class PermissionManager: ObservableObject {
         print("------------------------")
         print("[相册权限] 检查权限")
         print("当前状态: \(status.rawValue)")
-        print("图片是否存在: \(image != nil)")
+        //print("图片是否存在: \(image != nil)")
         print("------------------------")
         
         DispatchQueue.main.async { [weak self] in
@@ -329,10 +329,10 @@ struct CameraPermissionView: View {
                 
                 VStack(spacing: 50) { // 添加固定间距
                     // 图片保持原位置
-                    Image("icon-bf-white")
+                    Image("color7")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 150, height: 150)
+                        .frame(width: 120, height: 120)
                         .position(x: geometry.size.width/2, y: geometry.size.height/2-100)
                         .foregroundColor(.white)
                         .font(.largeTitle)

@@ -527,10 +527,10 @@ public struct HelpPanel: View {
 
                         // 版本信息
                         VStack(spacing: SettingsTheme.buttonSpacing) {
-                            Text("Mira")
+                            Text("Mira Pro")
                                 .font(.headline)
                                 .foregroundColor(.gray)
-                            Text("Version 1.0.0")
+                            Text("Version 1.0")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                         }
