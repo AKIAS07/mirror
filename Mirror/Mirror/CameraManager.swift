@@ -6,6 +6,8 @@ class CameraManager: ObservableObject {
     @Published var permissionGranted = false
     private var currentCameraInput: AVCaptureDeviceInput?
     @Published var isMirrored = false
+    @Published var isFront = true
+    @Published var isBack = false
     let videoOutput = AVCaptureVideoDataOutput()
     private var isSettingUpCamera = false
     
@@ -173,9 +175,12 @@ class CameraManager: ObservableObject {
             session.inputs.forEach { session.removeInput($0) }
             session.outputs.forEach { session.removeOutput($0) }
             
+            // 根据 isFront 和 isBack 设置摄像头位置
+            let cameraPosition: AVCaptureDevice.Position = isFront ? .front : .back
+            
             // 设置视频输入
-            guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
-                throw NSError(domain: "CameraManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "无法获取前置相机"])
+            guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: cameraPosition) else {
+                throw NSError(domain: "CameraManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "无法获取\(isFront ? "前置" : "后置")相机"])
             }
             
             // 配置相机设备以获得最佳质量
@@ -290,5 +295,12 @@ class CameraManager: ObservableObject {
         } catch {
             print("设置焦距失败：\(error.localizedDescription)")
         }
+    }
+    
+    func switchCamera() {
+        isFront.toggle()
+        isBack.toggle()
+        restartCamera()
+        print("切换到\(isFront ? "前置" : "后置")摄像头")
     }
 } 

@@ -12,6 +12,7 @@ import Photos
 
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
+    @StateObject private var captureState = CaptureState()
     @State private var showingTwoOfMe = false
     @State private var isCameraActive = true
     @State private var showRestartHint = false
@@ -24,6 +25,7 @@ struct ContentView: View {
     }()
     @State private var ModeBSelected = false
     @State private var isLighted = false
+    @State private var isControlsVisible = true  // 统一的控制可见性状态
     
     @State private var isUserAdjustingBrightness = false
     
@@ -74,8 +76,7 @@ struct ContentView: View {
     // 添加设备方向状态
     @StateObject private var orientationManager = DeviceOrientationManager.shared
     
-    // 添加共享的 CaptureState
-    @StateObject private var captureState = CaptureState()
+    @State private var isToolbarVisible = true
     
     @StateObject private var permissionManager = PermissionManager.shared
     
@@ -178,7 +179,7 @@ struct ContentView: View {
                     .zIndex(2)
                     
                     // 控制面板
-                    if isControlAreaVisible {
+                    if isControlsVisible {
                         ZStack {
                             // 黑色容器和黄色容器组
                             ZStack {
@@ -307,6 +308,22 @@ struct ContentView: View {
                 } else {
                     CameraPermissionView()
                 }
+                
+                // 添加工具栏到最顶层
+                if isControlsVisible {
+                    DraggableToolbar(captureState: captureState, isVisible: $isControlsVisible)
+                        .zIndex(6)
+                }
+                
+                // 添加截图操作视图
+                CaptureActionsView(captureState: captureState) {
+                    // 截图操作完成后显示所有控制界面
+                    withAnimation {
+                        isControlsVisible = true
+                        isControlAreaVisible = true
+                    }
+                }
+                .zIndex(7)
                 
                 // 添加提示视图到最顶层
                 if showArrowHint {

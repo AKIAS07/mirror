@@ -246,7 +246,7 @@ public struct CaptureActionsView: View {
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .contentShape(Rectangle())
-                            .allowsHitTesting(true) // 确保只在需要时接收点击事件
+                            .allowsHitTesting(true)
                             .onTapGesture {
                                 withAnimation {
                                     captureState.reset {
@@ -264,20 +264,8 @@ public struct CaptureActionsView: View {
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .scaleEffect(captureState.currentScale)
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                            .allowsHitTesting(false) // 禁止图片层接收点击事件
-                            .background(GeometryReader { geometry in
-                                Color.clear.onAppear {
-                                    let frame = geometry.frame(in: .global)
-                                    print("截图图片中心点: x=\(frame.midX), y=\(frame.midY)")
-                                    print("截图图片尺寸: width=\(frame.width), height=\(frame.height)")
-                                    print("截图图片缩放比例: \(captureState.currentScale)")
-                                }
-                            })
+                            .allowsHitTesting(false)
                     }
-                    
-                    // // 添加闪光动画
-                    // FlashAnimationView()
-                    //     .zIndex(3)
                     
                     // 半透明背景层（用于点击隐藏按钮）
                     Color.black.opacity(0.01)
@@ -296,7 +284,7 @@ public struct CaptureActionsView: View {
                             }
                         }
                     
-                    // 按钮控制层
+                    // 底部操作按钮
                     if captureState.showButtons {
                         VStack(spacing: 0) {
                             Spacer()
@@ -312,12 +300,6 @@ public struct CaptureActionsView: View {
                                         color: styleManager.iconColor,
                                         rotationAngle: getRotationAngle()
                                     )
-                                    .background(GeometryReader { geometry in
-                                        Color.clear.onAppear {
-                                            let frame = geometry.frame(in: .global)
-                                            print("下载按钮位置: x=\(frame.midX), y=\(frame.midY)")
-                                        }
-                                    })
                                     
                                     // 分享按钮
                                     CaptureActionButton(
@@ -327,27 +309,6 @@ public struct CaptureActionsView: View {
                                     )
                                     .rotationEffect(.degrees(getRotationAngle()))
                                     .animation(.easeInOut(duration: 0.3), value: getRotationAngle())
-                                    .background(GeometryReader { geometry in
-                                        Color.clear.onAppear {
-                                            let frame = geometry.frame(in: .global)
-                                            print("分享按钮位置: x=\(frame.midX), y=\(frame.midY)")
-                                        }
-                                    })
-                                    // 添加保存成功提示
-                                    if captureState.showSaveSuccess {
-                                        Text("已保存到相册")
-                                            .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(.white)
-                                            .multilineTextAlignment(.center)
-                                            .lineLimit(nil)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .padding(.vertical, 8)
-                                            .padding(.horizontal, 16)
-                                            .background(Color.black.opacity(0.6))
-                                            .cornerRadius(8)
-                                            .rotationEffect(.degrees(getRotationAngle()))
-                                    }
-
                                     
                                     Spacer()
                                 }
@@ -355,8 +316,52 @@ public struct CaptureActionsView: View {
                             .frame(height: 120)
                         }
                         .frame(width: screenBounds.width, height: screenBounds.height)
-                        
+                    }
                     
+                    // 添加保存成功提示
+                    if captureState.showSaveSuccess {
+                        Text("已保存到相册")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(8)
+                            .rotationEffect(.degrees(getRotationAngle()))
+                            .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                    }
+                    
+                    // 将关闭按钮移到最上层
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                print("关闭按钮被点击")
+                                // 触发震动反馈
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.prepare()
+                                generator.impactOccurred()
+                                
+                                withAnimation {
+                                    captureState.reset {
+                                        onDismiss()
+                                    }
+                                }
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.black.opacity(0.35))
+                                    .clipShape(Circle())
+                            }
+                            .padding(.top, 80)  // 增加顶部间距
+                            .zIndex(100)  // 确保按钮在最上层
+                        }
+                        Spacer()
                     }
                 }
             }

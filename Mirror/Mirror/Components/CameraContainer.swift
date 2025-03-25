@@ -40,6 +40,7 @@ struct CameraContainer: View {
     private let captureDelay: TimeInterval = AppConfig.AnimationConfig.Capture.delay
     
     @State private var showIconAnimation: Bool = false
+    @State private var flashAnimationObserver: NSObjectProtocol? = nil
     
     init(session: AVCaptureSession, 
          isMirrored: Bool, 
@@ -200,10 +201,38 @@ struct CameraContainer: View {
             .onAppear {
                 CameraContainerFrame.frame = containerFrame
                 print("相机容器 - 设置 Frame:", containerFrame)
+                
+                setupVideoProcessing()
+                feedbackGenerator.prepare()
+                
+                // 添加闪光动画通知监听
+                flashAnimationObserver = NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("TriggerFlashAnimation"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    // 显示闪光动画
+                    withAnimation {
+                        showIconAnimation = true
+                    }
+                    
+                    // 延迟隐藏闪光动画
+                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                        withAnimation {
+                            showIconAnimation = false
+                        }
+                    }
+                }
             }
             .onChange(of: geometry.size) { _ in
                 CameraContainerFrame.frame = containerFrame
                 print("相机容器 - 更新 Frame:", containerFrame)
+            }
+            .onDisappear {
+                // 移除通知监听
+                if let observer = flashAnimationObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -225,10 +254,6 @@ struct CameraContainer: View {
             }
             print("选中状态：\(containerSelected)")
             print("屏幕点亮状态：\(isLighted)")
-        }
-        .onAppear {
-            setupVideoProcessing()
-            feedbackGenerator.prepare()
         }
     }
     
