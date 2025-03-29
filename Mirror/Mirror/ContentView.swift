@@ -311,8 +311,17 @@ struct ContentView: View {
                 
                 // 添加工具栏到最顶层
                 if isControlsVisible {
-                    DraggableToolbar(captureState: captureState, isVisible: $isControlsVisible)
-                        .zIndex(6)
+                    DraggableToolbar(
+                        captureState: captureState,
+                        isVisible: $isControlsVisible,
+                        containerSelected: cameraManager.isMirrored ? $ModeASelected : $ModeBSelected,
+                        isLighted: $isLighted,
+                        previousBrightness: previousBrightness,
+                        currentScale: $currentScale,
+                        baseScale: $baseScale,
+                        cameraManager: cameraManager
+                    )
+                    .zIndex(6)
                 }
                 
                 // 添加截图操作视图
@@ -875,4 +884,6 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environmentObject(CameraManager())
+        .environmentObject(CaptureState())
 }

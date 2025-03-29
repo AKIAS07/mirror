@@ -359,10 +359,11 @@ public struct CaptureActionsView: View {
                                     .clipShape(Circle())
                             }
                             .padding(.top, 80)  // 增加顶部间距
-                            .zIndex(100)  // 确保按钮在最上层
+                            Spacer()
                         }
                         Spacer()
                     }
+                    .zIndex(100)  // 确保按钮在最上层
                 }
             }
             .ignoresSafeArea()

@@ -30,7 +30,7 @@ enum ToolbarButtonType: Int, CaseIterable {
     case live = 0
     case light
     case capture
-    case adjust
+    case camera  // 改为摄像头切换按钮
     case zoom
     
     var icon: String {
@@ -38,8 +38,8 @@ enum ToolbarButtonType: Int, CaseIterable {
         case .live: return "livephoto"
         case .light: return "lightbulb"
         case .capture: return "circle.fill"
-        case .adjust: return "slider.horizontal.3"
-        case .zoom: return "1.circle"
+        case .camera: return "camera.rotate"  // 使用摄像头切换图标
+        case .zoom: return "1.circle"  // 默认显示1倍
         }
     }
     
@@ -51,23 +51,39 @@ enum ToolbarButtonType: Int, CaseIterable {
     }
     
     var isSystemIcon: Bool {
-        return true // 所有图标都使用系统图标
+        return true
     }
 }
 
 struct DraggableToolbar: View {
-    @State private var position: ToolbarPosition = .top
+    @AppStorage("toolbarPosition") private var position: ToolbarPosition = .top {
+        didSet {
+            print("工具条位置已更新：\(position)")
+        }
+    }
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
     @State private var dragDirection: DragDirection = .none
     @State private var showPositionIndicator = false
-    @ObservedObject var captureState: CaptureState  // 添加 CaptureState
-    @Binding var isVisible: Bool  // 添加可见性控制
+    @ObservedObject var captureState: CaptureState
+    @Binding var isVisible: Bool
+    
+    // 添加边框灯状态绑定
+    @Binding var containerSelected: Bool
+    @Binding var isLighted: Bool
+    let previousBrightness: CGFloat
+    
+    // 添加缩放相关的属性
+    @Binding var currentScale: CGFloat
+    @Binding var baseScale: CGFloat
+    
+    // 添加相机管理器
+    let cameraManager: CameraManager
     
     // 工具栏尺寸常量
     private let toolbarHeight: CGFloat = 60
     private let toolbarWidth: CGFloat = UIScreen.main.bounds.width
-    private let buttonSpacing: CGFloat = 25 // 增加按钮间距
+    private let buttonSpacing: CGFloat = 25
     private let edgeThreshold: CGFloat = 80
     
     // 添加触觉反馈生成器
@@ -236,12 +252,21 @@ struct DraggableToolbar: View {
                 }) {
                     Group {
                         if buttonType == .capture {
-                            // 拍照按钮特殊样式
                             Circle()
                                 .fill(Color.white)
                                 .frame(width: buttonType.size, height: buttonType.size)
+                        } else if buttonType == .zoom {
+                            // 自定义焦距按钮显示，使用舍入到50的倍数
+                            let percentage = Int(currentScale * 100)
+                            let roundedPercentage = Int(round(Double(percentage) / 50.0) * 50)
+                            let zoomText = currentScale <= 1.0 ? "100" : 
+                                          currentScale >= 10.0 ? "1000" : 
+                                          "\(roundedPercentage)"
+                            Text(zoomText)
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.white)
+                                .frame(width: buttonType.size, height: buttonType.size)
                         } else {
-                            // 其他按钮使用系统图标
                             Image(systemName: buttonType.icon)
                                 .font(.system(size: 22))
                                 .foregroundColor(.white)
@@ -282,14 +307,54 @@ struct DraggableToolbar: View {
                 }
             }
             
+        case .light:
+            withAnimation(.easeInOut(duration: 0.2)) {
+                containerSelected.toggle()
+                
+                if containerSelected {
+                    UIScreen.main.brightness = 1.0
+                    print("灯光按钮：提高亮度至最大")
+                    feedbackGenerator.impactOccurred(intensity: 1.0)
+                    isLighted = true
+                } else {
+                    UIScreen.main.brightness = previousBrightness
+                    print("灯光按钮：恢复原始亮度：\(previousBrightness)")
+                    isLighted = false
+                }
+            }
+            print("灯光按钮：选中状态：\(containerSelected)")
+            print("灯光按钮：屏幕点亮状态：\(isLighted)")
+            
         case .live:
             print("Live 按钮点击")
-        case .light:
-            print("灯光按钮点击")
-        case .adjust:
-            print("调节按钮点击")
+        case .camera:
+            // 切换前后摄像头
+            cameraManager.switchCamera()
+            print("切换摄像头：\(cameraManager.isFront ? "前置" : "后置")")
+            
         case .zoom:
-            print("焦距按钮点击")
+            // 在预设的缩放值之间循环
+            let nextScale: CGFloat
+            switch currentScale {
+            case 1.0:
+                nextScale = 2.0  // 200%
+            case 2.0:
+                nextScale = 5.0  // 500%
+            case 5.0:
+                nextScale = 10.0 // 1000%
+            default:
+                nextScale = 1.0  // 100%
+            }
+            
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                currentScale = nextScale
+                baseScale = nextScale
+            }
+            
+            // 使用舍入到50的倍数来显示日志
+            let percentage = Int(nextScale * 100)
+            let roundedPercentage = Int(round(Double(percentage) / 50.0) * 50)
+            print("焦距按钮：缩放比例更新为 \(roundedPercentage)%")
         }
     }
     
@@ -316,5 +381,36 @@ struct DraggableToolbar: View {
 }
 
 #Preview {
-    DraggableToolbar(captureState: CaptureState(), isVisible: .constant(true))
+    DraggableToolbar(
+        captureState: CaptureState(),
+        isVisible: .constant(true),
+        containerSelected: .constant(false),
+        isLighted: .constant(false),
+        previousBrightness: UIScreen.main.brightness,
+        currentScale: .constant(1.0),
+        baseScale: .constant(1.0),
+        cameraManager: CameraManager()  // 添加相机管理器
+    )
+}
+
+// 添加 ToolbarPosition 的 RawRepresentable 实现
+extension ToolbarPosition: RawRepresentable {
+    typealias RawValue = String
+    
+    init?(rawValue: String) {
+        switch rawValue {
+        case "top": self = .top
+        case "left": self = .left
+        case "right": self = .right
+        default: return nil
+        }
+    }
+    
+    var rawValue: String {
+        switch self {
+        case .top: return "top"
+        case .left: return "left"
+        case .right: return "right"
+        }
+    }
 } 
