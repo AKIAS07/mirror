@@ -35,7 +35,7 @@ enum ToolbarButtonType: Int, CaseIterable {
     
     var icon: String {
         switch self {
-        case .live: return "livephoto"
+        case .live: return "livephoto"  // 改为根据状态动态获取
         case .light: return "lightbulb"
         case .capture: return "circle.fill"
         case .camera: return "camera.rotate"  // 使用摄像头切换图标
@@ -266,6 +266,12 @@ struct DraggableToolbar: View {
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.white)
                                 .frame(width: buttonType.size, height: buttonType.size)
+                        } else if buttonType == .live {
+                            // 为实况按钮添加特殊样式
+                            Image(systemName: cameraManager.isUsingSystemCamera ? "livephoto" : "livephoto.slash")
+                                .font(.system(size: 22))
+                                .foregroundColor(cameraManager.isUsingSystemCamera ? .yellow : .white)
+                                .frame(width: buttonType.size, height: buttonType.size)
                         } else {
                             Image(systemName: buttonType.icon)
                                 .font(.system(size: 22))
@@ -285,54 +291,102 @@ struct DraggableToolbar: View {
         
         switch buttonType {
         case .capture:
+            print("------------------------")
+            print("工具栏：点击拍照按钮")
+            print("------------------------")
+            
             // 隐藏所有控制界面
             withAnimation {
                 isVisible = false
             }
             
-            // 触发截图
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                captureState.isCapturing = true
-                
-                // 发送闪光动画通知
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("TriggerFlashAnimation"),
-                    object: nil
-                )
-                
-                // 截图完成后的回调
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    captureState.showButtons = true
-                    captureState.isCapturing = false
+            // 根据是否使用系统相机决定拍摄方式
+            if self.cameraManager.isUsingSystemCamera {
+                print("使用系统相机拍摄 Live Photo")
+                self.cameraManager.captureLivePhoto { success, error in
+                    DispatchQueue.main.async {
+                        if success {
+                            print("[Live Photo 拍摄] 成功")
+                            self.captureState.isCapturing = false
+                            self.captureState.showSaveSuccess = true
+                            
+                            // 延迟隐藏成功提示
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation {
+                                    self.captureState.showSaveSuccess = false
+                                }
+                            }
+                        } else {
+                            print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
+                            self.captureState.isCapturing = false
+                        }
+                    }
+                }
+            } else {
+                print("使用自定义相机拍摄普通照片")
+                self.cameraManager.capturePhoto { image in
+                    if let image = image {
+                        DispatchQueue.main.async {
+                            self.captureState.capturedImage = image
+                            self.captureState.isCapturing = false
+                            self.captureState.showButtons = true
+                            self.captureState.isLivePhoto = false
+                            print("普通照片拍摄成功，显示预览界面")
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self.captureState.isCapturing = false
+                            print("普通照片拍摄失败")
+                        }
+                    }
                 }
             }
             
         case .light:
+            print("------------------------")
+            print("工具栏：点击灯光按钮")
+            print("当前选中状态：\(containerSelected)")
+            print("当前屏幕亮度：\(UIScreen.main.brightness)")
+            print("------------------------")
+
             withAnimation(.easeInOut(duration: 0.2)) {
                 containerSelected.toggle()
                 
                 if containerSelected {
                     UIScreen.main.brightness = 1.0
-                    print("灯光按钮：提高亮度至最大")
+                    print("提高亮度至最大")
                     feedbackGenerator.impactOccurred(intensity: 1.0)
                     isLighted = true
                 } else {
                     UIScreen.main.brightness = previousBrightness
-                    print("灯光按钮：恢复原始亮度：\(previousBrightness)")
+                    print("恢复原始亮度：\(previousBrightness)")
                     isLighted = false
                 }
             }
-            print("灯光按钮：选中状态：\(containerSelected)")
-            print("灯光按钮：屏幕点亮状态：\(isLighted)")
             
         case .live:
-            print("Live 按钮点击")
+            print("------------------------")
+            print("工具栏：点击 Live 按钮")
+            print("切换前系统相机状态：\(cameraManager.isUsingSystemCamera)")
+            // 切换系统相机
+            cameraManager.toggleSystemCamera()
+            print("切换后系统相机状态：\(cameraManager.isUsingSystemCamera)")
+            print("------------------------")
+            
         case .camera:
+            print("------------------------")
+            print("工具栏：点击摄像头切换按钮")
+            print("切换前摄像头：\(cameraManager.isFront ? "前置" : "后置")")
             // 切换前后摄像头
             cameraManager.switchCamera()
-            print("切换摄像头：\(cameraManager.isFront ? "前置" : "后置")")
+            print("切换后摄像头：\(cameraManager.isFront ? "前置" : "后置")")
+            print("------------------------")
             
         case .zoom:
+            print("------------------------")
+            print("工具栏：点击焦距按钮")
+            print("当前缩放比例：\(Int(currentScale * 100))%")
+            
             // 在预设的缩放值之间循环
             let nextScale: CGFloat
             switch currentScale {
@@ -351,10 +405,8 @@ struct DraggableToolbar: View {
                 baseScale = nextScale
             }
             
-            // 使用舍入到50的倍数来显示日志
-            let percentage = Int(nextScale * 100)
-            let roundedPercentage = Int(round(Double(percentage) / 50.0) * 50)
-            print("焦距按钮：缩放比例更新为 \(roundedPercentage)%")
+            print("更新后缩放比例：\(Int(nextScale * 100))%")
+            print("------------------------")
         }
     }
     

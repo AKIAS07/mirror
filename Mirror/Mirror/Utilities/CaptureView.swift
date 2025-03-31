@@ -12,10 +12,12 @@ public struct CaptureButtonStyle {
 // 截图操作状态
 public class CaptureState: ObservableObject {
     @Published public var capturedImage: UIImage?
+    @Published public var capturedLivePhotoURL: URL?
     @Published public var showButtons: Bool = false
     @Published public var currentScale: CGFloat = 1.0
     @Published public var showSaveSuccess: Bool = false
-    @Published public var isCapturing: Bool = false  // 新增：是否正在捕捉过程中
+    @Published public var isCapturing: Bool = false
+    @Published public var isLivePhoto: Bool = false
     
     private var isProcessingAlert = false
     
@@ -64,52 +66,57 @@ public class CaptureState: ObservableObject {
         return croppedImage ?? image
     }
     
-    // 修改保存图片方法
+    // 修改保存方法，移除重复的 Live Photo 保存逻辑
     public func saveToPhotos() {
-        guard let image = capturedImage else {
-            print("[相册保存] 错误：没有可保存的图片")
-            return
-        }
-        
-        let processedImage = cropImage(image, scale: currentScale)
-        print("[相册保存] 开始处理图片保存")
-        
-        // 检查权限状态
-        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        
-        switch status {
-        case .authorized, .limited:
-            // 已有权限，直接保存
+        if let image = capturedImage {
+            let processedImage = cropImage(image, scale: currentScale)
             saveImageToPhotoLibrary(processedImage) { [weak self] success in
                 if success {
                     withAnimation {
                         self?.showSaveSuccess = true
                     }
-                    // 使用配置的显示时间
-                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Toast.duration) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation {
                             self?.showSaveSuccess = false
                         }
                     }
                 }
             }
+        }
+    }
+    
+    // 添加私有保存方法
+    private func saveImageToPhotoLibrary(_ image: UIImage, completion: @escaping (Bool) -> Void) {
+        // 检查权限状态
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        
+        switch status {
+        case .authorized, .limited:
+            // 已有权限，直接保存
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetChangeRequest.creationRequestForAsset(from: image)
+            }) { success, error in
+                DispatchQueue.main.async {
+                    if success {
+                        print("[相册保存] 保存成功")
+                        completion(true)
+                    } else {
+                        print("[相册保存] 保存失败：\(error?.localizedDescription ?? "未知错误")")
+                        completion(false)
+                    }
+                }
+            }
             
         case .notDetermined:
-            // 未确定状态，显示自定义权限弹窗
-            PermissionManager.shared.handlePhotoLibraryAccess(for: processedImage) { [weak self] success in
-                if success {
-                    self?.saveImageToPhotoLibrary(processedImage) { success in
-                        if success {
-                            withAnimation {
-                                self?.showSaveSuccess = true
-                            }
-                            // 使用配置的显示时间
-                            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Toast.duration) {
-                                withAnimation {
-                                    self?.showSaveSuccess = false
-                                }
-                            }
-                        }
+            // 未确定状态，请求权限
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] newStatus in
+                if newStatus == .authorized || newStatus == .limited {
+                    DispatchQueue.main.async {
+                        self?.saveImageToPhotoLibrary(image, completion: completion)
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        completion(false)
                     }
                 }
             }
@@ -117,42 +124,34 @@ public class CaptureState: ObservableObject {
         case .denied, .restricted:
             // 已拒绝，显示去设置的弹窗
             PermissionManager.shared.alertState = .permission(isFirstRequest: false)
+            completion(false)
             
         @unknown default:
-            break
-        }
-    }
-    
-    // 添加私有保存方法
-    private func saveImageToPhotoLibrary(_ image: UIImage, completion: @escaping (Bool) -> Void) {
-        PHPhotoLibrary.shared().performChanges({
-            PHAssetChangeRequest.creationRequestForAsset(from: image)
-        }) { success, error in
-            DispatchQueue.main.async {
-                if success {
-                    print("[相册保存] 保存成功")
-                    completion(true)
-                } else {
-                    print("[相册保存] 保存失败：\(error?.localizedDescription ?? "未知错误")")
-                    completion(false)
-                }
-            }
+            completion(false)
         }
     }
     
     // 修改重置方法
     public func reset(onComplete: (() -> Void)? = nil) {
         capturedImage = nil
+        capturedLivePhotoURL = nil
         showButtons = false
         isProcessingAlert = false
+        isLivePhoto = false
         onComplete?()
     }
     
-    // 分享图片
+    // 修改分享方法
     public func shareImage() {
+        if isLivePhoto {
+            shareLivePhoto()
+        } else {
+            shareStaticImage()
+        }
+    }
+    
+    private func shareStaticImage() {
         guard let image = capturedImage else { return }
-        
-        // 根据缩放比例处理图片
         let processedImage = cropImage(image, scale: currentScale)
         
         let activityViewController = UIActivityViewController(
@@ -165,6 +164,23 @@ public class CaptureState: ObservableObject {
            let rootViewController = window.rootViewController {
             rootViewController.present(activityViewController, animated: true) {
                 print("分享界面已显示")
+            }
+        }
+    }
+    
+    private func shareLivePhoto() {
+        guard let livePhotoURL = capturedLivePhotoURL else { return }
+        
+        let activityViewController = UIActivityViewController(
+            activityItems: [livePhotoURL],
+            applicationActivities: nil
+        )
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootViewController = window.rootViewController {
+            rootViewController.present(activityViewController, animated: true) {
+                print("Live Photo 分享界面已显示")
             }
         }
     }
@@ -368,6 +384,15 @@ public struct CaptureActionsView: View {
             }
             .ignoresSafeArea()
             .zIndex(9)
+            .onAppear {
+                print("------------------------")
+                print("[CaptureActionsView] 视图加载")
+                print("CaptureState.isLivePhoto：\(captureState.isLivePhoto)")
+                print("CaptureState.capturedImage：\(String(describing: captureState.capturedImage != nil))")
+                print("CaptureState.capturedLivePhotoURL：\(String(describing: captureState.capturedLivePhotoURL))")
+                print("CaptureState.showButtons：\(captureState.showButtons)")
+                print("------------------------")
+            }
         }
     }
     

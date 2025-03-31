@@ -16,6 +16,11 @@ struct MirrorApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onAppear {
+                    print("------------------------")
+                    print("主视图加载")
+                    print("------------------------")
+                }
         }
     }
 }
@@ -30,10 +35,51 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         print("------------------------")
         print("应用启动")
+        print("系统版本：\(UIDevice.current.systemVersion)")
+        print("设备型号：\(UIDevice.current.model)")
         print("------------------------")
+        
         // 检查相机权限状态
         checkCameraPermission()
+        
+        // 注册进入后台通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(willResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+        
+        // 注册返回前台通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(didBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        
         return true
+    }
+    
+    @objc func willResignActive() {
+        print("------------------------")
+        print("应用进入后台")
+        print("------------------------")
+    }
+    
+    @objc func didBecomeActive() {
+        print("------------------------")
+        print("应用返回前台")
+        print("------------------------")
+    }
+    
+    func applicationWillTerminate(_ application: UIApplication) {
+        print("------------------------")
+        print("应用即将终止")
+        print("------------------------")
+        
+        // 移除所有通知观察者
+        NotificationCenter.default.removeObserver(self)
     }
     
     private func checkCameraPermission() {
@@ -76,6 +122,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
     
     deinit {
-        // 不再需要处理方向监测的清理，由 DeviceOrientationManager 负责
+        print("------------------------")
+        print("AppDelegate 释放")
+        print("------------------------")
     }
 }

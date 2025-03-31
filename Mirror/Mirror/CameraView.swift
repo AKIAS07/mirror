@@ -5,35 +5,72 @@ struct CameraView: UIViewRepresentable {
     @Binding var session: AVCaptureSession
     @Binding var isMirrored: Bool
     
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: UIScreen.main.bounds)
-        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        
-        previewLayer.frame = view.bounds
-        previewLayer.videoGravity = .resizeAspectFill
-        
-        // 确保在设置镜像之前关闭自动调整
-        if let connection = previewLayer.connection {
-            connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = isMirrored
-            
-            // 添加日志输出
-            print("CameraView - 设置镜像状态：\(isMirrored)")
+    class PreviewView: UIView {
+        override class var layerClass: AnyClass {
+            return AVCaptureVideoPreviewLayer.self
         }
         
-        view.layer.addSublayer(previewLayer)
+        var videoPreviewLayer: AVCaptureVideoPreviewLayer {
+            return layer as! AVCaptureVideoPreviewLayer
+        }
+    }
+    
+    func makeUIView(context: Context) -> PreviewView {
+        print("------------------------")
+        print("[CameraView] 创建预览视图")
+        print("------------------------")
+        
+        let view = PreviewView()
+        view.videoPreviewLayer.session = session
+        view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        
+        // 配置预览层
+        if let connection = view.videoPreviewLayer.connection {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = isMirrored
+            connection.videoOrientation = .portrait
+            
+            print("------------------------")
+            print("[CameraView] 预览层配置")
+            print("镜像状态：\(isMirrored)")
+            print("方向：竖屏")
+            print("------------------------")
+        }
+        
         return view
     }
     
-    func updateUIView(_ uiView: UIView, context: Context) {
-        if let previewLayer = uiView.layer.sublayers?.first as? AVCaptureVideoPreviewLayer,
-           let connection = previewLayer.connection {
-            // 同样确保在更新时也先关闭自动调整
+    func updateUIView(_ uiView: PreviewView, context: Context) {
+        print("------------------------")
+        print("[CameraView] 更新预览视图")
+        print("------------------------")
+        
+        uiView.videoPreviewLayer.session = session
+        
+        if let connection = uiView.videoPreviewLayer.connection {
             connection.automaticallyAdjustsVideoMirroring = false
             connection.isVideoMirrored = isMirrored
+            connection.videoOrientation = .portrait
             
-            // 添加日志输出
-            print("CameraView - 更新镜像状态：\(isMirrored)")
+            print("------------------------")
+            print("[CameraView] 预览层更新")
+            print("镜像状态：\(isMirrored)")
+            print("方向：竖屏")
+            print("------------------------")
+        }
+        
+        // 确保预览层正在运行
+        if !session.isRunning {
+            print("------------------------")
+            print("[CameraView] 启动相机会话")
+            print("------------------------")
+            DispatchQueue.global(qos: .userInitiated).async {
+                session.startRunning()
+            }
+        } else {
+            print("------------------------")
+            print("[CameraView] 相机会话已运行")
+            print("------------------------")
         }
     }
 } 
