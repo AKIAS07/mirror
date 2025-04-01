@@ -82,6 +82,9 @@ struct ContentView: View {
     
     @StateObject private var proManager = ProManager.shared
     
+    @State private var showLiveAlert = false
+    @State private var liveAlertMessage = ""
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -443,10 +446,15 @@ struct ContentView: View {
                         if allowedOrientations.contains(newOrientation) {
                             lastValidOrientation = newOrientation
                             deviceOrientation = newOrientation
-                            print("设备方向化：\(newOrientation.rawValue)")
+                            print("设备方向变化：\(newOrientation.rawValue)")
                             
-                            if !cameraManager.isMirrored && newOrientation == .landscapeLeft {
-                                print("正常模式下向左横屏，旋转摄像头画面180度")
+                            // 在模式B且使用Live模式下处理横屏旋转
+                            if !cameraManager.isMirrored && cameraManager.isUsingSystemCamera {
+                                if newOrientation == .landscapeLeft {
+                                    print("正常模式下向左横屏，旋转摄像头画面180度")
+                                } else if newOrientation == .landscapeRight {
+                                    print("正常模式下向右横屏，旋转摄像头画面180度")
+                                }
                             }
                         } else {
                             // 保持最后一个有效方向
@@ -687,6 +695,13 @@ struct ContentView: View {
                 // 触发震动反馈
                 feedbackGenerator.impactOccurred()
                 
+                // 检查是否处于Live模式
+                if cameraManager.isUsingSystemCamera {
+                    // 显示提示弹窗
+                    showLiveModeSwitchAlert(mode: "A")
+                    return
+                }
+                
                 // 更新动画逻辑
                 leftAnimationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
@@ -697,6 +712,10 @@ struct ContentView: View {
                         showLeftIconAnimation = false
                     }
                 }
+                
+                print("------------------------")
+                print("点击左按钮 - 切换到模式A")
+                print("当前状态: 模式A选中=\(ModeASelected), 模式B选中=\(ModeBSelected), 高亮=\(isLighted)")
                 
                 ModeASelected = ModeBSelected
                 isLighted = ModeBSelected
@@ -714,6 +733,9 @@ struct ContentView: View {
                 }
                 cameraManager.isMirrored = true
                 ModeBSelected = false
+                
+                print("切换后状态: 模式A选中=\(ModeASelected), 模式B选中=\(ModeBSelected), 高亮=\(isLighted)")
+                print("------------------------")
             },
             deviceOrientation: orientationManager.currentOrientation,
             isDisabled: cameraManager.isMirrored,
@@ -802,6 +824,13 @@ struct ContentView: View {
                 // 触发震动反馈
                 feedbackGenerator.impactOccurred()
                 
+                // 检查是否处于Live模式
+                if cameraManager.isUsingSystemCamera {
+                    // 显示提示弹窗
+                    showLiveModeSwitchAlert(mode: "B")
+                    return
+                }
+                
                 // 更新动画逻辑
                 rightAnimationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
@@ -812,6 +841,10 @@ struct ContentView: View {
                         showRightIconAnimation = false
                     }
                 }
+                
+                print("------------------------")
+                print("点击右按钮 - 切换到模式B")
+                print("当前状态: 模式A选中=\(ModeASelected), 模式B选中=\(ModeBSelected), 高亮=\(isLighted)")
                 
                 ModeBSelected = ModeASelected
                 isLighted = ModeASelected
@@ -829,6 +862,9 @@ struct ContentView: View {
                 }
                 cameraManager.isMirrored = false
                 ModeASelected = false
+                
+                print("切换后状态: 模式A选中=\(ModeASelected), 模式B选中=\(ModeBSelected), 高亮=\(isLighted)")
+                print("------------------------")
             },
             deviceOrientation: orientationManager.currentOrientation,
             isDisabled: !cameraManager.isMirrored,
@@ -879,6 +915,38 @@ struct ContentView: View {
             useCustomColor: true,
             customColor: styleManager.iconColor
         )
+    }
+    
+    // 添加显示Live模式切换提示弹窗的函数
+    private func showLiveModeSwitchAlert(mode: String) {
+        print("------------------------")
+        print("Live模式下尝试切换到模式\(mode)，显示提示弹窗")
+        print("------------------------")
+        
+        liveAlertMessage = "Live模式下无法切换到模式\(mode)，请先关闭Live模式"
+        showLiveAlert = true
+        
+        // 创建自定义弹窗
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootViewController = window.rootViewController {
+            
+            let alertController = UIAlertController(
+                title: "无法切换模式",
+                message: "Live模式下无法切换到模式\(mode)，请先关闭Live模式",
+                preferredStyle: .alert
+            )
+            
+            alertController.addAction(UIAlertAction(title: "关闭Live模式", style: .default) { _ in
+                // 关闭Live模式
+                self.cameraManager.toggleSystemCamera()
+                print("用户选择关闭Live模式")
+            })
+            
+            alertController.addAction(UIAlertAction(title: "取消", style: .cancel))
+            
+            rootViewController.present(alertController, animated: true)
+        }
     }
 }
 

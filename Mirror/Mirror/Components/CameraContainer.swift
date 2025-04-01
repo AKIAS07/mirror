@@ -94,12 +94,24 @@ struct CameraContainer: View {
                             Color.black // 添加黑色背景
                             
                             CameraView(session: .constant(cameraManager.session), isMirrored: .constant(cameraManager.isMirrored))
-                                .frame(maxWidth: .infinity, maxHeight: .infinity) // 修改为最大尺寸
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
                                 .padding(.horizontal, CameraLayoutConfig.horizontalPadding)
                                 .padding(.top, CameraLayoutConfig.verticalOffset)
                                 .padding(.bottom, CameraLayoutConfig.bottomOffset)
                                 .scaleEffect(currentScale)
+                                // 添加旋转变换
+                                .rotationEffect(Angle(degrees: shouldRotateCamera ? 180 : 0))
+                                // 添加缩放手势
+                                .simultaneousGesture(
+                                    MagnificationGesture()
+                                        .onChanged { scale in
+                                            onPinchChanged(scale)
+                                        }
+                                        .onEnded { scale in
+                                            onPinchEnded(scale)
+                                        }
+                                )
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .onAppear {
@@ -411,5 +423,12 @@ struct CameraContainer: View {
             
             cameraManager.videoOutputDelegate = processor
         }
+    }
+    
+    // 在 CameraContainer 结构体内添加计算属性
+    private var shouldRotateCamera: Bool {
+        // 在模式B且使用系统相机时，检查是否为横屏
+        !isMirrored && cameraManager.isUsingSystemCamera && 
+        (deviceOrientation == .landscapeLeft || deviceOrientation == .landscapeRight)
     }
 } 

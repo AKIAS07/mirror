@@ -22,6 +22,7 @@ public class CaptureState: ObservableObject {
     @Published public var livePhotoImageData: Data?  // 添加存储Live Photo图像数据
     @Published public var livePhotoVideoURL: URL?    // 添加存储Live Photo视频URL
     @Published public var isPlayingLivePhoto: Bool = false  // 添加播放Live Photo状态
+    @Published public var hasApplied180Rotation: Bool = false // 添加是否已应用180度旋转的状态
     
     private var isProcessingAlert = false
     
@@ -219,6 +220,7 @@ public class CaptureState: ObservableObject {
         livePhotoImageData = nil
         livePhotoVideoURL = nil
         isPlayingLivePhoto = false  // 重置播放状态
+        hasApplied180Rotation = false // 重置180度旋转状态
         onComplete?()
     }
     
@@ -367,6 +369,8 @@ public struct CaptureActionsView: View {
                                     .scaleEffect(captureState.currentScale)
                                     .position(x: screenBounds.width/2, y: screenBounds.height/2)
                                     .allowsHitTesting(false)
+                                    // 修改旋转逻辑
+                                    .rotationEffect(shouldRotate180Degrees ? .degrees(180) : .degrees(0))
                             }
                         }
                     }
@@ -374,24 +378,25 @@ public struct CaptureActionsView: View {
                     // 添加Live Photo播放视图 - 单独的层
                     if captureState.isLivePhoto && captureState.livePhotoVideoURL != nil && captureState.isPlayingLivePhoto {
                         ZStack {
-                            // 添加黑色背景确保视频可见
                             Color.black
                                 .frame(width: screenBounds.width, height: screenBounds.height)
                                 .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             
                             LivePhotoPlayerView(
                                 videoURL: captureState.livePhotoVideoURL!,
-                                isPlaying: $captureState.isPlayingLivePhoto  // 传递绑定
+                                isPlaying: $captureState.isPlayingLivePhoto
                             )
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .scaleEffect(captureState.currentScale)
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .allowsHitTesting(false)
+                            // 修改旋转逻辑
+                            .rotationEffect(shouldRotate180Degrees ? .degrees(180) : .degrees(0))
                             .onAppear {
                                 print("[Live Photo播放] 视图显示")
                             }
                         }
-                        .zIndex(20) // 确保视频在最上层
+                        .zIndex(20)
                     }
                     
                     // 半透明背景层（用于点击隐藏按钮和长按播放Live Photo）
@@ -493,9 +498,6 @@ public struct CaptureActionsView: View {
                                         action: captureState.shareImage,
                                         color: styleManager.iconColor
                                     )
-                                    .rotationEffect(.degrees(getRotationAngle()))
-                                    .animation(.easeInOut(duration: 0.3), value: getRotationAngle())
-                                    
                                     Spacer()
                                 }
                             }
@@ -567,7 +569,22 @@ public struct CaptureActionsView: View {
         }
     }
     
-    // 添加辅助方法
+    // 修改 shouldRotate180Degrees 计算属性的判断逻辑
+    private var shouldRotate180Degrees: Bool {
+        if !captureState.hasApplied180Rotation && captureState.isLivePhoto && (
+            orientationManager.currentOrientation == .landscapeLeft ||
+            orientationManager.currentOrientation == .landscapeRight
+        ) {
+            // 第一次检测到需要旋转时，设置标志位
+            DispatchQueue.main.async {
+                captureState.hasApplied180Rotation = true
+            }
+            return true
+        }
+        return captureState.hasApplied180Rotation
+    }
+    
+    // 保持现有的 getRotationAngle 方法
     private func getRotationAngle() -> Double {
         switch orientationManager.currentOrientation {
         case .landscapeLeft: return 90
@@ -581,7 +598,8 @@ public struct CaptureActionsView: View {
 // 修改LivePhotoPlayerView实现，使用VideoPlayer
 struct LivePhotoPlayerView: UIViewControllerRepresentable {
     let videoURL: URL
-    @Binding var isPlaying: Bool  // 添加绑定属性
+    @Binding var isPlaying: Bool
+
     
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         print("[LivePhotoPlayerView] makeUIViewController 被调用")
@@ -599,6 +617,7 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
         playerViewController.player = player
         playerViewController.showsPlaybackControls = false
         playerViewController.videoGravity = .resizeAspectFill
+
         
         // 添加播放结束通知
         NotificationCenter.default.addObserver(
@@ -626,6 +645,7 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
         print("[LivePhotoPlayerView] updateUIViewController 被调用")
         
+        
         if let player = uiViewController.player {
             print("[LivePhotoPlayerView] 播放状态: \(player.timeControlStatus.rawValue)")
             
@@ -636,6 +656,7 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
             }
         }
     }
+    
     
     static func dismantleUIViewController(_ uiViewController: AVPlayerViewController, coordinator: ()) {
         print("[LivePhotoPlayerView] dismantleUIViewController 被调用")
