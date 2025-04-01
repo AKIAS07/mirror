@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import Photos
+import AVKit
 
 // 截图操作按钮样式
 public struct CaptureButtonStyle {
@@ -18,6 +19,9 @@ public class CaptureState: ObservableObject {
     @Published public var showSaveSuccess: Bool = false
     @Published public var isCapturing: Bool = false
     @Published public var isLivePhoto: Bool = false
+    @Published public var livePhotoImageData: Data?  // 添加存储Live Photo图像数据
+    @Published public var livePhotoVideoURL: URL?    // 添加存储Live Photo视频URL
+    @Published public var isPlayingLivePhoto: Bool = false  // 添加播放Live Photo状态
     
     private var isProcessingAlert = false
     
@@ -66,9 +70,11 @@ public class CaptureState: ObservableObject {
         return croppedImage ?? image
     }
     
-    // 修改保存方法，移除重复的 Live Photo 保存逻辑
+    // 修改保存方法，添加Live Photo保存逻辑
     public func saveToPhotos() {
-        if let image = capturedImage {
+        if isLivePhoto && livePhotoImageData != nil && livePhotoVideoURL != nil {
+            saveLivePhotoToPhotoLibrary()
+        } else if let image = capturedImage {
             let processedImage = cropImage(image, scale: currentScale)
             saveImageToPhotoLibrary(processedImage) { [weak self] success in
                 if success {
@@ -82,6 +88,78 @@ public class CaptureState: ObservableObject {
                     }
                 }
             }
+        }
+    }
+    
+    // 添加Live Photo保存方法
+    private func saveLivePhotoToPhotoLibrary() {
+        guard let imageData = livePhotoImageData, let videoURL = livePhotoVideoURL else {
+            print("[Live Photo保存] 缺少必要数据")
+            return
+        }
+        
+        // 检查权限状态
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        
+        switch status {
+        case .authorized, .limited:
+            // 创建临时图片文件
+            let tempImageURL = FileManager.default.temporaryDirectory.appendingPathComponent("LivePhoto_\(UUID().uuidString).jpg")
+            
+            do {
+                // 写入照片数据
+                try imageData.write(to: tempImageURL)
+                
+                // 保存到相册
+                PHPhotoLibrary.shared().performChanges({
+                    let creationRequest = PHAssetCreationRequest.forAsset()
+                    let options = PHAssetResourceCreationOptions()
+                    options.shouldMoveFile = true
+                    
+                    // 添加照片和视频资源
+                    creationRequest.addResource(with: .photo, fileURL: tempImageURL, options: options)
+                    creationRequest.addResource(with: .pairedVideo, fileURL: videoURL, options: options)
+                    
+                }) { [weak self] success, error in
+                    // 清理临时文件
+                    try? FileManager.default.removeItem(at: tempImageURL)
+                    
+                    DispatchQueue.main.async {
+                        if success {
+                            print("[Live Photo保存] 保存成功")
+                            withAnimation {
+                                self?.showSaveSuccess = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation {
+                                    self?.showSaveSuccess = false
+                                }
+                            }
+                        } else {
+                            print("[Live Photo保存] 保存失败：\(error?.localizedDescription ?? "未知错误")")
+                        }
+                    }
+                }
+            } catch {
+                print("[Live Photo保存] 写入临时文件失败：\(error.localizedDescription)")
+            }
+            
+        case .notDetermined:
+            // 未确定状态，请求权限
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] newStatus in
+                if newStatus == .authorized || newStatus == .limited {
+                    DispatchQueue.main.async {
+                        self?.saveLivePhotoToPhotoLibrary()
+                    }
+                }
+            }
+            
+        case .denied, .restricted:
+            // 已拒绝，显示去设置的弹窗
+            PermissionManager.shared.alertState = .permission(isFirstRequest: false)
+            
+        @unknown default:
+            print("[Live Photo保存] 未知错误")
         }
     }
     
@@ -138,6 +216,9 @@ public class CaptureState: ObservableObject {
         showButtons = false
         isProcessingAlert = false
         isLivePhoto = false
+        livePhotoImageData = nil
+        livePhotoVideoURL = nil
+        isPlayingLivePhoto = false  // 重置播放状态
         onComplete?()
     }
     
@@ -250,6 +331,9 @@ public struct CaptureActionsView: View {
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     let onDismiss: () -> Void
     
+    // 添加长按手势状态
+    @GestureState private var isLongPressed = false
+    
     public var body: some View {
         if captureState.showButtons {
             GeometryReader { geometry in
@@ -272,21 +356,49 @@ public struct CaptureActionsView: View {
                             }
                     }
 
-                    // 图片层
+                    // 图片层 - 在播放Live Photo时隐藏
                     if let image = captureState.capturedImage {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
+                        if !(captureState.isLivePhoto && captureState.isPlayingLivePhoto) {
+                            ZStack {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: screenBounds.width, height: screenBounds.height)
+                                    .scaleEffect(captureState.currentScale)
+                                    .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                    }
+                    
+                    // 添加Live Photo播放视图 - 单独的层
+                    if captureState.isLivePhoto && captureState.livePhotoVideoURL != nil && captureState.isPlayingLivePhoto {
+                        ZStack {
+                            // 添加黑色背景确保视频可见
+                            Color.black
+                                .frame(width: screenBounds.width, height: screenBounds.height)
+                                .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                            
+                            LivePhotoPlayerView(
+                                videoURL: captureState.livePhotoVideoURL!,
+                                isPlaying: $captureState.isPlayingLivePhoto  // 传递绑定
+                            )
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .scaleEffect(captureState.currentScale)
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .allowsHitTesting(false)
+                            .onAppear {
+                                print("[Live Photo播放] 视图显示")
+                            }
+                        }
+                        .zIndex(20) // 确保视频在最上层
                     }
                     
-                    // 半透明背景层（用于点击隐藏按钮）
+                    // 半透明背景层（用于点击隐藏按钮和长按播放Live Photo）
                     Color.black.opacity(0.01)
                         .frame(width: screenBounds.width, height: screenBounds.height)
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .contentShape(Rectangle()) // 确保整个区域可点击
                         .onTapGesture(count: BorderLightStyleManager.shared.captureGestureCount) {
                             // 触发震动反馈
                             let generator = UIImpactFeedbackGenerator(style: .medium)
@@ -299,6 +411,64 @@ public struct CaptureActionsView: View {
                                 }
                             }
                         }
+                        // 使用DragGesture替代LongPressGesture，可能更可靠
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { _ in
+                                    // 手势开始/变化时
+                                    print("[拖动手势] 检测到")
+                                    if captureState.isLivePhoto && captureState.livePhotoVideoURL != nil && !captureState.isPlayingLivePhoto {
+                                        // 触发震动反馈
+                                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                                        generator.impactOccurred()
+                                        
+                                        print("[拖动手势] 开始播放Live Photo")
+                                        withAnimation {
+                                            captureState.isPlayingLivePhoto = true
+                                        }
+                                    } else {
+                                        print("[拖动手势] 不满足播放条件或已在播放")
+                                        print("isLivePhoto: \(captureState.isLivePhoto)")
+                                        print("livePhotoVideoURL: \(String(describing: captureState.livePhotoVideoURL))")
+                                        print("isPlayingLivePhoto: \(captureState.isPlayingLivePhoto)")
+                                    }
+                                }
+                                .onEnded { _ in
+                                    // 手势结束时
+                                    print("[拖动手势] 结束")
+                                    if captureState.isPlayingLivePhoto {
+                                        print("[拖动手势] 停止播放Live Photo")
+                                        withAnimation {
+                                            captureState.isPlayingLivePhoto = false
+                                        }
+                                    }
+                                }
+                        )
+                    
+                    // Live Photo提示标识
+                    if captureState.isLivePhoto && !captureState.isPlayingLivePhoto {
+                        VStack {
+                            HStack {
+                                Image(systemName: "livephoto")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                
+                                Text("长按播放")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(15)
+                            .rotationEffect(.degrees(getRotationAngle()))
+                        }
+                        .position(x: screenBounds.width/2, y: screenBounds.height - 160)
+                        .zIndex(10)
+                        .onAppear {
+                            print("[Live Photo提示] 显示")
+                        }
+                    }
                     
                     // 底部操作按钮
                     if captureState.showButtons {
@@ -390,6 +560,7 @@ public struct CaptureActionsView: View {
                 print("CaptureState.isLivePhoto：\(captureState.isLivePhoto)")
                 print("CaptureState.capturedImage：\(String(describing: captureState.capturedImage != nil))")
                 print("CaptureState.capturedLivePhotoURL：\(String(describing: captureState.capturedLivePhotoURL))")
+                print("CaptureState.livePhotoVideoURL：\(String(describing: captureState.livePhotoVideoURL))")
                 print("CaptureState.showButtons：\(captureState.showButtons)")
                 print("------------------------")
             }
@@ -405,4 +576,71 @@ public struct CaptureActionsView: View {
         default: return 0
         }
     }   
+}
+
+// 修改LivePhotoPlayerView实现，使用VideoPlayer
+struct LivePhotoPlayerView: UIViewControllerRepresentable {
+    let videoURL: URL
+    @Binding var isPlaying: Bool  // 添加绑定属性
+    
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        print("[LivePhotoPlayerView] makeUIViewController 被调用")
+        print("[LivePhotoPlayerView] 视频URL: \(videoURL.absoluteString)")
+        
+        // 检查文件是否存在
+        if FileManager.default.fileExists(atPath: videoURL.path) {
+            print("[LivePhotoPlayerView] 视频文件存在")
+        } else {
+            print("[LivePhotoPlayerView] 错误：视频文件不存在")
+        }
+        
+        let player = AVPlayer(url: videoURL)
+        let playerViewController = AVPlayerViewController()
+        playerViewController.player = player
+        playerViewController.showsPlaybackControls = false
+        playerViewController.videoGravity = .resizeAspectFill
+        
+        // 添加播放结束通知
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: player.currentItem,
+            queue: .main
+        ) { _ in
+            print("[LivePhotoPlayerView] 视频播放完毕，重置到第一帧")
+            player.seek(to: .zero)
+            player.pause()
+            
+            // 通知外部停止播放
+            DispatchQueue.main.async {
+                self.isPlaying = false
+            }
+        }
+        
+        // 自动播放
+        print("[LivePhotoPlayerView] 开始播放视频")
+        player.play()
+        
+        return playerViewController
+    }
+    
+    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
+        print("[LivePhotoPlayerView] updateUIViewController 被调用")
+        
+        if let player = uiViewController.player {
+            print("[LivePhotoPlayerView] 播放状态: \(player.timeControlStatus.rawValue)")
+            
+            if player.timeControlStatus != .playing && isPlaying {
+                print("[LivePhotoPlayerView] 重新开始播放")
+                player.seek(to: .zero)
+                player.play()
+            }
+        }
+    }
+    
+    static func dismantleUIViewController(_ uiViewController: AVPlayerViewController, coordinator: ()) {
+        print("[LivePhotoPlayerView] dismantleUIViewController 被调用")
+        NotificationCenter.default.removeObserver(uiViewController)
+        uiViewController.player?.pause()
+        uiViewController.player = nil
+    }
 }   

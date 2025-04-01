@@ -15,7 +15,7 @@ class CameraManager: ObservableObject {
     let videoOutput = AVCaptureVideoDataOutput()
     private var isSettingUpCamera = false
     private var photoOutput: AVCapturePhotoOutput?
-    private var livePhotoCaptureProcessor: SimpleLivePhotoCaptureProcessor?
+    private var livePhotoCaptureProcessor: AVCapturePhotoCaptureDelegate?
     private var photoCaptureProcessor: PhotoCaptureProcessor?
     
     var videoOutputDelegate: AVCaptureVideoDataOutputSampleBufferDelegate? {
@@ -469,6 +469,42 @@ class CameraManager: ObservableObject {
         // 开始捕获照片
         photoOutput.capturePhoto(with: settings, delegate: processor)
     }
+    
+    // 添加新方法，用于Live Photo预览
+    func captureLivePhotoForPreview(completion: @escaping (Bool, Data?, URL?, UIImage?, Error?) -> Void) {
+        guard let photoOutput = photoOutput else {
+            completion(false, nil, nil, nil, NSError(domain: "CameraManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "PhotoOutput not initialized"]))
+            return
+        }
+        
+        // 检查是否支持 Live Photo
+        guard photoOutput.isLivePhotoCaptureSupported else {
+            completion(false, nil, nil, nil, NSError(domain: "CameraManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "Live Photo not supported"]))
+            return
+        }
+        
+        // 创建临时文件路径
+        let livePhotoURL = FileManager.default.temporaryDirectory.appendingPathComponent("LivePhoto_\(UUID().uuidString).mov")
+        
+        // 配置拍摄设置
+        let settings = AVCapturePhotoSettings()
+        settings.livePhotoMovieFileURL = livePhotoURL
+        
+        // 启用高质量设置
+        settings.isHighResolutionPhotoEnabled = true
+        photoOutput.isLivePhotoCaptureEnabled = true
+        
+        if #available(iOS 11.0, *) {
+            settings.livePhotoVideoCodecType = .h264
+        }
+        
+        // 创建处理器
+        let processor = LivePhotoPreviewProcessor(completion: completion)
+        livePhotoCaptureProcessor = processor
+        
+        // 开始捕获
+        photoOutput.capturePhoto(with: settings, delegate: processor)
+    }
 }
 
 // Live Photo 捕获处理器
@@ -565,5 +601,53 @@ class PhotoCaptureProcessor: NSObject, AVCapturePhotoCaptureDelegate {
         
         print("[系统相机] 拍照成功")
         completion(image)
+    }
+}
+
+// 添加Live Photo预览处理器
+class LivePhotoPreviewProcessor: NSObject, AVCapturePhotoCaptureDelegate {
+    private let completion: (Bool, Data?, URL?, UIImage?, Error?) -> Void
+    private var photoData: Data?
+    
+    init(completion: @escaping (Bool, Data?, URL?, UIImage?, Error?) -> Void) {
+        self.completion = completion
+        super.init()
+    }
+    
+    // 添加照片处理方法
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        if let error = error {
+            completion(false, nil, nil, nil, error)
+            return
+        }
+        
+        // 保存照片数据
+        photoData = photo.fileDataRepresentation()
+    }
+    
+    // 处理 Live Photo 视频
+    func photoOutput(_ output: AVCapturePhotoOutput,
+                    didFinishProcessingLivePhotoToMovieFileAt outputFileURL: URL,
+                    duration: CMTime,
+                    photoDisplayTime: CMTime,
+                    resolvedSettings: AVCaptureResolvedPhotoSettings,
+                    error: Error?) {
+        
+        if let error = error {
+            completion(false, nil, nil, nil, error)
+            return
+        }
+        
+        // 确保我们有照片数据
+        guard let photoData = self.photoData else {
+            completion(false, nil, nil, nil, NSError(domain: "LivePhotoCapture", code: 3, userInfo: [NSLocalizedDescriptionKey: "No photo data"]))
+            return
+        }
+        
+        // 创建UIImage用于预览
+        let image = UIImage(data: photoData)
+        
+        // 返回数据而不是直接保存
+        completion(true, photoData, outputFileURL, image, nil)
     }
 } 

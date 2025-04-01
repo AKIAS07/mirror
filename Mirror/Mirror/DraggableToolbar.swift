@@ -303,22 +303,20 @@ struct DraggableToolbar: View {
             // 根据是否使用系统相机决定拍摄方式
             if self.cameraManager.isUsingSystemCamera {
                 print("使用系统相机拍摄 Live Photo")
-                self.cameraManager.captureLivePhoto { success, error in
+                self.captureState.isCapturing = true
+                self.cameraManager.captureLivePhotoForPreview { success, imageData, videoURL, image, error in
                     DispatchQueue.main.async {
-                        if success {
-                            print("[Live Photo 拍摄] 成功")
-                            self.captureState.isCapturing = false
-                            self.captureState.showSaveSuccess = true
-                            
-                            // 延迟隐藏成功提示
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation {
-                                    self.captureState.showSaveSuccess = false
-                                }
-                            }
+                        self.captureState.isCapturing = false
+                        
+                        if success, let imageData = imageData, let videoURL = videoURL, let image = image {
+                            print("[Live Photo 拍摄] 成功，准备预览")
+                            self.captureState.livePhotoImageData = imageData
+                            self.captureState.livePhotoVideoURL = videoURL
+                            self.captureState.capturedImage = image
+                            self.captureState.isLivePhoto = true
+                            self.captureState.showButtons = true
                         } else {
                             print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
-                            self.captureState.isCapturing = false
                         }
                     }
                 }
