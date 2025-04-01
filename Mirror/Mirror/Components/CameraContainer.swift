@@ -134,23 +134,54 @@ struct CameraContainer: View {
                                 }
                             }
                             
-                            // 延迟捕捉
-                            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
-                                // 捕捉当前画面
-                                if let latestImage = processedImage {
-                                    captureState.capturedImage = latestImage
-                                    captureState.currentScale = currentScale
-                                    
-                                    // 显示操作按钮并隐藏控制区域
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        captureState.showButtons = true
-                                        isControlAreaVisible = false
+                            // 根据是否使用系统相机决定拍摄方式
+                            if cameraManager.isUsingSystemCamera {
+                                print("点击屏幕 - 使用系统相机拍摄 Live Photo")
+                                cameraManager.captureLivePhotoForPreview { success, imageData, videoURL, image, error in
+                                    DispatchQueue.main.async {
                                         captureState.isCapturing = false
+                                        
+                                        if success, let imageData = imageData, let videoURL = videoURL, let image = image {
+                                            print("[Live Photo 拍摄] 成功，准备预览")
+                                            captureState.livePhotoImageData = imageData
+                                            captureState.livePhotoVideoURL = videoURL
+                                            captureState.capturedImage = image
+                                            captureState.isLivePhoto = true
+                                            
+                                            // 显示操作按钮并隐藏控制区域
+                                            withAnimation(.easeInOut(duration: 0.3)) {
+                                                captureState.showButtons = true
+                                                isControlAreaVisible = false
+                                            }
+                                            
+                                            print("------------------------")
+                                            print("Live Photo 已捕捉")
+                                            print("------------------------")
+                                        } else {
+                                            print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
+                                        }
                                     }
-                                    
-                                    print("------------------------")
-                                    print("截图已捕捉")
-                                    print("------------------------")
+                                }
+                            } else {
+                                // 延迟捕捉普通照片
+                                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
+                                    // 捕捉当前画面
+                                    if let latestImage = processedImage {
+                                        captureState.capturedImage = latestImage
+                                        captureState.currentScale = currentScale
+                                        captureState.isLivePhoto = false
+                                        
+                                        // 显示操作按钮并隐藏控制区域
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            captureState.showButtons = true
+                                            isControlAreaVisible = false
+                                            captureState.isCapturing = false
+                                        }
+                                        
+                                        print("------------------------")
+                                        print("普通截图已捕捉")
+                                        print("------------------------")
+                                    }
                                 }
                             }
                         }
@@ -200,23 +231,54 @@ struct CameraContainer: View {
                                         }
                                     }
                                     
-                                    // 延迟捕捉
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
-                                        // 捕捉当前画面
-                                        if let latestImage = processedImage {
-                                            captureState.capturedImage = latestImage
-                                            captureState.currentScale = currentScale
-                                            
-                                            // 显示操作按钮并隐藏控制区域
-                                            withAnimation(.easeInOut(duration: 0.3)) {
-                                                captureState.showButtons = true
-                                                isControlAreaVisible = false
+                                    // 根据是否使用系统相机决定拍摄方式
+                                    if cameraManager.isUsingSystemCamera {
+                                        print("点击屏幕 - 使用系统相机拍摄 Live Photo")
+                                        cameraManager.captureLivePhotoForPreview { success, imageData, videoURL, image, error in
+                                            DispatchQueue.main.async {
                                                 captureState.isCapturing = false
+                                                
+                                                if success, let imageData = imageData, let videoURL = videoURL, let image = image {
+                                                    print("[Live Photo 拍摄] 成功，准备预览")
+                                                    captureState.livePhotoImageData = imageData
+                                                    captureState.livePhotoVideoURL = videoURL
+                                                    captureState.capturedImage = image
+                                                    captureState.isLivePhoto = true
+                                                    
+                                                    // 显示操作按钮并隐藏控制区域
+                                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                                        captureState.showButtons = true
+                                                        isControlAreaVisible = false
+                                                    }
+                                                    
+                                                    print("------------------------")
+                                                    print("Live Photo 已捕捉")
+                                                    print("------------------------")
+                                                } else {
+                                                    print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
+                                                }
                                             }
-                                            
-                                            print("------------------------")
-                                            print("截图已捕捉")
-                                            print("------------------------")
+                                        }
+                                    } else {
+                                        // 延迟捕捉普通照片
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
+                                            // 捕捉当前画面
+                                            if let latestImage = processedImage {
+                                                captureState.capturedImage = latestImage
+                                                captureState.currentScale = currentScale
+                                                captureState.isLivePhoto = false
+                                                
+                                                // 显示操作按钮并隐藏控制区域
+                                                withAnimation(.easeInOut(duration: 0.3)) {
+                                                    captureState.showButtons = true
+                                                    isControlAreaVisible = false
+                                                    captureState.isCapturing = false
+                                                }
+                                                
+                                                print("------------------------")
+                                                print("普通截图已捕捉")
+                                                print("------------------------")
+                                            }
                                         }
                                     }
                                 }
@@ -334,6 +396,8 @@ struct CameraContainer: View {
                 DispatchQueue.main.async {
                     if !captureState.showButtons || captureState.isCapturing {
                         self.processedImage = image
+                        // 更新 CameraManager 中的最新图像
+                        self.cameraManager.updateLatestProcessedImage(image)
                     }
                 }
             }

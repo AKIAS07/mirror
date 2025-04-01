@@ -17,6 +17,7 @@ class CameraManager: ObservableObject {
     private var photoOutput: AVCapturePhotoOutput?
     private var livePhotoCaptureProcessor: AVCapturePhotoCaptureDelegate?
     private var photoCaptureProcessor: PhotoCaptureProcessor?
+    var latestProcessedImage: UIImage?
     
     var videoOutputDelegate: AVCaptureVideoDataOutputSampleBufferDelegate? {
         didSet {
@@ -504,6 +505,10 @@ class CameraManager: ObservableObject {
         
         // 开始捕获
         photoOutput.capturePhoto(with: settings, delegate: processor)
+    }
+    
+    func updateLatestProcessedImage(_ image: UIImage) {
+        self.latestProcessedImage = image
     }
 }
 

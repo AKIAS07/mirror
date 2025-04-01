@@ -300,10 +300,15 @@ struct DraggableToolbar: View {
                 isVisible = false
             }
             
+            // 设置捕捉状态
+            self.captureState.isCapturing = true
+            
+            // 触发闪光动画
+            NotificationCenter.default.post(name: NSNotification.Name("TriggerFlashAnimation"), object: nil)
+            
             // 根据是否使用系统相机决定拍摄方式
             if self.cameraManager.isUsingSystemCamera {
                 print("使用系统相机拍摄 Live Photo")
-                self.captureState.isCapturing = true
                 self.cameraManager.captureLivePhotoForPreview { success, imageData, videoURL, image, error in
                     DispatchQueue.main.async {
                         self.captureState.isCapturing = false
@@ -322,19 +327,27 @@ struct DraggableToolbar: View {
                 }
             } else {
                 print("使用自定义相机拍摄普通照片")
-                self.cameraManager.capturePhoto { image in
-                    if let image = image {
+                // 延迟捕捉普通照片，与点击屏幕行为保持一致
+                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
+                    // 直接使用当前处理好的图像，与点击屏幕行为保持一致
+                    if let latestImage = self.cameraManager.latestProcessedImage {
                         DispatchQueue.main.async {
-                            self.captureState.capturedImage = image
-                            self.captureState.isCapturing = false
-                            self.captureState.showButtons = true
+                            self.captureState.capturedImage = latestImage
+                            self.captureState.currentScale = self.currentScale
                             self.captureState.isLivePhoto = false
-                            print("普通照片拍摄成功，显示预览界面")
+                            
+                            // 显示操作按钮
+                            self.captureState.showButtons = true
+                            self.captureState.isCapturing = false
+                            
+                            print("------------------------")
+                            print("普通截图已捕捉")
+                            print("------------------------")
                         }
                     } else {
                         DispatchQueue.main.async {
                             self.captureState.isCapturing = false
-                            print("普通照片拍摄失败")
+                            print("普通照片拍摄失败 - 无可用图像")
                         }
                     }
                 }
