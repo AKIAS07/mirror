@@ -59,18 +59,9 @@ struct CameraView: UIViewRepresentable {
             print("------------------------")
         }
         
-        // 确保预览层正在运行
-        if !session.isRunning {
-            print("------------------------")
-            print("[CameraView] 启动相机会话")
-            print("------------------------")
-            DispatchQueue.global(qos: .userInitiated).async {
-                session.startRunning()
-            }
-        } else {
-            print("------------------------")
-            print("[CameraView] 相机会话已运行")
-            print("------------------------")
-        }
+        // 移除这里的会话启动逻辑，因为它可能与配置过程冲突
+        print("------------------------")
+        print("[CameraView] 预览层更新完成")
+        print("------------------------")
     }
 } 

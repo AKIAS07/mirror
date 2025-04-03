@@ -72,6 +72,8 @@ struct RestartCameraView: View {
     let action: () -> Void
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
+    @ObservedObject private var restartManager = ContentRestartManager.shared
+    let cameraManager: CameraManager
     
     var body: some View {
         GeometryReader { geometry in
@@ -87,7 +89,10 @@ struct RestartCameraView: View {
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                 }
                 .position(x: geometry.size.width/2, 
-                         y: geometry.size.height/2 - geometry.safeAreaInsets.bottom/2)  // 考虑安全区域
+                         y: geometry.size.height/2 - geometry.safeAreaInsets.bottom/2)
+            }
+            .onAppear {
+                restartManager.handleRestartViewAppear(cameraManager: cameraManager)
             }
             .onTapGesture {
                 action()

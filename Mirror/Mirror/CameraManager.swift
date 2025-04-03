@@ -129,7 +129,7 @@ class CameraManager: ObservableObject {
             print("[相机] 会话正在运行，先停止当前会话")
             print("------------------------")
             stopSession()
-            Thread.sleep(forTimeInterval: 0.1)
+            Thread.sleep(forTimeInterval: 0.2) // 增加等待时间，确保会话完全停止
         }
         
         if isSettingUpCamera {
@@ -139,11 +139,16 @@ class CameraManager: ObservableObject {
             return
         }
         
+        // 清理当前的处理器
+        livePhotoCaptureProcessor = nil
+        photoCaptureProcessor = nil
+        
         print("------------------------")
         print("[相机] 准备重启")
+        print("当前模式：\(isUsingSystemCamera ? "系统相机" : "自定义相机")")
+        print("Live Photo状态：\(photoOutput?.isLivePhotoCaptureEnabled ?? false)")
         print("------------------------")
         
-        // 确保在后台线程执行相机操作
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
@@ -156,12 +161,14 @@ class CameraManager: ObservableObject {
             DispatchQueue.main.async {
                 print("------------------------")
                 print("[相机] 重启完成")
+                print("当前模式：\(self.isUsingSystemCamera ? "系统相机" : "自定义相机")")
+                print("Live Photo状态：\(self.photoOutput?.isLivePhotoCaptureEnabled ?? false)")
                 print("------------------------")
             }
         }
     }
     
-    private func setupCamera() {
+    func setupCamera() {
         print("------------------------")
         print("[相机设置] 开始")
         print("当前模式：\(isUsingSystemCamera ? "系统相机" : "自定义相机")")
@@ -206,13 +213,19 @@ class CameraManager: ObservableObject {
             session.commitConfiguration()
             print("[相机设置] 配置提交完成")
             
-            // 在配置完成后启动会话
+            // 在配置完成后，使用单独的队列启动会话
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.session.startRunning()
-                DispatchQueue.main.async {
-                    print("------------------------")
-                    print("相机会话已启动")
-                    print("------------------------")
+                guard let self = self else { return }
+                
+                // 确保会话没有在运行
+                if !self.session.isRunning {
+                    self.session.startRunning()
+                    
+                    DispatchQueue.main.async {
+                        print("------------------------")
+                        print("相机会话已启动")
+                        print("------------------------")
+                    }
                 }
             }
             

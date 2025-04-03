@@ -386,66 +386,72 @@ public struct CaptureActionsView: View {
     @ObservedObject var captureState: CaptureState
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    @ObservedObject private var captureManager = CaptureManager.shared
+    let cameraManager: CameraManager
     let onDismiss: () -> Void
     
     // 添加长按手势状态
     @GestureState private var isLongPressed = false
     
+    // 添加初始化方法
+    init(captureState: CaptureState, 
+         cameraManager: CameraManager,
+         onDismiss: @escaping () -> Void) {
+        self.captureState = captureState
+        self.cameraManager = cameraManager
+        self.onDismiss = onDismiss
+    }
+    
     public var body: some View {
-        if captureState.showButtons {
+        if captureManager.isPreviewVisible {
             GeometryReader { geometry in
                 let screenBounds = UIScreen.main.bounds
                 
                 ZStack {
                     // 修改全屏背景层的实现
-                    if captureState.showButtons {
-                        Color.black.opacity(0.0001)
-                            .frame(width: screenBounds.width, height: screenBounds.height)
-                            .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                            .contentShape(Rectangle())
-                            .allowsHitTesting(true)
-                            .onTapGesture {
-                                withAnimation {
-                                    captureState.reset {
-                                        onDismiss()
-                                    }
-                                }
+                    Color.black.opacity(0.0001)
+                        .frame(width: screenBounds.width, height: screenBounds.height)
+                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .contentShape(Rectangle())
+                        .allowsHitTesting(true)
+                        .onTapGesture {
+                            withAnimation {
+                                captureManager.hidePreview(cameraManager: cameraManager)
+                                onDismiss()
                             }
-                    }
+                        }
 
                     // 图片层 - 在播放Live Photo时隐藏
-                    if let image = captureState.capturedImage {
-                        if !(captureState.isLivePhoto && captureState.isPlayingLivePhoto) {
+                    if let image = captureManager.capturedImage {
+                        if !(captureManager.isLivePhoto && captureManager.isPlayingLivePhoto) {
                             ZStack {
                                 Image(uiImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                                     .frame(width: screenBounds.width, height: screenBounds.height)
-                                    .scaleEffect(captureState.currentScale)
+                                    .scaleEffect(captureManager.currentScale)
                                     .position(x: screenBounds.width/2, y: screenBounds.height/2)
                                     .allowsHitTesting(false)
-                                    // 修改旋转逻辑
                                     .rotationEffect(shouldRotate180Degrees ? .degrees(180) : .degrees(0))
                             }
                         }
                     }
                     
-                    // 添加Live Photo播放视图 - 单独的层
-                    if captureState.isLivePhoto && captureState.livePhotoVideoURL != nil && captureState.isPlayingLivePhoto {
+                    // 添加Live Photo播放视图
+                    if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && captureManager.isPlayingLivePhoto {
                         ZStack {
                             Color.black
                                 .frame(width: screenBounds.width, height: screenBounds.height)
                                 .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             
                             LivePhotoPlayerView(
-                                videoURL: captureState.livePhotoVideoURL!,
-                                isPlaying: $captureState.isPlayingLivePhoto
+                                videoURL: captureManager.livePhotoVideoURL!,
+                                isPlaying: $captureManager.isPlayingLivePhoto
                             )
                             .frame(width: screenBounds.width, height: screenBounds.height)
-                            .scaleEffect(captureState.currentScale)
+                            .scaleEffect(captureManager.currentScale)
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .allowsHitTesting(false)
-                            // 修改旋转逻辑
                             .rotationEffect(shouldRotate180Degrees ? .degrees(180) : .degrees(0))
                             .onAppear {
                                 print("[Live Photo播放] 视图显示")
@@ -458,7 +464,7 @@ public struct CaptureActionsView: View {
                     Color.black.opacity(0.01)
                         .frame(width: screenBounds.width, height: screenBounds.height)
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                        .contentShape(Rectangle()) // 确保整个区域可点击
+                        .contentShape(Rectangle())
                         .onTapGesture(count: BorderLightStyleManager.shared.captureGestureCount) {
                             // 触发震动反馈
                             let generator = UIImpactFeedbackGenerator(style: .medium)
@@ -466,47 +472,36 @@ public struct CaptureActionsView: View {
                             generator.impactOccurred()
                             
                             withAnimation {
-                                captureState.reset {
-                                    onDismiss()
-                                }
+                                captureManager.hidePreview(cameraManager: cameraManager)
+                                onDismiss()
                             }
                         }
-                        // 使用DragGesture替代LongPressGesture，可能更可靠
                         .gesture(
                             DragGesture(minimumDistance: 0)
                                 .onChanged { _ in
-                                    // 手势开始/变化时
-                                    print("[拖动手势] 检测到")
-                                    if captureState.isLivePhoto && captureState.livePhotoVideoURL != nil && !captureState.isPlayingLivePhoto {
+                                    if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && !captureManager.isPlayingLivePhoto {
                                         // 触发震动反馈
                                         let generator = UIImpactFeedbackGenerator(style: .medium)
                                         generator.impactOccurred()
                                         
                                         print("[拖动手势] 开始播放Live Photo")
                                         withAnimation {
-                                            captureState.isPlayingLivePhoto = true
+                                            captureManager.isPlayingLivePhoto = true
                                         }
-                                    } else {
-                                        print("[拖动手势] 不满足播放条件或已在播放")
-                                        print("isLivePhoto: \(captureState.isLivePhoto)")
-                                        print("livePhotoVideoURL: \(String(describing: captureState.livePhotoVideoURL))")
-                                        print("isPlayingLivePhoto: \(captureState.isPlayingLivePhoto)")
                                     }
                                 }
                                 .onEnded { _ in
-                                    // 手势结束时
-                                    print("[拖动手势] 结束")
-                                    if captureState.isPlayingLivePhoto {
+                                    if captureManager.isPlayingLivePhoto {
                                         print("[拖动手势] 停止播放Live Photo")
                                         withAnimation {
-                                            captureState.isPlayingLivePhoto = false
+                                            captureManager.isPlayingLivePhoto = false
                                         }
                                     }
                                 }
                         )
                     
                     // Live Photo提示标识
-                    if captureState.isLivePhoto && !captureState.isPlayingLivePhoto {
+                    if captureManager.isLivePhoto && !captureManager.isPlayingLivePhoto {
                         VStack {
                             HStack {
                                 Image(systemName: "livephoto")
@@ -525,44 +520,42 @@ public struct CaptureActionsView: View {
                         }
                         .position(x: screenBounds.width/2, y: screenBounds.height - 160)
                         .zIndex(10)
-                        .onAppear {
-                            print("[Live Photo提示] 显示")
-                        }
                     }
                     
                     // 底部操作按钮
-                    if captureState.showButtons {
-                        VStack(spacing: 0) {
-                            Spacer()
-                            
-                            // 底部操作按钮
-                            ZStack {
-                                HStack(spacing: CaptureButtonStyle.buttonSpacing) {
-                                    Spacer()
-                                    
-                                    // 使用新的下载按钮
-                                    CaptureActionButton.downloadButton(
-                                        captureState: captureState,
-                                        color: styleManager.iconColor,
-                                        rotationAngle: getRotationAngle()
-                                    )
-                                    
-                                    // 分享按钮
-                                    CaptureActionButton(
-                                        systemName: "arrowshape.turn.up.right.fill",
-                                        action: captureState.shareImage,
-                                        color: styleManager.iconColor
-                                    )
-                                    Spacer()
-                                }
+                    VStack(spacing: 0) {
+                        Spacer()
+                        
+                        // 底部操作按钮
+                        ZStack {
+                            HStack {
+                                Spacer()
+                                
+                                // 使用新的下载按钮，居中显示
+                                CaptureActionButton(
+                                    systemName: "square.and.arrow.down.fill",
+                                    action: {
+                                        // 触发震动反馈
+                                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                                        generator.prepare()
+                                        generator.impactOccurred()
+                                        
+                                        captureManager.saveToPhotos()
+                                    },
+                                    feedbackStyle: .medium,
+                                    color: styleManager.iconColor
+                                )
+                                .rotationEffect(.degrees(getRotationAngle()))
+                                
+                                Spacer()
                             }
-                            .frame(height: 120)
                         }
-                        .frame(width: screenBounds.width, height: screenBounds.height)
+                        .frame(height: 120)
                     }
+                    .frame(width: screenBounds.width, height: screenBounds.height)
                     
                     // 添加保存成功提示
-                    if captureState.showSaveSuccess {
+                    if captureManager.showSaveSuccess {
                         Text("已保存到相册")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white)
@@ -589,9 +582,8 @@ public struct CaptureActionsView: View {
                                 generator.impactOccurred()
                                 
                                 withAnimation {
-                                    captureState.reset {
-                                        onDismiss()
-                                    }
+                                    captureManager.hidePreview(cameraManager: cameraManager)
+                                    onDismiss()
                                 }
                             }) {
                                 Image(systemName: "xmark")
@@ -601,43 +593,32 @@ public struct CaptureActionsView: View {
                                     .background(Color.black.opacity(0.35))
                                     .clipShape(Circle())
                             }
-                            .padding(.top, 80)  // 增加顶部间距
+                            .padding(.top, 80)
                             Spacer()
                         }
                         Spacer()
                     }
-                    .zIndex(100)  // 确保按钮在最上层
+                    .zIndex(100)
                 }
             }
             .ignoresSafeArea()
             .zIndex(9)
-            .onAppear {
-                print("------------------------")
-                print("[CaptureActionsView] 视图加载")
-                print("CaptureState.isLivePhoto：\(captureState.isLivePhoto)")
-                print("CaptureState.capturedImage：\(String(describing: captureState.capturedImage != nil))")
-                print("CaptureState.tempImageURL：\(String(describing: captureState.tempImageURL?.path))")
-                print("CaptureState.tempVideoURL：\(String(describing: captureState.tempVideoURL?.path))")
-                print("CaptureState.livePhotoVideoURL：\(String(describing: captureState.livePhotoVideoURL?.path))")
-                print("CaptureState.showButtons：\(captureState.showButtons)")
-                print("------------------------")
-            }
         }
     }
     
-    // 修改 shouldRotate180Degrees 计算属性的判断逻辑
+    // 修改 shouldRotate180Degrees 计算属性
     private var shouldRotate180Degrees: Bool {
-        if !captureState.hasApplied180Rotation && captureState.isLivePhoto && (
+        if !captureManager.hasApplied180Rotation && captureManager.isLivePhoto && (
             orientationManager.currentOrientation == .landscapeLeft ||
             orientationManager.currentOrientation == .landscapeRight
         ) {
             // 第一次检测到需要旋转时，设置标志位
             DispatchQueue.main.async {
-                captureState.hasApplied180Rotation = true
+                captureManager.hasApplied180Rotation = true
             }
             return true
         }
-        return captureState.hasApplied180Rotation
+        return captureManager.hasApplied180Rotation
     }
     
     // 保持现有的 getRotationAngle 方法

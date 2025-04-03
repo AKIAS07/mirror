@@ -1331,7 +1331,7 @@ struct TwoOfMeScreens: View {
                                     cameraManager.restartCamera()  // 直接重启相机
                                 }
                             }
-                        })
+                        }, cameraManager: cameraManager)
                         .frame(height: UIScreen.main.bounds.height / 2)
                         .position(x: geometry.size.width/2, 
                                  y: isScreensSwapped ? geometry.size.height * 3/4 : geometry.size.height/4)
@@ -1351,7 +1351,7 @@ struct TwoOfMeScreens: View {
                                     cameraManager.restartCamera()  // 直接重启相机
                                 }
                             }
-                        })
+                        }, cameraManager: cameraManager)
                         .frame(height: UIScreen.main.bounds.height / 2)
                         .position(x: geometry.size.width/2, 
                                  y: isScreensSwapped ? geometry.size.height/4 : geometry.size.height * 3/4)
@@ -2065,7 +2065,8 @@ struct TwoOfMeScreens: View {
                 // 显示重启提示
                 RestartHintView(
                     screenID: .original,
-                    onTap: restartCamera
+                    onTap: restartCamera,
+                    cameraManager: cameraManager
                 )
             } else {
                 // 显示正常的相机视图
@@ -2081,7 +2082,8 @@ struct TwoOfMeScreens: View {
                 // 显示重启提示
                 RestartHintView(
                     screenID: .mirrored,
-                    onTap: restartCamera
+                    onTap: restartCamera,
+                    cameraManager: cameraManager
                 )
             } else {
                 // 显示正常的相机视图
@@ -2106,20 +2108,12 @@ struct TwoOfMeScreens: View {
 struct RestartHintView: View {
     let screenID: ScreenID
     let onTap: () -> Void
+    let cameraManager: CameraManager  // 添加 cameraManager 参数
     
     var body: some View {
-        Button(action: onTap) {
-            VStack {
-                Image(systemName: "arrow.clockwise.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(.white)
-                Text("点击重启相机")
-                    .foregroundColor(.white)
-                    .font(.system(size: 16))
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        RestartCameraView(action: onTap, cameraManager: cameraManager)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
     }
 }
 

@@ -20,12 +20,26 @@ class ProManager: ObservableObject {
         }
     }
     @Published var isFromMiddleButton = false // 添加标记来源
-    @Published var isPro: Bool = true  // 添加会员状态控制
+    @Published var isPro: Bool = false {  // 添加会员状态控制
+        didSet {
+            // 当 isPro 状态改变时，保存到 UserDefaults
+            UserDefaults.standard.set(isPro, forKey: "isPro")
+            UserDefaults.standard.synchronize()
+        }
+    }
     
     static let shared = ProManager()
-    private let appStoreId = "YOUR_APP_STORE_ID" // 替换为您的 App Store ID
+    private let appStoreId = "6743115750" // 替换为您的 App Store ID
     
-    private init() {}
+    // private init() {
+    //     // 从 UserDefaults 读取 Pro 状态
+    //     isPro = UserDefaults.standard.bool(forKey: "isPro")
+        
+    //     // 开发阶段可添加测试代码
+    //     #if DEBUG
+    //     isPro = true // 强制开启付费功能
+    //     #endif
+    // }
     
     func showProUpgrade(isFromMiddleButton: Bool = false) {
         self.isFromMiddleButton = isFromMiddleButton
@@ -152,10 +166,13 @@ struct ProUpgradeView: View {
                 }
                 
                 Button(action: {
-                    proManager.openAppStore()
+                    // 如果有可用的商品，直接发起购买
+                    if let product = IAPManager.shared.products.first {
+                        IAPManager.shared.purchase(product: product)
+                    }
                     dismiss()
                 }) {
-                    Text("去了解")
+                    Text("去购买")
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.blue)

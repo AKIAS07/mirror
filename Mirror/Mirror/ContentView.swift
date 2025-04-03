@@ -13,6 +13,8 @@ import Photos
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @StateObject private var captureState = CaptureState()
+    @StateObject private var restartManager = ContentRestartManager.shared
+    @StateObject private var captureManager = CaptureManager.shared
     @State private var showingTwoOfMe = false
     @State private var isCameraActive = true
     @State private var showRestartHint = false
@@ -96,9 +98,9 @@ struct ContentView: View {
                             CameraContainer(
                                 session: cameraManager.session,
                                 isMirrored: cameraManager.isMirrored,
-                                isActive: isCameraActive,
+                                isActive: restartManager.isCameraActive,
                                 deviceOrientation: orientationManager.currentOrientation,
-                                restartAction: restartCamera,
+                                restartAction: { restartManager.restartCamera(cameraManager: cameraManager) },
                                 cameraManager: cameraManager,
                                 previousBrightness: previousBrightness,
                                 isSelected: $ModeASelected,
@@ -122,9 +124,9 @@ struct ContentView: View {
                             CameraContainer(
                                 session: cameraManager.session,
                                 isMirrored: cameraManager.isMirrored,
-                                isActive: isCameraActive,
+                                isActive: restartManager.isCameraActive,
                                 deviceOrientation: orientationManager.currentOrientation,
-                                restartAction: restartCamera,
+                                restartAction: { restartManager.restartCamera(cameraManager: cameraManager) },
                                 cameraManager: cameraManager,
                                 previousBrightness: previousBrightness,
                                 isSelected: $ModeBSelected,
@@ -328,14 +330,20 @@ struct ContentView: View {
                 }
                 
                 // 添加截图操作视图
-                CaptureActionsView(captureState: captureState) {
-                    // 截图操作完成后显示所有控制界面
-                    withAnimation {
-                        isControlsVisible = true
-                        isControlAreaVisible = true
-                    }
+                if captureManager.isPreviewVisible {
+                    CaptureActionsView(
+                        captureState: captureState,
+                        cameraManager: cameraManager,
+                        onDismiss: {
+                            // 截图操作完成后显示所有控制界面
+                            withAnimation {
+                                isControlsVisible = true
+                                isControlAreaVisible = true
+                            }
+                        }
+                    )
+                    .zIndex(7)
                 }
-                .zIndex(7)
                 
                 // 添加提示视图到最顶层
                 if showArrowHint {
@@ -475,14 +483,7 @@ struct ContentView: View {
                     object: nil,
                     queue: .main
                 ) { _ in
-                    print("------------------------")
-                    print("应用即将进入后台")
-                    print("------------------------")
-                    
-                    // 停止相机会话
-                    self.cameraManager.safelyStopSession()
-                    self.isCameraActive = false
-                    self.showRestartHint = true
+                    restartManager.handleAppWillResignActive(cameraManager: cameraManager)
                 }
                 
                 NotificationCenter.default.addObserver(
@@ -490,13 +491,7 @@ struct ContentView: View {
                     object: nil,
                     queue: .main
                 ) { _ in
-                    print("------------------------")
-                    print("应用已返回前台")
-                    print("------------------------")
-                    
-                    // 显示重启提示，等待用户手动点击重启
-                    self.isCameraActive = false
-                    self.showRestartHint = true
+                    restartManager.handleAppDidBecomeActive()
                 }
                 
                 // 添加分屏退出通知监听
@@ -568,29 +563,8 @@ struct ContentView: View {
         cameraManager.isMirrored = false
         
         // 显示重启提示，等待用户点击
-        isCameraActive = false
-        showRestartHint = true
-    }
-    
-    private func restartCamera() {
-        if !cameraManager.permissionGranted {
-            print("无相机权限，无法重启相机")
-            return
-        }
-        
-        print("重启相机会话")
-        
-        // 在后台线程启动相机会话
-        DispatchQueue.global(qos: .userInitiated).async {
-            self.cameraManager.restartCamera()
-            
-            // 在主线程更新 UI 状态
-            DispatchQueue.main.async {
-                self.isCameraActive = true
-                self.showRestartHint = false
-                print("相机会话已重启")
-            }
-        }
+        restartManager.isCameraActive = false
+        restartManager.showRestartHint = true
     }
     
     // 添加放缩处理函数
@@ -802,7 +776,7 @@ struct ContentView: View {
         
         // 立即停止相机并显示重启提示
         cameraManager.safelyStopSession()
-        isCameraActive = false
+        restartManager.isCameraActive = false
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
             withAnimation {

@@ -20,6 +20,7 @@ struct CameraContainer: View {
     @Binding var isControlAreaVisible: Bool
     
     let cameraManager: CameraManager
+    @StateObject private var captureManager = CaptureManager.shared
     
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
@@ -155,15 +156,19 @@ struct CameraContainer: View {
                                         
                                         if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                                             print("[Live Photo 拍摄] 成功，准备预览")
-                                            captureState.livePhotoIdentifier = identifier
-                                            captureState.tempImageURL = imageURL
-                                            captureState.tempVideoURL = videoURL
-                                            captureState.capturedImage = image
-                                            captureState.isLivePhoto = true
+                                            captureManager.showLivePhotoPreview(
+                                                image: image,
+                                                videoURL: videoURL,
+                                                imageURL: imageURL,
+                                                identifier: identifier,
+                                                cameraManager: cameraManager
+                                            )
                                             
-                                            // 显示操作按钮并隐藏控制区域
+                                            // 在显示预览后处理相机停止
+                                            ContentRestartManager.shared.handleRestartViewAppear(cameraManager: cameraManager)
+                                            
+                                            // 隐藏控制区域
                                             withAnimation(.easeInOut(duration: 0.3)) {
-                                                captureState.showButtons = true
                                                 isControlAreaVisible = false
                                             }
                                             
@@ -180,15 +185,18 @@ struct CameraContainer: View {
                                 DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
                                     // 捕捉当前画面
                                     if let latestImage = processedImage {
-                                        captureState.capturedImage = latestImage
-                                        captureState.currentScale = currentScale
-                                        captureState.isLivePhoto = false
+                                        captureManager.showPreview(
+                                            image: latestImage, 
+                                            scale: currentScale,
+                                            cameraManager: cameraManager
+                                        )
                                         
-                                        // 显示操作按钮并隐藏控制区域
+                                        // 在显示预览后处理相机停止
+                                        ContentRestartManager.shared.handleRestartViewAppear(cameraManager: cameraManager)
+                                        
+                                        // 隐藏控制区域
                                         withAnimation(.easeInOut(duration: 0.3)) {
-                                            captureState.showButtons = true
                                             isControlAreaVisible = false
-                                            captureState.isCapturing = false
                                         }
                                         
                                         print("------------------------")
@@ -253,15 +261,19 @@ struct CameraContainer: View {
                                                 
                                                 if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                                                     print("[Live Photo 拍摄] 成功，准备预览")
-                                                    captureState.livePhotoIdentifier = identifier
-                                                    captureState.tempImageURL = imageURL
-                                                    captureState.tempVideoURL = videoURL
-                                                    captureState.capturedImage = image
-                                                    captureState.isLivePhoto = true
+                                                    captureManager.showLivePhotoPreview(
+                                                        image: image,
+                                                        videoURL: videoURL,
+                                                        imageURL: imageURL,
+                                                        identifier: identifier,
+                                                        cameraManager: cameraManager
+                                                    )
                                                     
-                                                    // 显示操作按钮并隐藏控制区域
+                                                    // 在显示预览后处理相机停止
+                                                    ContentRestartManager.shared.handleRestartViewAppear(cameraManager: cameraManager)
+                                                    
+                                                    // 隐藏控制区域
                                                     withAnimation(.easeInOut(duration: 0.3)) {
-                                                        captureState.showButtons = true
                                                         isControlAreaVisible = false
                                                     }
                                                     
@@ -278,15 +290,18 @@ struct CameraContainer: View {
                                         DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
                                             // 捕捉当前画面
                                             if let latestImage = processedImage {
-                                                captureState.capturedImage = latestImage
-                                                captureState.currentScale = currentScale
-                                                captureState.isLivePhoto = false
+                                                captureManager.showPreview(
+                                                    image: latestImage, 
+                                                    scale: currentScale,
+                                                    cameraManager: cameraManager
+                                                )
                                                 
-                                                // 显示操作按钮并隐藏控制区域
+                                                // 在显示预览后处理相机停止
+                                                ContentRestartManager.shared.handleRestartViewAppear(cameraManager: cameraManager)
+                                                
+                                                // 隐藏控制区域
                                                 withAnimation(.easeInOut(duration: 0.3)) {
-                                                    captureState.showButtons = true
                                                     isControlAreaVisible = false
-                                                    captureState.isCapturing = false
                                                 }
                                                 
                                                 print("------------------------")
@@ -324,10 +339,12 @@ struct CameraContainer: View {
                     // 添加截图操作按钮
                     VStack {
                         Spacer()
-                        CaptureActionsView(captureState: captureState) {
+                        CaptureActionsView(captureState: captureState, cameraManager: cameraManager) {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 isControlAreaVisible = true
                             }
+                            // 添加相机重启
+                            ContentRestartManager.shared.restartCamera(cameraManager: cameraManager)
                         }
                         .padding(.bottom, 180) // 确保不会被底部控制栏遮挡
                     }
@@ -338,7 +355,7 @@ struct CameraContainer: View {
                             .zIndex(6)
                     }
                 } else {
-                    RestartCameraView(action: restartAction)
+                    RestartCameraView(action: restartAction, cameraManager: cameraManager)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

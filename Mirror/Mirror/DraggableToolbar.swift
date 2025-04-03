@@ -66,6 +66,8 @@ struct DraggableToolbar: View {
     @State private var dragDirection: DragDirection = .none
     @State private var showPositionIndicator = false
     @ObservedObject var captureState: CaptureState
+    @StateObject private var captureManager = CaptureManager.shared
+    @StateObject private var restartManager = ContentRestartManager.shared  // 添加 RestartManager
     @Binding var isVisible: Bool
     
     // 添加边框灯状态绑定
@@ -253,10 +255,9 @@ struct DraggableToolbar: View {
                     Group {
                         if buttonType == .capture {
                             Circle()
-                                .fill(Color.white)
+                                .fill(restartManager.isCameraActive ? Color.white : Color.gray)
                                 .frame(width: buttonType.size, height: buttonType.size)
                         } else if buttonType == .zoom {
-                            // 自定义焦距按钮显示，使用舍入到50的倍数
                             let percentage = Int(currentScale * 100)
                             let roundedPercentage = Int(round(Double(percentage) / 50.0) * 50)
                             let zoomText = currentScale <= 1.0 ? "100" : 
@@ -264,22 +265,22 @@ struct DraggableToolbar: View {
                                           "\(roundedPercentage)"
                             Text(zoomText)
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(restartManager.isCameraActive ? .white : .gray)
                                 .frame(width: buttonType.size, height: buttonType.size)
                         } else if buttonType == .live {
-                            // 为实况按钮添加特殊样式
                             Image(systemName: cameraManager.isUsingSystemCamera ? "livephoto" : "livephoto.slash")
                                 .font(.system(size: 22))
-                                .foregroundColor(cameraManager.isUsingSystemCamera ? .yellow : .white)
+                                .foregroundColor(restartManager.isCameraActive ? (cameraManager.isUsingSystemCamera ? .yellow : .white) : .gray)
                                 .frame(width: buttonType.size, height: buttonType.size)
                         } else {
                             Image(systemName: buttonType.icon)
                                 .font(.system(size: 22))
-                                .foregroundColor(.white)
+                                .foregroundColor(restartManager.isCameraActive ? .white : .gray)
                                 .frame(width: buttonType.size, height: buttonType.size)
                         }
                     }
                 }
+                .disabled(!restartManager.isCameraActive)  // 根据相机状态禁用按钮
                 .scaleEffect(isDragging ? 0.95 : 1.0)
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
             }
@@ -315,16 +316,13 @@ struct DraggableToolbar: View {
                         
                         if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                             print("[Live Photo 拍摄] 成功，准备预览")
-                            self.captureState.livePhotoIdentifier = identifier
-                            self.captureState.tempImageURL = imageURL
-                            self.captureState.tempVideoURL = videoURL
-                            self.captureState.capturedImage = image
-                            self.captureState.isLivePhoto = true
-                            self.captureState.livePhotoVideoURL = videoURL
-                            self.captureState.capturedLivePhotoURL = videoURL
-                            
-                            // 显示操作按钮
-                            self.captureState.showButtons = true
+                            self.captureManager.showLivePhotoPreview(
+                                image: image,
+                                videoURL: videoURL,
+                                imageURL: imageURL,
+                                identifier: identifier,
+                                cameraManager: self.cameraManager
+                            )
                             
                             print("------------------------")
                             print("[Live Photo 拍摄] 状态更新：")
@@ -344,13 +342,11 @@ struct DraggableToolbar: View {
                     // 直接使用当前处理好的图像，与点击屏幕行为保持一致
                     if let latestImage = self.cameraManager.latestProcessedImage {
                         DispatchQueue.main.async {
-                            self.captureState.capturedImage = latestImage
-                            self.captureState.currentScale = self.currentScale
-                            self.captureState.isLivePhoto = false
-                            
-                            // 显示操作按钮
-                            self.captureState.showButtons = true
-                            self.captureState.isCapturing = false
+                            self.captureManager.showPreview(
+                                image: latestImage, 
+                                scale: self.currentScale,
+                                cameraManager: self.cameraManager
+                            )
                             
                             print("------------------------")
                             print("普通截图已捕捉")
