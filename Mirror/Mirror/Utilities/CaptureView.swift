@@ -19,10 +19,13 @@ public class CaptureState: ObservableObject {
     @Published public var showSaveSuccess: Bool = false
     @Published public var isCapturing: Bool = false
     @Published public var isLivePhoto: Bool = false
-    @Published public var livePhotoImageData: Data?  // 添加存储Live Photo图像数据
-    @Published public var livePhotoVideoURL: URL?    // 添加存储Live Photo视频URL
-    @Published public var isPlayingLivePhoto: Bool = false  // 添加播放Live Photo状态
-    @Published public var hasApplied180Rotation: Bool = false // 添加是否已应用180度旋转的状态
+    @Published public var livePhotoImageData: Data?
+    @Published public var livePhotoVideoURL: URL?
+    @Published public var isPlayingLivePhoto: Bool = false
+    @Published public var hasApplied180Rotation: Bool = false
+    @Published public var livePhotoIdentifier: String = ""
+    @Published public var tempImageURL: URL?
+    @Published public var tempVideoURL: URL?
     
     private var isProcessingAlert = false
     
@@ -73,12 +76,19 @@ public class CaptureState: ObservableObject {
     
     // 修改保存方法，添加Live Photo保存逻辑
     public func saveToPhotos() {
-        if isLivePhoto && livePhotoImageData != nil && livePhotoVideoURL != nil {
+        print("------------------------")
+        print("[保存到相册] 开始")
+        print("是否为Live Photo：\(isLivePhoto)")
+        
+        if isLivePhoto && tempImageURL != nil && tempVideoURL != nil {
+            print("[保存到相册] 执行Live Photo保存")
             saveLivePhotoToPhotoLibrary()
         } else if let image = capturedImage {
+            print("[保存到相册] 执行普通照片保存")
             let processedImage = cropImage(image, scale: currentScale)
             saveImageToPhotoLibrary(processedImage) { [weak self] success in
                 if success {
+                    print("[保存到相册] 普通照片保存成功")
                     withAnimation {
                         self?.showSaveSuccess = true
                     }
@@ -87,80 +97,125 @@ public class CaptureState: ObservableObject {
                             self?.showSaveSuccess = false
                         }
                     }
+                } else {
+                    print("[保存到相册] 普通照片保存失败")
                 }
             }
         }
     }
     
-    // 添加Live Photo保存方法
+    // 修改 saveLivePhotoToPhotoLibrary 方法
     private func saveLivePhotoToPhotoLibrary() {
-        guard let imageData = livePhotoImageData, let videoURL = livePhotoVideoURL else {
-            print("[Live Photo保存] 缺少必要数据")
+        print("------------------------")
+        print("[Live Photo保存] 开始")
+        print("标识符：\(livePhotoIdentifier)")
+        
+        guard let imageURL = tempImageURL,
+              let videoURL = tempVideoURL else {
+            print("[Live Photo保存] 错误：缺少必要文件")
+            print("图片URL：\(String(describing: tempImageURL))")
+            print("视频URL：\(String(describing: tempVideoURL))")
             return
+        }
+        
+        // 检查文件是否存在
+        let imageExists = FileManager.default.fileExists(atPath: imageURL.path)
+        let videoExists = FileManager.default.fileExists(atPath: videoURL.path)
+        
+        print("[Live Photo保存] 文件检查：")
+        print("图片路径：\(imageURL.path)")
+        print("视频路径：\(videoURL.path)")
+        print("图片文件存在：\(imageExists)")
+        print("视频文件存在：\(videoExists)")
+        
+        guard imageExists && videoExists else {
+            print("[Live Photo保存] 错误：文件不完整")
+            return
+        }
+        
+        // 检查文件大小
+        do {
+            let imageAttributes = try FileManager.default.attributesOfItem(atPath: imageURL.path)
+            let videoAttributes = try FileManager.default.attributesOfItem(atPath: videoURL.path)
+            print("[Live Photo保存] 文件大小：")
+            print("图片大小：\(imageAttributes[.size] as? Int64 ?? 0) 字节")
+            print("视频大小：\(videoAttributes[.size] as? Int64 ?? 0) 字节")
+        } catch {
+            print("[Live Photo保存] 获取文件属性失败：\(error.localizedDescription)")
         }
         
         // 检查权限状态
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        print("[Live Photo保存] 权限状态：\(status.rawValue)")
         
         switch status {
         case .authorized, .limited:
-            // 创建临时图片文件
-            let tempImageURL = FileManager.default.temporaryDirectory.appendingPathComponent("LivePhoto_\(UUID().uuidString).jpg")
-            
-            do {
-                // 写入照片数据
-                try imageData.write(to: tempImageURL)
+            print("[Live Photo保存] 开始保存到相册")
+            PHPhotoLibrary.shared().performChanges({
+                let creationRequest = PHAssetCreationRequest.forAsset()
+                let options = PHAssetResourceCreationOptions()
+                options.shouldMoveFile = true
                 
-                // 保存到相册
-                PHPhotoLibrary.shared().performChanges({
-                    let creationRequest = PHAssetCreationRequest.forAsset()
-                    let options = PHAssetResourceCreationOptions()
-                    options.shouldMoveFile = true
-                    
-                    // 添加照片和视频资源
-                    creationRequest.addResource(with: .photo, fileURL: tempImageURL, options: options)
-                    creationRequest.addResource(with: .pairedVideo, fileURL: videoURL, options: options)
-                    
-                }) { [weak self] success, error in
-                    // 清理临时文件
-                    try? FileManager.default.removeItem(at: tempImageURL)
-                    
-                    DispatchQueue.main.async {
-                        if success {
-                            print("[Live Photo保存] 保存成功")
-                            withAnimation {
-                                self?.showSaveSuccess = true
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation {
-                                    self?.showSaveSuccess = false
-                                }
-                            }
-                        } else {
-                            print("[Live Photo保存] 保存失败：\(error?.localizedDescription ?? "未知错误")")
+                // 设置资源类型和格式
+                print("[Live Photo保存] 创建资源：")
+                print("添加HEIF图片资源：\(imageURL.path)")
+                creationRequest.addResource(with: .photo, 
+                                         fileURL: imageURL, 
+                                         options: options)
+                
+                print("添加HEVC视频资源：\(videoURL.path)")
+                creationRequest.addResource(with: .pairedVideo, 
+                                         fileURL: videoURL, 
+                                         options: options)
+                
+            }) { [weak self] success, error in
+                DispatchQueue.main.async {
+                    if success {
+                        print("[Live Photo保存] 保存成功")
+                        print("------------------------")
+                        withAnimation {
+                            self?.showSaveSuccess = true
                         }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation {
+                                self?.showSaveSuccess = false
+                            }
+                        }
+                    } else {
+                        print("[Live Photo保存] 保存失败")
+                        print("错误：\(String(describing: error?.localizedDescription))")
+                        print("------------------------")
+                    }
+                    
+                    // 清理临时文件
+                    do {
+                        try FileManager.default.removeItem(at: imageURL)
+                        try FileManager.default.removeItem(at: videoURL)
+                        print("[Live Photo保存] 清理临时文件成功")
+                    } catch {
+                        print("[Live Photo保存] 清理临时文件失败：\(error.localizedDescription)")
                     }
                 }
-            } catch {
-                print("[Live Photo保存] 写入临时文件失败：\(error.localizedDescription)")
             }
             
         case .notDetermined:
-            // 未确定状态，请求权限
+            print("[Live Photo保存] 权限未确定，请求授权")
             PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] newStatus in
                 if newStatus == .authorized || newStatus == .limited {
                     DispatchQueue.main.async {
                         self?.saveLivePhotoToPhotoLibrary()
                     }
+                } else {
+                    print("[Live Photo保存] 用户拒绝授权")
                 }
             }
             
         case .denied, .restricted:
-            // 已拒绝，显示去设置的弹窗
+            print("[Live Photo保存] 无权限访问相册")
             PermissionManager.shared.alertState = .permission(isFirstRequest: false)
             
         @unknown default:
-            print("[Live Photo保存] 未知错误")
+            print("[Live Photo保存] 未知权限状态")
         }
     }
     
@@ -561,8 +616,9 @@ public struct CaptureActionsView: View {
                 print("[CaptureActionsView] 视图加载")
                 print("CaptureState.isLivePhoto：\(captureState.isLivePhoto)")
                 print("CaptureState.capturedImage：\(String(describing: captureState.capturedImage != nil))")
-                print("CaptureState.capturedLivePhotoURL：\(String(describing: captureState.capturedLivePhotoURL))")
-                print("CaptureState.livePhotoVideoURL：\(String(describing: captureState.livePhotoVideoURL))")
+                print("CaptureState.tempImageURL：\(String(describing: captureState.tempImageURL?.path))")
+                print("CaptureState.tempVideoURL：\(String(describing: captureState.tempVideoURL?.path))")
+                print("CaptureState.livePhotoVideoURL：\(String(describing: captureState.livePhotoVideoURL?.path))")
                 print("CaptureState.showButtons：\(captureState.showButtons)")
                 print("------------------------")
             }

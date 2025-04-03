@@ -149,14 +149,15 @@ struct CameraContainer: View {
                             // 根据是否使用系统相机决定拍摄方式
                             if cameraManager.isUsingSystemCamera {
                                 print("点击屏幕 - 使用系统相机拍摄 Live Photo")
-                                cameraManager.captureLivePhotoForPreview { success, imageData, videoURL, image, error in
+                                cameraManager.captureLivePhotoForPreview { success, identifier, imageURL, videoURL, image, error in
                                     DispatchQueue.main.async {
                                         captureState.isCapturing = false
                                         
-                                        if success, let imageData = imageData, let videoURL = videoURL, let image = image {
+                                        if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                                             print("[Live Photo 拍摄] 成功，准备预览")
-                                            captureState.livePhotoImageData = imageData
-                                            captureState.livePhotoVideoURL = videoURL
+                                            captureState.livePhotoIdentifier = identifier
+                                            captureState.tempImageURL = imageURL
+                                            captureState.tempVideoURL = videoURL
                                             captureState.capturedImage = image
                                             captureState.isLivePhoto = true
                                             
@@ -246,14 +247,15 @@ struct CameraContainer: View {
                                     // 根据是否使用系统相机决定拍摄方式
                                     if cameraManager.isUsingSystemCamera {
                                         print("点击屏幕 - 使用系统相机拍摄 Live Photo")
-                                        cameraManager.captureLivePhotoForPreview { success, imageData, videoURL, image, error in
+                                        cameraManager.captureLivePhotoForPreview { success, identifier, imageURL, videoURL, image, error in
                                             DispatchQueue.main.async {
                                                 captureState.isCapturing = false
                                                 
-                                                if success, let imageData = imageData, let videoURL = videoURL, let image = image {
+                                                if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                                                     print("[Live Photo 拍摄] 成功，准备预览")
-                                                    captureState.livePhotoImageData = imageData
-                                                    captureState.livePhotoVideoURL = videoURL
+                                                    captureState.livePhotoIdentifier = identifier
+                                                    captureState.tempImageURL = imageURL
+                                                    captureState.tempVideoURL = videoURL
                                                     captureState.capturedImage = image
                                                     captureState.isLivePhoto = true
                                                     

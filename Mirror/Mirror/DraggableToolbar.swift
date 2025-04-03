@@ -309,17 +309,29 @@ struct DraggableToolbar: View {
             // 根据是否使用系统相机决定拍摄方式
             if self.cameraManager.isUsingSystemCamera {
                 print("使用系统相机拍摄 Live Photo")
-                self.cameraManager.captureLivePhotoForPreview { success, imageData, videoURL, image, error in
+                self.cameraManager.captureLivePhotoForPreview { success, identifier, imageURL, videoURL, image, error in
                     DispatchQueue.main.async {
                         self.captureState.isCapturing = false
                         
-                        if success, let imageData = imageData, let videoURL = videoURL, let image = image {
+                        if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                             print("[Live Photo 拍摄] 成功，准备预览")
-                            self.captureState.livePhotoImageData = imageData
-                            self.captureState.livePhotoVideoURL = videoURL
+                            self.captureState.livePhotoIdentifier = identifier
+                            self.captureState.tempImageURL = imageURL
+                            self.captureState.tempVideoURL = videoURL
                             self.captureState.capturedImage = image
                             self.captureState.isLivePhoto = true
+                            self.captureState.livePhotoVideoURL = videoURL
+                            self.captureState.capturedLivePhotoURL = videoURL
+                            
+                            // 显示操作按钮
                             self.captureState.showButtons = true
+                            
+                            print("------------------------")
+                            print("[Live Photo 拍摄] 状态更新：")
+                            print("标识符：\(identifier)")
+                            print("图片 URL：\(imageURL.path)")
+                            print("视频 URL：\(videoURL.path)")
+                            print("------------------------")
                         } else {
                             print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
                         }
