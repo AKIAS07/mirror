@@ -164,9 +164,6 @@ struct CameraContainer: View {
                                                 cameraManager: cameraManager
                                             )
                                             
-                                            // 在显示预览后处理相机停止
-                                            ContentRestartManager.shared.handleRestartViewAppear(cameraManager: cameraManager)
-                                            
                                             // 隐藏控制区域
                                             withAnimation(.easeInOut(duration: 0.3)) {
                                                 isControlAreaVisible = false
@@ -190,9 +187,6 @@ struct CameraContainer: View {
                                             scale: currentScale,
                                             cameraManager: cameraManager
                                         )
-                                        
-                                        // 在显示预览后处理相机停止
-                                        ContentRestartManager.shared.handleRestartViewAppear(cameraManager: cameraManager)
                                         
                                         // 隐藏控制区域
                                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -269,9 +263,6 @@ struct CameraContainer: View {
                                                         cameraManager: cameraManager
                                                     )
                                                     
-                                                    // 在显示预览后处理相机停止
-                                                    ContentRestartManager.shared.handleRestartViewAppear(cameraManager: cameraManager)
-                                                    
                                                     // 隐藏控制区域
                                                     withAnimation(.easeInOut(duration: 0.3)) {
                                                         isControlAreaVisible = false
@@ -295,9 +286,6 @@ struct CameraContainer: View {
                                                     scale: currentScale,
                                                     cameraManager: cameraManager
                                                 )
-                                                
-                                                // 在显示预览后处理相机停止
-                                                ContentRestartManager.shared.handleRestartViewAppear(cameraManager: cameraManager)
                                                 
                                                 // 隐藏控制区域
                                                 withAnimation(.easeInOut(duration: 0.3)) {

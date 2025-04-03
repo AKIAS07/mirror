@@ -5,6 +5,8 @@ enum ToolbarPosition {
     case top
     case left
     case right
+    case leftBottom  // 新增左下位置
+    case rightBottom // 新增右下位置
     
     // 获取下一个位置
     func next(for dragDirection: DragDirection) -> ToolbarPosition {
@@ -13,6 +15,12 @@ enum ToolbarPosition {
         case (.top, .right): return .right
         case (.left, .right): return .top
         case (.right, .left): return .top
+        case (.left, .down): return .leftBottom
+        case (.right, .down): return .rightBottom
+        case (.leftBottom, .right): return .rightBottom
+        case (.rightBottom, .left): return .leftBottom
+        case (.leftBottom, .up): return .left    // 新增：左下向上 -> 左侧
+        case (.rightBottom, .up): return .right  // 新增：右下向上 -> 右侧
         default: return self
         }
     }
@@ -22,6 +30,8 @@ enum ToolbarPosition {
 enum DragDirection {
     case left
     case right
+    case up
+    case down
     case none
 }
 
@@ -55,6 +65,25 @@ enum ToolbarButtonType: Int, CaseIterable {
     }
 }
 
+// 在 ToolbarButtonType 枚举后添加新的按钮类型枚举
+enum UtilityButtonType: Int, CaseIterable {
+    case add = 0
+    case drag
+    case close
+    
+    var icon: String {
+        switch self {
+        case .add: return "plus"
+        case .drag: return "arrow.up.and.down.and.arrow.left.and.right"
+        case .close: return "xmark"
+        }
+    }
+    
+    var size: CGFloat {
+        return 25  // 减小按钮尺寸（原值为30）
+    }
+}
+
 struct DraggableToolbar: View {
     @AppStorage("toolbarPosition") private var position: ToolbarPosition = .top {
         didSet {
@@ -64,7 +93,6 @@ struct DraggableToolbar: View {
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
     @State private var dragDirection: DragDirection = .none
-    @State private var showPositionIndicator = false
     @ObservedObject var captureState: CaptureState
     @StateObject private var captureManager = CaptureManager.shared
     @StateObject private var restartManager = ContentRestartManager.shared  // 添加 RestartManager
@@ -85,109 +113,140 @@ struct DraggableToolbar: View {
     // 工具栏尺寸常量
     private let toolbarHeight: CGFloat = 60
     private let toolbarWidth: CGFloat = UIScreen.main.bounds.width
-    private let buttonSpacing: CGFloat = 25
+    private let buttonSpacing: CGFloat = 25  // 原值
+    private let utilityButtonSpacing: CGFloat = 15  // 新增：工具按钮的间距更小
     private let edgeThreshold: CGFloat = 80
+    private let verticalToolbarWidth: CGFloat = 70  // 新增：垂直布局时的宽度
     
     // 添加触觉反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
     
+    // 添加新状态来跟踪是否已移动位置
+    @State private var hasMovedPosition = false
+    
     var body: some View {
         GeometryReader { geometry in
-            let isVertical = position == .left || position == .right
+            let isVertical = position == .left || position == .right || position == .leftBottom || position == .rightBottom
             
             HStack(spacing: 0) {
-                if position == .left {
-                    toolbarContent(isVertical: true)
+                if position == .left || position == .leftBottom {
+                    toolbarContent(isVertical: true, geometry: geometry)
                 }
                 
                 if position == .top {
-                    toolbarContent(isVertical: false)
+                    toolbarContent(isVertical: false, geometry: geometry)
                 }
                 
-                if position == .right {
-                    toolbarContent(isVertical: true)
+                if position == .right || position == .rightBottom {
+                    toolbarContent(isVertical: true, geometry: geometry)
                 }
             }
-            .frame(
-                width: isVertical ? toolbarHeight : toolbarWidth,
-                height: isVertical ? geometry.size.height * 0.5 : toolbarHeight
-            )
-            .background(
-                RoundedRectangle(cornerRadius: isVertical ? 0 : 30)
-                    .fill(Color.black.opacity(0.35))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: isVertical ? 0 : 30)
-                            .stroke(Color.white.opacity(isDragging ? 0.3 : 0), lineWidth: 2)
-                    )
-            )
-            .overlay(
-                Group {
-                    if showPositionIndicator {
-                        positionIndicator
-                    }
-                }
-            )
             .position(calculatePosition(in: geometry))
-            .gesture(
-                DragGesture(minimumDistance: 10)
-                    .onChanged { value in
-                        handleDragChange(value, in: geometry)
-                    }
-                    .onEnded { value in
-                        handleDragEnd(value, in: geometry)
-                    }
-            )
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: position)
             .animation(.easeInOut(duration: 0.2), value: dragOffset)
+            .ignoresSafeArea(.all, edges: .top)
         }
     }
     
     private func handleDragChange(_ value: DragGesture.Value, in geometry: GeometryProxy) {
         isDragging = true
         
-        // 计算拖动方向
+        // 如果已经移动过位置，直接返回
+        if hasMovedPosition {
+            return
+        }
+        
+        // 计算拖动方向和距离
         let horizontalMovement = value.translation.width
-        dragDirection = horizontalMovement > 0 ? .right : .left
+        let verticalMovement = value.translation.height
+        
+        // 根据水平和垂直移动的绝对值来判断主要移动方向
+        if abs(horizontalMovement) > abs(verticalMovement) {
+            dragDirection = horizontalMovement > 0 ? .right : .left
+        } else {
+            dragDirection = verticalMovement > 0 ? .down : .up
+        }
         
         // 更新拖动偏移
         dragOffset = value.translation
         
-        // 显示位置指示器
-        showPositionIndicator = true
+        // 设置移动阈值
+        let threshold: CGFloat = 50
         
-        // 计算新位置
-        let newPosition = value.location
-        let currentPos = calculatePosition(in: geometry)
+        // 打印调试信息
+        print("------------------------")
+        print("拖拽调试信息：")
+        print("当前位置：\(position)")
+        print("水平移动：\(horizontalMovement)")
+        print("垂直移动：\(verticalMovement)")
+        print("拖拽方向：\(dragDirection)")
+        print("------------------------")
         
-        // 边缘检测逻辑
-        if !isNearCurrentPosition(newPosition, currentPos) {
-            if shouldMoveToLeft(newPosition, in: geometry) {
-                moveToPosition(.left)
-            } else if shouldMoveToRight(newPosition, in: geometry) {
-                moveToPosition(.right)
-            } else if shouldMoveToTop(newPosition, in: geometry) {
+        // 根据当前位置和拖动方向决定切换位置
+        switch position {
+        case .left:
+            if dragDirection == .right && horizontalMovement > threshold {  // 向右拖动 -> 到顶部
+                print("左侧向右拖动，切换到顶部")
                 moveToPosition(.top)
+            } else if dragDirection == .up && verticalMovement < -threshold {  // 向上拖动 -> 到顶部
+                print("左侧向上拖动，切换到顶部")
+                moveToPosition(.top)
+            } else if dragDirection == .down && verticalMovement > threshold {  // 向下拖动 -> 到左下
+                print("左侧向下拖动，切换到左下")
+                moveToPosition(.leftBottom)
+            }
+        case .right:
+            if dragDirection == .left && horizontalMovement < -threshold {  // 向左拖动 -> 到顶部
+                print("右侧向左拖动，切换到顶部")
+                moveToPosition(.top)
+            } else if dragDirection == .up && verticalMovement < -threshold {  // 向上拖动 -> 到顶部
+                print("右侧向上拖动，切换到顶部")
+                moveToPosition(.top)
+            } else if dragDirection == .down && verticalMovement > threshold {  // 向下拖动 -> 到右下
+                print("右侧向下拖动，切换到右下")
+                moveToPosition(.rightBottom)
+            }
+        case .leftBottom:
+            if dragDirection == .right && horizontalMovement > threshold {  // 向右拖动 -> 到右下
+                print("左下向右拖动，切换到右下")
+                moveToPosition(.rightBottom)
+            } else if dragDirection == .up && verticalMovement < -threshold {  // 向上拖动 -> 到左侧
+                print("左下向上拖动，切换到左侧")
+                moveToPosition(.left)
+            }
+        case .rightBottom:
+            if dragDirection == .left && horizontalMovement < -threshold {  // 向左拖动 -> 到左下
+                print("右下向左拖动，切换到左下")
+                moveToPosition(.leftBottom)
+            } else if dragDirection == .up && verticalMovement < -threshold {  // 向上拖动 -> 到右侧
+                print("右下向上拖动，切换到右侧")
+                moveToPosition(.right)
+            }
+        case .top:
+            if dragDirection == .right && horizontalMovement > threshold {  // 向右拖动 -> 到右侧
+                print("顶部向右拖动，切换到右侧")
+                moveToPosition(.right)
+            } else if dragDirection == .left && horizontalMovement < -threshold {  // 向左拖动 -> 到左侧
+                print("顶部向左拖动，切换到左侧")
+                moveToPosition(.left)
             }
         }
     }
     
     private func handleDragEnd(_ value: DragGesture.Value, in geometry: GeometryProxy) {
         isDragging = false
-        showPositionIndicator = false
+        dragDirection = .none
+        hasMovedPosition = false  // 重置移动状态
         
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             dragOffset = .zero
         }
-        
-        // 延迟隐藏位置指示器
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            showPositionIndicator = false
-        }
     }
     
     private func moveToPosition(_ newPosition: ToolbarPosition) {
-        if position != newPosition {
+        if position != newPosition && !hasMovedPosition {  // 添加 !hasMovedPosition 条件
             feedbackGenerator.impactOccurred()
+            hasMovedPosition = true  // 设置已移动标志
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 position = newPosition
                 dragOffset = .zero
@@ -195,55 +254,92 @@ struct DraggableToolbar: View {
         }
     }
     
-    private func isNearCurrentPosition(_ newPos: CGPoint, _ currentPos: CGPoint) -> Bool {
-        let distance = sqrt(pow(newPos.x - currentPos.x, 2) + pow(newPos.y - currentPos.y, 2))
-        return distance < 50
-    }
-    
-    private func shouldMoveToLeft(_ pos: CGPoint, in geometry: GeometryProxy) -> Bool {
-        return pos.x < edgeThreshold && position != .left
-    }
-    
-    private func shouldMoveToRight(_ pos: CGPoint, in geometry: GeometryProxy) -> Bool {
-        return pos.x > geometry.size.width - edgeThreshold && position != .right
-    }
-    
-    private func shouldMoveToTop(_ pos: CGPoint, in geometry: GeometryProxy) -> Bool {
-        return pos.y < geometry.size.height * 0.2 && position != .top
-    }
-    
-    private var positionIndicator: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(position == .left ? Color.white : Color.white.opacity(0.3))
-                .frame(width: 6, height: 6)
-            Circle()
-                .fill(position == .top ? Color.white : Color.white.opacity(0.3))
-                .frame(width: 6, height: 6)
-            Circle()
-                .fill(position == .right ? Color.white : Color.white.opacity(0.3))
-                .frame(width: 6, height: 6)
-        }
-        .padding(8)
-        .background(Color.black.opacity(0.5))
-        .cornerRadius(12)
-        .offset(y: 30)
-    }
-    
-    private func toolbarContent(isVertical: Bool) -> some View {
+    private func toolbarContent(isVertical: Bool, geometry: GeometryProxy) -> some View {
         Group {
+            if isVertical {
+                HStack(spacing: 0) {
+                    if position == .right || position == .rightBottom {
+                        // 右侧或右下时，工具按钮在左边
+                        utilityButtonsContainer(isVertical: true)
+                    }
+                    
+                    // 主按钮容器
+                    mainButtonsContainer(isVertical: true)
+                    
+                    if position == .left || position == .leftBottom {
+                        // 左侧或左下时，工具按钮在右边
+                        utilityButtonsContainer(isVertical: true)
+                    }
+                }
+            } else {
+                // 顶部工具栏时，垂直排列两个容器
+                VStack(spacing: 0) {
+                    mainButtonsContainer(isVertical: false)
+                    utilityButtonsContainer(isVertical: false)
+                }
+            }
+        }
+    }
+    
+    private func mainButtonsContainer(isVertical: Bool) -> some View {
+        VStack {
             if isVertical {
                 VStack(spacing: buttonSpacing) {
                     toolbarButtons()
                 }
+                .padding(.vertical, 10)  // 垂直布局时的内边距
             } else {
+                // 顶部布局时，使用 Spacer 将按钮推到下方
+                Spacer()
+                    .frame(height: 100)  // 增加上方空间到50点
+                
                 HStack(spacing: buttonSpacing) {
                     toolbarButtons()
                 }
+                .padding(.bottom, 15)  // 底部留出一定空间
             }
         }
-        .padding(.horizontal, isVertical ? 10 : 20)
-        .padding(.vertical, isVertical ? 20 : 10)
+        .padding(.horizontal, isVertical ? 5 : 20)  // 水平内边距保持不变
+        .frame(
+            width: isVertical ? nil : UIScreen.main.bounds.width-60,  // 顶部时宽度为屏幕宽度
+            height: isVertical ? nil : 150  // 保持高度为150
+        )
+        .background(
+            RoundedRectangle(cornerRadius: isVertical ? 0 : 0)
+                .fill(Color.black.opacity(0.15))
+                .overlay(
+                    RoundedRectangle(cornerRadius: isVertical ? 0 : 0)
+                        .stroke(Color.white.opacity(isDragging ? 0.3 : 0), lineWidth: 2)
+                )
+        )
+    }
+    
+    private func utilityButtonsContainer(isVertical: Bool) -> some View {
+        Group {
+            if isVertical {
+                VStack(spacing: utilityButtonSpacing) {  // 使用更小的间距
+                    utilityButtonsContent()
+                }
+                .padding(.vertical, 5)  // 减小垂直内边距
+                .padding(.horizontal, 5)  // 减小水平内边距
+                .background(
+                    RoundedRectangle(cornerRadius: 0)
+                        .fill(Color.yellow.opacity(0.2))
+                )
+                .frame(width: 40)  // 限制垂直布局时的宽度
+            } else {
+                HStack(spacing: utilityButtonSpacing) {  // 使用更小的间距
+                    utilityButtonsContent()
+                }
+                .padding(.vertical, 5)  // 减小垂直内边距
+                .padding(.horizontal, 10)  // 减小水平内边距
+                .background(
+                    RoundedRectangle(cornerRadius: 0)
+                        .fill(Color.yellow.opacity(0.2))
+                )
+                .frame(height: 40)  // 限制水平布局时的高度
+            }
+        }
     }
     
     private func toolbarButtons() -> some View {
@@ -435,18 +531,94 @@ struct DraggableToolbar: View {
             let xOffset = min(max(dragOffset.width, -geometry.size.width/2), geometry.size.width/2)
             return CGPoint(
                 x: geometry.size.width / 2 + xOffset,
-                y: toolbarHeight / 2 + dragOffset.height
+                y: toolbarHeight
             )
         case .left:
             return CGPoint(
-                x: toolbarHeight / 2,
+                x: (verticalToolbarWidth / 2) + 17,
                 y: geometry.size.height * 0.3
             )
         case .right:
             return CGPoint(
-                x: geometry.size.width - toolbarHeight / 2,
+                x: geometry.size.width - (verticalToolbarWidth / 2) - 17,
                 y: geometry.size.height * 0.3
             )
+        case .leftBottom:
+            return CGPoint(
+                x: (verticalToolbarWidth / 2) + 17,
+                y: geometry.size.height * 0.3 + 200  // 在左侧位置下方100pt
+            )
+        case .rightBottom:
+            return CGPoint(
+                x: geometry.size.width - (verticalToolbarWidth / 2) - 17,
+                y: geometry.size.height * 0.3 + 200  // 在右侧位置下方100pt
+            )
+        }
+    }
+    
+    private func utilityButtonsContent() -> some View {
+        ForEach(UtilityButtonType.allCases, id: \.rawValue) { buttonType in
+            Group {
+                if buttonType == .drag {
+                    // 拖拽按钮添加拖拽手势
+                    GeometryReader { geometry in
+                        Image(systemName: buttonType.icon)
+                            .font(.system(size: 16))
+                            .foregroundColor(restartManager.isCameraActive ? .white : .gray)
+                            .frame(width: buttonType.size, height: buttonType.size)
+                            .gesture(
+                                DragGesture(minimumDistance: 10)
+                                    .onChanged { value in
+                                        handleDragChange(value, in: geometry)
+                                    }
+                                    .onEnded { value in
+                                        handleDragEnd(value, in: geometry)
+                                    }
+                            )
+                            .disabled(!restartManager.isCameraActive)
+                            .scaleEffect(isDragging ? 0.95 : 1.0)
+                    }
+                    .frame(width: buttonType.size, height: buttonType.size)
+                } else {
+                    Button(action: {
+                        handleUtilityButtonTap(buttonType)
+                    }) {
+                        Image(systemName: buttonType.icon)
+                            .font(.system(size: 16))
+                            .foregroundColor(restartManager.isCameraActive ? .white : .gray)
+                            .frame(width: buttonType.size, height: buttonType.size)
+                    }
+                    .disabled(!restartManager.isCameraActive)
+                    .scaleEffect(isDragging ? 0.95 : 1.0)
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
+        }
+    }
+    
+    // 添加工具按钮处理函数
+    private func handleUtilityButtonTap(_ buttonType: UtilityButtonType) {
+        feedbackGenerator.impactOccurred()
+        
+        switch buttonType {
+        case .add:
+            print("------------------------")
+            print("工具栏：点击添加按钮")
+            print("------------------------")
+            
+        case .drag:
+            print("------------------------")
+            print("工具栏：点击拖拽按钮")
+            print("------------------------")
+            
+        case .close:
+            print("------------------------")
+            print("工具栏：点击关闭按钮")
+            print("------------------------")
+            
+            // 调用 handleRestartViewAppear 方法
+            restartManager.handleRestartViewAppear(cameraManager: cameraManager)
+            
         }
     }
 }
@@ -473,6 +645,8 @@ extension ToolbarPosition: RawRepresentable {
         case "top": self = .top
         case "left": self = .left
         case "right": self = .right
+        case "leftBottom": self = .leftBottom
+        case "rightBottom": self = .rightBottom
         default: return nil
         }
     }
@@ -482,6 +656,8 @@ extension ToolbarPosition: RawRepresentable {
         case .top: return "top"
         case .left: return "left"
         case .right: return "right"
+        case .leftBottom: return "leftBottom"
+        case .rightBottom: return "rightBottom"
         }
     }
 } 

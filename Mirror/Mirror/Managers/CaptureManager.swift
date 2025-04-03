@@ -33,6 +33,11 @@ class CaptureManager: ObservableObject {
             self.isPreviewVisible = true
         }
 
+        // 延迟0.5秒后关闭摄像头
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            cameraManager.safelyStopSession()
+            self.restartManager.isCameraActive = false
+        }
     }
     
     // 显示 Live Photo 预览
@@ -49,6 +54,11 @@ class CaptureManager: ObservableObject {
             self.isPreviewVisible = true
         }
         
+        // 延迟0.5秒后关闭摄像头
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            cameraManager.safelyStopSession()
+            self.restartManager.isCameraActive = false
+        }
     }
     
     // 隐藏预览
