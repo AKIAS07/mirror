@@ -31,15 +31,15 @@ class ProManager: ObservableObject {
     static let shared = ProManager()
     private let appStoreId = "6743115750" // 替换为您的 App Store ID
     
-    // private init() {
-    //     // 从 UserDefaults 读取 Pro 状态
-    //     isPro = UserDefaults.standard.bool(forKey: "isPro")
+    private init() {
+        // 从 UserDefaults 读取 Pro 状态
+        isPro = UserDefaults.standard.bool(forKey: "isPro")
         
-    //     // 开发阶段可添加测试代码
-    //     #if DEBUG
-    //     isPro = true // 强制开启付费功能
-    //     #endif
-    // }
+        // 开发阶段可添加测试代码
+        #if DEBUG
+        isPro = true // 强制开启付费功能
+        #endif
+    }
     
     func showProUpgrade(isFromMiddleButton: Bool = false) {
         self.isFromMiddleButton = isFromMiddleButton

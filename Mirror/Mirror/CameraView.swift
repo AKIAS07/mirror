@@ -2,8 +2,10 @@ import SwiftUI
 import AVFoundation
 
 struct CameraView: UIViewRepresentable {
-    @Binding var session: AVCaptureSession
-    @Binding var isMirrored: Bool
+    var session: AVCaptureSession
+    var isMirrored: Bool
+    var isSystemCamera: Bool = false  // 新增参数
+    var isBackCamera: Bool = false    // 新增参数
     
     class PreviewView: UIView {
         override class var layerClass: AnyClass {
@@ -27,13 +29,24 @@ struct CameraView: UIViewRepresentable {
         // 配置预览层
         if let connection = view.videoPreviewLayer.connection {
             connection.automaticallyAdjustsVideoMirroring = false
+            
+            // 特殊情况处理：在镜像模式(A)下使用系统相机的后置摄像头
+            if isSystemCamera && isBackCamera && isMirrored {
+                // 在这种情况下需要旋转180度
+                connection.videoOrientation = .portraitUpsideDown
+                print("[CameraView] 特殊情况：系统相机后置镜像模式，应用180度旋转")
+            } else {
+                connection.videoOrientation = .portrait
+            }
+            
             connection.isVideoMirrored = isMirrored
-            connection.videoOrientation = .portrait
             
             print("------------------------")
             print("[CameraView] 预览层配置")
             print("镜像状态：\(isMirrored)")
-            print("方向：竖屏")
+            print("系统相机：\(isSystemCamera)")
+            print("后置摄像头：\(isBackCamera)")
+            print("方向：\(connection.videoOrientation == .portraitUpsideDown ? "倒置竖屏" : "竖屏")")
             print("------------------------")
         }
         
@@ -49,17 +62,27 @@ struct CameraView: UIViewRepresentable {
         
         if let connection = uiView.videoPreviewLayer.connection {
             connection.automaticallyAdjustsVideoMirroring = false
+            
+            // 特殊情况处理：在镜像模式(A)下使用系统相机的后置摄像头
+            if isSystemCamera && isBackCamera && isMirrored {
+                // 在这种情况下需要旋转180度
+                connection.videoOrientation = .portraitUpsideDown
+                print("[CameraView] 特殊情况：系统相机后置镜像模式，应用180度旋转")
+            } else {
+                connection.videoOrientation = .portrait
+            }
+            
             connection.isVideoMirrored = isMirrored
-            connection.videoOrientation = .portrait
             
             print("------------------------")
             print("[CameraView] 预览层更新")
             print("镜像状态：\(isMirrored)")
-            print("方向：竖屏")
+            print("系统相机：\(isSystemCamera)")
+            print("后置摄像头：\(isBackCamera)")
+            print("方向：\(connection.videoOrientation == .portraitUpsideDown ? "倒置竖屏" : "竖屏")")
             print("------------------------")
         }
         
-        // 移除这里的会话启动逻辑，因为它可能与配置过程冲突
         print("------------------------")
         print("[CameraView] 预览层更新完成")
         print("------------------------")

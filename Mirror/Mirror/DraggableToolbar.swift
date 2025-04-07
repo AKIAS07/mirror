@@ -118,6 +118,9 @@ struct DraggableToolbar: View {
     private let edgeThreshold: CGFloat = 80
     private let verticalToolbarWidth: CGFloat = 70  // 新增：垂直布局时的宽度
     
+    // 添加设备方向
+    @ObservedObject private var orientationManager = DeviceOrientationManager.shared
+    
     // 添加触觉反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
     
@@ -126,7 +129,7 @@ struct DraggableToolbar: View {
     
     var body: some View {
         GeometryReader { geometry in
-            let isVertical = position == .left || position == .right || position == .leftBottom || position == .rightBottom
+            let isVertical = orientationManager.currentOrientation == .portrait || orientationManager.currentOrientation == .portraitUpsideDown
             
             HStack(spacing: 0) {
                 if position == .left || position == .leftBottom {
@@ -244,9 +247,13 @@ struct DraggableToolbar: View {
     }
     
     private func moveToPosition(_ newPosition: ToolbarPosition) {
-        if position != newPosition && !hasMovedPosition {  // 添加 !hasMovedPosition 条件
+        if position != newPosition && !hasMovedPosition {
             feedbackGenerator.impactOccurred()
-            hasMovedPosition = true  // 设置已移动标志
+            hasMovedPosition = true
+            
+            // 记录位置变化
+            ViewActionLogger.shared.logToolbarPositionChange(from: position, to: newPosition)
+            
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 position = newPosition
                 dragOffset = .zero
@@ -384,6 +391,20 @@ struct DraggableToolbar: View {
     }
     
     private func handleButtonTap(_ buttonType: ToolbarButtonType) {
+        // 记录操作
+        switch buttonType {
+        case .live:
+            ViewActionLogger.shared.logAction(.toolbarAction(.live))
+        case .light:
+            ViewActionLogger.shared.logAction(.toolbarAction(.light))
+        case .capture:
+            ViewActionLogger.shared.logAction(.toolbarAction(.capture))
+        case .camera:
+            ViewActionLogger.shared.logAction(.toolbarAction(.camera))
+        case .zoom:
+            ViewActionLogger.shared.logAction(.toolbarAction(.zoom))
+        }
+        
         feedbackGenerator.impactOccurred()
         
         switch buttonType {
@@ -596,29 +617,31 @@ struct DraggableToolbar: View {
         }
     }
     
-    // 添加工具按钮处理函数
+    // 修改工具按钮处理函数
     private func handleUtilityButtonTap(_ buttonType: UtilityButtonType) {
         feedbackGenerator.impactOccurred()
         
         switch buttonType {
         case .add:
+            ViewActionLogger.shared.logAction(.utilityAction(.add))
             print("------------------------")
             print("工具栏：点击添加按钮")
             print("------------------------")
             
         case .drag:
+            ViewActionLogger.shared.logAction(.utilityAction(.drag))
             print("------------------------")
             print("工具栏：点击拖拽按钮")
             print("------------------------")
             
         case .close:
+            ViewActionLogger.shared.logAction(.utilityAction(.close))
             print("------------------------")
             print("工具栏：点击关闭按钮")
             print("------------------------")
             
             // 调用 handleRestartViewAppear 方法
             restartManager.handleRestartViewAppear(cameraManager: cameraManager)
-            
         }
     }
 }

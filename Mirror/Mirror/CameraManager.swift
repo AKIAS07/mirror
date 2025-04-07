@@ -12,6 +12,12 @@ class CameraManager: ObservableObject {
     @Published var isMirrored = false
     @Published var isFront = true
     @Published var isBack = false
+    
+    // 添加后置摄像头状态的计算属性
+    var isUsingBackCamera: Bool {
+        return isBack && !isFront
+    }
+    
     let videoOutput = AVCaptureVideoDataOutput()
     private var isSettingUpCamera = false
     private var photoOutput: AVCapturePhotoOutput?
@@ -124,18 +130,22 @@ class CameraManager: ObservableObject {
     }
     
     func restartCamera() {
+        print("========================")
+        print("[相机重启] 开始")
+        print("------------------------")
+        print("重启前状态：")
+        print("- 镜像模式(A模式)：\(isMirrored)")
+        print("- 系统相机：\(isUsingSystemCamera)")
+        print("- 摄像头：\(isFront ? "前置" : "后置")")
+        
         if session.isRunning {
-            print("------------------------")
-            print("[相机] 会话正在运行，先停止当前会话")
-            print("------------------------")
+            print("[相机重启] 会话正在运行，先停止当前会话")
             stopSession()
-            Thread.sleep(forTimeInterval: 0.2) // 增加等待时间，确保会话完全停止
+            Thread.sleep(forTimeInterval: 0.2) // 确保会话完全停止
         }
         
         if isSettingUpCamera {
-            print("------------------------")
-            print("[相机] 正在设置中，跳过重启")
-            print("------------------------")
+            print("[相机重启] 正在设置中，跳过重启")
             return
         }
         
@@ -143,27 +153,20 @@ class CameraManager: ObservableObject {
         livePhotoCaptureProcessor = nil
         photoCaptureProcessor = nil
         
-        print("------------------------")
-        print("[相机] 准备重启")
-        print("当前模式：\(isUsingSystemCamera ? "系统相机" : "自定义相机")")
-        print("Live Photo状态：\(photoOutput?.isLivePhotoCaptureEnabled ?? false)")
-        print("------------------------")
-        
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            print("------------------------")
-            print("[相机] 重启中...")
-            print("------------------------")
-            
+            print("[相机重启] 重启中...")
             self.setupCamera()
             
             DispatchQueue.main.async {
                 print("------------------------")
-                print("[相机] 重启完成")
-                print("当前模式：\(self.isUsingSystemCamera ? "系统相机" : "自定义相机")")
-                print("Live Photo状态：\(self.photoOutput?.isLivePhotoCaptureEnabled ?? false)")
-                print("------------------------")
+                print("[相机重启] 完成")
+                print("重启后状态：")
+                print("- 镜像模式(A模式)：\(self.isMirrored)")
+                print("- 系统相机：\(self.isUsingSystemCamera)")
+                print("- 摄像头：\(self.isFront ? "前置" : "后置")")
+                print("========================")
             }
         }
     }
@@ -239,8 +242,16 @@ class CameraManager: ObservableObject {
         isSettingUpCamera = false
     }
     
-    // 添加系统相机配置方法
+    // 修改 configureSystemCamera 方法
     private func configureSystemCamera() throws {
+        print("========================")
+        print("[系统相机配置] 详细状态")
+        print("------------------------")
+        print("1. 相机状态：")
+        print("- 是否镜像模式：\(isMirrored)")
+        print("- 摄像头：\(isFront ? "前置" : "后置")")
+        print("- 会话预设：\(session.sessionPreset.rawValue)")
+        
         // 使用系统相机配置
         session.sessionPreset = .photo
         
@@ -313,7 +324,8 @@ class CameraManager: ObservableObject {
             }
         }
         
-        // 设置视频输出
+        // 修改视频输出配置部分
+               // 设置视频输出
         if session.canAddOutput(videoOutput) {
             videoOutput.videoSettings = [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
@@ -444,15 +456,44 @@ class CameraManager: ObservableObject {
     }
     
     func switchCamera() {
+        print("========================")
+        print("[切换摄像头] 状态变化")
+        print("------------------------")
+        print("切换前：")
+        print("- 前置/后置：\(isFront ? "前置" : "后置")")
+        print("- 镜像状态：\(isMirrored)")
+        print("- Live模式：\(isUsingSystemCamera)")
+        
         isFront.toggle()
         isBack.toggle()
+        
+        print("切换后：")
+        print("- 前置/后置：\(isFront ? "前置" : "后置")")
+        print("- 镜像状态：\(isMirrored)")
+        print("- Live模式：\(isUsingSystemCamera)")
+        print("========================")
+        
         restartCamera()
-        print("切换到\(isFront ? "前置" : "后置")摄像头")
     }
     
     func toggleSystemCamera() {
+        print("========================")
+        print("[切换Live模式] 状态变化")
+        print("------------------------")
+        print("切换前：")
+        print("- Live模式：\(isUsingSystemCamera)")
+        print("- 前置/后置：\(isFront ? "前置" : "后置")")
+        print("- 镜像状态：\(isMirrored)")
+        
         isUsingSystemCamera.toggle()
-        print("切换系统相机状态：\(isUsingSystemCamera ? "开启" : "关闭")")
+        
+        print("切换后：")
+        print("- Live模式：\(isUsingSystemCamera)")
+        print("- 前置/后置：\(isFront ? "前置" : "后置")")
+        print("- 镜像状态：\(isMirrored)")
+        print("========================")
+        
+        restartCamera()
     }
     
     func captureLivePhoto(completion: @escaping (Bool, Error?) -> Void) {

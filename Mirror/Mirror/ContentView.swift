@@ -432,43 +432,43 @@ struct ContentView: View {
                         }
                     }
                 
-                // 设置允许的设备方向
-                let allowedOrientations: [UIDeviceOrientation] = [
-                    .portrait,
-                    .portraitUpsideDown,
-                    .landscapeLeft,
-                    .landscapeRight
-                ]
+                // // 设置允许的设备方向
+                // let allowedOrientations: [UIDeviceOrientation] = [
+                //     .portrait,
+                //     .portraitUpsideDown,
+                //     .landscapeLeft,
+                //     .landscapeRight
+                // ]
                 
-                // 记录最后一个有效方向
-                var lastValidOrientation: UIDeviceOrientation = .portrait
+                // // 记录最后一个有效方向
+                // var lastValidOrientation: UIDeviceOrientation = .portrait
                 
-                // 添加设备方向变化通知监听
-                NotificationCenter.default.addObserver(
-                    forName: UIDevice.orientationDidChangeNotification,
-                    object: nil,
-                    queue: .main) { _ in
-                        let newOrientation = UIDevice.current.orientation
+                // // 添加设备方向变化通知监听
+                // NotificationCenter.default.addObserver(
+                //     forName: UIDevice.orientationDidChangeNotification,
+                //     object: nil,
+                //     queue: .main) { _ in
+                //         let newOrientation = UIDevice.current.orientation
                         
-                        // 只处理允许的方向，否则保持最后一个有效方向
-                        if allowedOrientations.contains(newOrientation) {
-                            lastValidOrientation = newOrientation
-                            deviceOrientation = newOrientation
-                            print("设备方向变化：\(newOrientation.rawValue)")
+                //         // 只处理允许的方向，否则保持最后一个有效方向
+                //         if allowedOrientations.contains(newOrientation) {
+                //             lastValidOrientation = newOrientation
+                //             deviceOrientation = newOrientation
+                //             print("设备方向变化：\(newOrientation.rawValue)")
                             
-                            // 在模式B且使用Live模式下处理横屏旋转
-                            if !cameraManager.isMirrored && cameraManager.isUsingSystemCamera {
-                                if newOrientation == .landscapeLeft {
-                                    print("正常模式下向左横屏，旋转摄像头画面180度")
-                                } else if newOrientation == .landscapeRight {
-                                    print("正常模式下向右横屏，旋转摄像头画面180度")
-                                }
-                            }
-                        } else {
-                            // 保持最后一个有效方向
-                            deviceOrientation = lastValidOrientation
-                        }
-                    }
+                //             // 在模式B且使用Live模式下处理横屏旋转
+                //             if !cameraManager.isMirrored && cameraManager.isUsingSystemCamera {
+                //                 if newOrientation == .landscapeLeft {
+                //                     print("正常模式下向左横屏，旋转摄像头画面180度")
+                //                 } else if newOrientation == .landscapeRight {
+                //                     print("正常模式下向右横屏，旋转摄像头画面180度")
+                //                 }
+                //             }
+                //         } else {
+                //             // 保持最后一个有效方向
+                //             deviceOrientation = lastValidOrientation
+                //         }
+                //     }
                 
                 UIDevice.current.beginGeneratingDeviceOrientationNotifications()
                 
@@ -567,7 +567,7 @@ struct ContentView: View {
         restartManager.showRestartHint = true
     }
     
-    // 添加放缩处理函数
+    // 修改缩放处理函数
     private func handlePinchGesture(scale: CGFloat) {
         let newScale = baseScale * scale
         
@@ -583,6 +583,12 @@ struct ContentView: View {
                 print("------------------------")
                 showScaleLimitMessage = true
                 scaleLimitMessage = "已放大至最大尺寸"
+                
+                // 记录缩放限制
+                ViewActionLogger.shared.logAction(
+                    .gestureAction(.pinch),
+                    additionalInfo: ["状态": "达到最大缩放限制"]
+                )
             }
         } else if newScale <= minScale && scale < 1.0 {
             currentScale = minScale
@@ -592,11 +598,20 @@ struct ContentView: View {
                 print("------------------------")
                 showScaleLimitMessage = true
                 scaleLimitMessage = "已缩小至最小尺寸"
+                
+                // 记录缩放限制
+                ViewActionLogger.shared.logAction(
+                    .gestureAction(.pinch),
+                    additionalInfo: ["状态": "达到最小缩放限制"]
+                )
             }
         } else {
             currentScale = min(max(newScale, minScale), maxScale)
             showScaleLimitMessage = false
         }
+        
+        // 记录缩放操作
+        ViewActionLogger.shared.logZoomAction(scale: currentScale)
         
         // 打印日志
         let currentPercentage = Int(currentScale * 100)
@@ -675,6 +690,9 @@ struct ContentView: View {
                     showLiveModeSwitchAlert(mode: "A")
                     return
                 }
+                
+                // 记录模式切换
+                ViewActionLogger.shared.logModeSwitch(toModeA: true)
                 
                 // 更新动画逻辑
                 leftAnimationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)
@@ -804,6 +822,9 @@ struct ContentView: View {
                     showLiveModeSwitchAlert(mode: "B")
                     return
                 }
+                
+                // 记录模式切换
+                ViewActionLogger.shared.logModeSwitch(toModeA: false)
                 
                 // 更新动画逻辑
                 rightAnimationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)

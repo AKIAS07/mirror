@@ -43,6 +43,17 @@ struct CameraContainer: View {
     @State private var showIconAnimation: Bool = false
     @State private var flashAnimationObserver: NSObjectProtocol? = nil
     
+    // 添加允许的设备方向
+    private let allowedOrientations: [UIDeviceOrientation] = [
+        .portrait,
+        .portraitUpsideDown,
+        .landscapeLeft,
+        .landscapeRight
+    ]
+    
+    // 添加最后一个有效方向状态
+    @State private var lastValidOrientation: UIDeviceOrientation = .portrait
+    
     init(session: AVCaptureSession, 
          isMirrored: Bool, 
          isActive: Bool, 
@@ -90,116 +101,24 @@ struct CameraContainer: View {
             ZStack {
                 if isActive {
                     if cameraManager.isUsingSystemCamera {
-                        // 使用系统相机
-                        ZStack {
-                            Color.black // 添加黑色背景
-                            
-                            CameraView(session: .constant(cameraManager.session), isMirrored: .constant(cameraManager.isMirrored))
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
-                                .padding(.horizontal, CameraLayoutConfig.horizontalPadding)
-                                .padding(.top, CameraLayoutConfig.verticalOffset)
-                                .padding(.bottom, CameraLayoutConfig.bottomOffset)
-                                .scaleEffect(currentScale)
-                                // 添加旋转变换
-                                .rotationEffect(Angle(degrees: shouldRotateCamera ? 180 : 0))
-                                // 添加缩放手势
-                                .simultaneousGesture(
-                                    MagnificationGesture()
-                                        .onChanged { scale in
-                                            onPinchChanged(scale)
-                                        }
-                                        .onEnded { scale in
-                                            onPinchEnded(scale)
-                                        }
-                                )
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .onAppear {
-                            print("------------------------")
-                            print("[CameraContainer] 切换到系统相机模式")
-                            print("Frame: \(CameraContainerFrame.frame)")
-                            print("------------------------")
-                        }
-                        .onTapGesture(count: styleManager.isDefaultGesture ? 2 : 1) {
-                            print("------------------------")
-                            print("\(styleManager.isDefaultGesture ? "双击" : "单击")相机画面 - 准备捕捉截图")
-                            print("当前模式：\(isMirrored ? "镜像模式" : "正常模式")")
-                            print("当前缩放比例：\(currentScale)")
-                            
-                            // 设置捕捉状态
-                            captureState.isCapturing = true
-                            
-                            // 触发震动反馈
-                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                            generator.prepare()
-                            generator.impactOccurred()
-                            
-                            // 立即显示闪光动画
-                            withAnimation {
-                                showIconAnimation = true
-                            }
-                            
-                            // 延迟隐藏闪光动画
-                            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
-                                withAnimation {
-                                    showIconAnimation = false
-                                }
-                            }
-                            
-                            // 根据是否使用系统相机决定拍摄方式
-                            if cameraManager.isUsingSystemCamera {
-                                print("点击屏幕 - 使用系统相机拍摄 Live Photo")
-                                cameraManager.captureLivePhotoForPreview { success, identifier, imageURL, videoURL, image, error in
-                                    DispatchQueue.main.async {
-                                        captureState.isCapturing = false
-                                        
-                                        if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
-                                            print("[Live Photo 拍摄] 成功，准备预览")
-                                            captureManager.showLivePhotoPreview(
-                                                image: image,
-                                                videoURL: videoURL,
-                                                imageURL: imageURL,
-                                                identifier: identifier,
-                                                cameraManager: cameraManager
-                                            )
-                                            
-                                            // 隐藏控制区域
-                                            withAnimation(.easeInOut(duration: 0.3)) {
-                                                isControlAreaVisible = false
-                                            }
-                                            
-                                            print("------------------------")
-                                            print("Live Photo 已捕捉")
-                                            print("------------------------")
-                                        } else {
-                                            print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
-                                        }
-                                    }
-                                }
-                            } else {
-                                // 延迟捕捉普通照片
-                                DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
-                                    // 捕捉当前画面
-                                    if let latestImage = processedImage {
-                                        captureManager.showPreview(
-                                            image: latestImage, 
-                                            scale: currentScale,
-                                            cameraManager: cameraManager
-                                        )
-                                        
-                                        // 隐藏控制区域
-                                        withAnimation(.easeInOut(duration: 0.3)) {
-                                            isControlAreaVisible = false
-                                        }
-                                        
-                                        print("------------------------")
-                                        print("普通截图已捕捉")
-                                        print("------------------------")
-                                    }
-                                }
-                            }
-                        }
+                        // 使用系统相机 - 拆分成多个子表达式
+                        SystemCameraView(
+                            session: session,
+                            isMirrored: isMirrored,
+                            deviceOrientation: deviceOrientation,
+                            isSystemCamera: cameraManager.isUsingSystemCamera,
+                            isBackCamera: cameraManager.isUsingBackCamera,
+                            currentScale: currentScale,
+                            onPinchChanged: onPinchChanged,
+                            onPinchEnded: onPinchEnded,
+                            styleManager: styleManager,
+                            captureState: captureState,
+                            processedImage: processedImage,
+                            showIconAnimation: $showIconAnimation,
+                            isControlAreaVisible: $isControlAreaVisible,
+                            cameraManager: cameraManager,
+                            captureManager: captureManager
+                        )
                     } else {
                         // 使用自定义相机
                         if let image = processedImage {
@@ -215,9 +134,15 @@ struct CameraContainer: View {
                                     MagnificationGesture()
                                         .onChanged { scale in
                                             onPinchChanged(scale)
+                                            
+                                            // 记录缩放操作
+                                            ViewActionLogger.shared.logZoomAction(scale: currentScale)
                                         }
                                         .onEnded { scale in
                                             onPinchEnded(scale)
+                                            
+                                            // 记录最终缩放比例
+                                            ViewActionLogger.shared.logZoomAction(scale: currentScale)
                                         }
                                 )
                                 .onTapGesture(count: styleManager.isDefaultGesture ? 2 : 1) {
@@ -225,6 +150,15 @@ struct CameraContainer: View {
                                     print("\(styleManager.isDefaultGesture ? "双击" : "单击")相机画面 - 准备捕捉截图")
                                     print("当前模式：\(isMirrored ? "镜像模式" : "正常模式")")
                                     print("当前缩放比例：\(currentScale)")
+                                    
+                                    // 记录点击操作
+                                    ViewActionLogger.shared.logAction(
+                                        .gestureAction(styleManager.isDefaultGesture ? .doubleTap : .tap),
+                                        additionalInfo: [
+                                            "模式": isMirrored ? "镜像" : "正常",
+                                            "缩放比例": "\(Int(currentScale * 100))%"
+                                        ]
+                                    )
                                     
                                     // 设置捕捉状态
                                     captureState.isCapturing = true
@@ -332,7 +266,14 @@ struct CameraContainer: View {
                                 isControlAreaVisible = true
                             }
                             // 添加相机重启
-                            ContentRestartManager.shared.restartCamera(cameraManager: cameraManager)
+                            print("------------------------")
+                            print("[相机容器] 请求重启相机")
+                            print("当前状态：")
+                            print("- 镜像模式(A模式)：\(cameraManager.isMirrored)")
+                            print("- 系统相机：\(cameraManager.isUsingSystemCamera)")
+                            print("- 摄像头：\(cameraManager.isFront ? "前置" : "后置")")
+                            print("------------------------")
+                            cameraManager.restartCamera()
                         }
                         .padding(.bottom, 180) // 确保不会被底部控制栏遮挡
                     }
@@ -372,6 +313,42 @@ struct CameraContainer: View {
                         }
                     }
                 }
+                
+                // 添加设备方向变化通知监听
+                NotificationCenter.default.addObserver(
+                    forName: UIDevice.orientationDidChangeNotification,
+                    object: nil,
+                    queue: .main) { _ in
+                        let newOrientation = UIDevice.current.orientation
+                        
+                        print("========================")
+                        print("[设备方向] 变化检测")
+                        print("------------------------")
+                        print("新方向：\(getOrientationDescription(newOrientation))")
+                        print("允许的方向：\(allowedOrientations.contains(newOrientation))")
+                        print("------------------------")
+                        
+                        // 只处理允许的方向
+                        if allowedOrientations.contains(newOrientation) {
+                            lastValidOrientation = newOrientation
+                            
+                            // 检查是否需要旋转
+                            let needRotation = shouldRotateCamera(orientation: newOrientation)
+                            print("旋转检查结果：\(needRotation ? "需要旋转" : "不需要旋转")")
+                            
+                            if needRotation {
+                                if newOrientation == .landscapeLeft {
+                                    print("执行操作：向左横屏旋转180度")
+                                } else if newOrientation == .landscapeRight {
+                                    print("执行操作：向右横屏旋转180度")
+                                }
+                            }
+                        } else {
+                            print("当前方向不被允许，保持上一个有效方向")
+                            print("上一个有效方向：\(getOrientationDescription(lastValidOrientation))")
+                        }
+                        print("========================")
+                    }
             }
             .onChange(of: geometry.size) { _ in
                 CameraContainerFrame.frame = containerFrame
@@ -432,10 +409,209 @@ struct CameraContainer: View {
         }
     }
     
-    // 在 CameraContainer 结构体内添加计算属性
-    private var shouldRotateCamera: Bool {
-        // 在模式B且使用系统相机时，检查是否为横屏
-        !isMirrored && cameraManager.isUsingSystemCamera && 
-        (deviceOrientation == .landscapeLeft || deviceOrientation == .landscapeRight)
+    // 修改 shouldRotateCamera 方法，添加更详细的调试信息
+    private func shouldRotateCamera(orientation: UIDeviceOrientation) -> Bool {
+        // 1. 检查是否在模式A（镜像模式）
+        let isModeA = isMirrored
+        
+        // 2. 检查是否使用系统相机（Live模式）
+        let isLiveMode = cameraManager.isUsingSystemCamera
+        
+        // 3. 检查是否横屏
+        let isLandscape = orientation == .landscapeLeft || orientation == .landscapeRight
+        
+        // 4. 获取摄像头状态
+        let isFrontCamera = cameraManager.isFront
+        
+        // 在模式A下，无论前后摄像头都不应该旋转
+        if isModeA {
+            print("4. 旋转决策：")
+            print("- 模式A下不需要旋转")
+            print("- 最终结果：不旋转")
+            print("========================")
+            return false
+        }
+        
+        // 在非模式A下，只有前置摄像头在横屏时需要旋转
+        let shouldRotate = !isModeA && isLiveMode && isLandscape && isFrontCamera
+        
+        print("4. 旋转决策：")
+        print("- 条件1 - 非模式A：\(!isModeA)")
+        print("- 条件2 - Live模式：\(isLiveMode)")
+        print("- 条件3 - 横屏：\(isLandscape)")
+        print("- 条件4 - 前置摄像头：\(isFrontCamera)")
+        print("- 最终结果：\(shouldRotate ? "需要旋转" : "不需要旋转")")
+        print("========================")
+        
+        return shouldRotate
+    }
+    
+    // 添加方向描述辅助方法
+    private func getOrientationDescription(_ orientation: UIDeviceOrientation) -> String {
+        switch orientation {
+        case .portrait:
+            return "竖直"
+        case .portraitUpsideDown:
+            return "竖直倒置"
+        case .landscapeLeft:
+            return "向左横屏"
+        case .landscapeRight:
+            return "向右横屏"
+        case .faceUp:
+            return "面朝上"
+        case .faceDown:
+            return "面朝下"
+        default:
+            return "未知方向"
+        }
+    }
+}
+
+// 添加SystemCameraView结构体
+struct SystemCameraView: View {
+    let session: AVCaptureSession
+    let isMirrored: Bool
+    let deviceOrientation: UIDeviceOrientation
+    let isSystemCamera: Bool
+    let isBackCamera: Bool
+    let currentScale: CGFloat
+    let onPinchChanged: (CGFloat) -> Void
+    let onPinchEnded: (CGFloat) -> Void
+    let styleManager: BorderLightStyleManager
+    let captureState: CaptureState
+    let processedImage: UIImage?
+    @Binding var showIconAnimation: Bool
+    @Binding var isControlAreaVisible: Bool
+    let cameraManager: CameraManager
+    let captureManager: CaptureManager
+    
+    var body: some View {
+        ZStack {
+            Color.black // 添加黑色背景
+            
+            // 创建CameraView
+            let cameraView = CameraView(
+                session: session,
+                isMirrored: isMirrored,
+                isSystemCamera: isSystemCamera,
+                isBackCamera: isBackCamera
+            )
+            
+            // 应用修饰符
+            cameraView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
+                .padding(.horizontal, CameraLayoutConfig.horizontalPadding)
+                .padding(.top, CameraLayoutConfig.verticalOffset)
+                .padding(.bottom, CameraLayoutConfig.bottomOffset)
+                .scaleEffect(currentScale)
+                .rotationEffect(Angle(degrees: shouldRotateCamera(orientation: deviceOrientation) ? 180 : 0))
+                .simultaneousGesture(
+                    MagnificationGesture()
+                        .onChanged { scale in
+                            onPinchChanged(scale)
+                            ViewActionLogger.shared.logZoomAction(scale: currentScale)
+                        }
+                        .onEnded { scale in
+                            onPinchEnded(scale)
+                            ViewActionLogger.shared.logZoomAction(scale: currentScale)
+                        }
+                )
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            print("------------------------")
+            print("[CameraContainer] 切换到系统相机模式")
+            print("Frame: \(CameraContainerFrame.frame)")
+            print("------------------------")
+        }
+        .onTapGesture(count: styleManager.isDefaultGesture ? 2 : 1) {
+            print("------------------------")
+            print("\(styleManager.isDefaultGesture ? "双击" : "单击")相机画面 - 准备捕捉截图")
+            print("当前模式：\(isMirrored ? "镜像模式" : "正常模式")")
+            print("当前缩放比例：\(currentScale)")
+            
+            // 记录点击操作
+            ViewActionLogger.shared.logAction(
+                .gestureAction(styleManager.isDefaultGesture ? .doubleTap : .tap),
+                additionalInfo: [
+                    "模式": isMirrored ? "镜像" : "正常",
+                    "缩放比例": "\(Int(currentScale * 100))%"
+                ]
+            )
+            
+            // 设置捕捉状态
+            captureState.isCapturing = true
+            
+            // 触发震动反馈
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.prepare()
+            generator.impactOccurred()
+            
+            // 立即显示闪光动画
+            withAnimation {
+                showIconAnimation = true
+            }
+            
+            // 延迟隐藏闪光动画
+            DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Flash.displayDuration) {
+                withAnimation {
+                    showIconAnimation = false
+                }
+            }
+            
+            // 使用系统相机拍摄 Live Photo
+            print("点击屏幕 - 使用系统相机拍摄 Live Photo")
+            cameraManager.captureLivePhotoForPreview { success, identifier, imageURL, videoURL, image, error in
+                DispatchQueue.main.async {
+                    captureState.isCapturing = false
+                    
+                    if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
+                        print("[Live Photo 拍摄] 成功，准备预览")
+                        captureManager.showLivePhotoPreview(
+                            image: image,
+                            videoURL: videoURL,
+                            imageURL: imageURL,
+                            identifier: identifier,
+                            cameraManager: cameraManager
+                        )
+                        
+                        // 隐藏控制区域
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            isControlAreaVisible = false
+                        }
+                        
+                        print("------------------------")
+                        print("Live Photo 已捕捉")
+                        print("------------------------")
+                    } else {
+                        print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
+                    }
+                }
+            }
+        }
+    }
+    
+    // 判断是否需要旋转摄像头
+    private func shouldRotateCamera(orientation: UIDeviceOrientation) -> Bool {
+        // 1. 检查是否在模式A（镜像模式）
+        let isModeA = isMirrored
+        
+        // 2. 检查是否使用系统相机（Live模式）
+        let isLiveMode = isSystemCamera
+        
+        // 3. 检查是否横屏
+        let isLandscape = orientation == .landscapeLeft || orientation == .landscapeRight
+        
+        // 4. 获取摄像头状态
+        let isFrontCamera = !isBackCamera
+        
+        // 在模式A下，无论前后摄像头都不应该旋转
+        if isModeA {
+            return false
+        }
+        
+        // 在非模式A下，只有前置摄像头在横屏时需要旋转
+        return !isModeA && isLiveMode && isLandscape && isFrontCamera
     }
 } 
