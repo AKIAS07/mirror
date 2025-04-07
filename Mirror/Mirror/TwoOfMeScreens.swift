@@ -1309,6 +1309,29 @@ struct TwoOfMeScreens: View {
                             .frame(height: screenHeight / 2)
                             .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight/4 : screenHeight*3/4)
                             .zIndex(2)
+                            
+                            // 添加中心切换按钮
+                            // Original屏幕中心的按钮
+                            Button(action: {
+                                // 暂时为空
+                            }) {
+                                Image(systemName: "arrow.up.arrow.down.circle.fill")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(.white)
+                            }
+                            .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight*3/4 : screenHeight/4)
+                            .zIndex(3)
+                            
+                            // Mirrored屏幕中心的按钮
+                            Button(action: {
+                                // 暂时为空
+                            }) {
+                                Image(systemName: "arrow.up.arrow.down.circle.fill")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(.white)
+                            }
+                            .position(x: screenWidth/2, y: isScreensSwapped ? screenHeight/4 : screenHeight*3/4)
+                            .zIndex(3)
                         }
                     }
                 }
