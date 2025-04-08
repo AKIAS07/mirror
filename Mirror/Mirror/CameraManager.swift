@@ -12,6 +12,7 @@ class CameraManager: ObservableObject {
     @Published var isMirrored = false
     @Published var isFront = true
     @Published var isBack = false
+    private var currentDeviceOrientation: UIDeviceOrientation = .portrait
     
     // 添加后置摄像头状态的计算属性
     var isUsingBackCamera: Bool {
@@ -53,10 +54,46 @@ class CameraManager: ObservableObject {
             session.sessionPreset = .high
             print("相机质量：high")
         }
+        
+        // 添加设备方向监听
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(deviceOrientationDidChange),
+            name: UIDevice.orientationDidChangeNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func deviceOrientationDidChange() {
+        currentDeviceOrientation = UIDevice.current.orientation
+        updatePhotoOrientation()
+    }
+    
+    private func updatePhotoOrientation() {
+        guard let photoOutput = photoOutput,
+              let photoConnection = photoOutput.connection(with: .video) else { return }
+        
+        var orientation: AVCaptureVideoOrientation = .portrait
+        
+        switch currentDeviceOrientation {
+        case .portrait:
+            orientation = .portrait
+        case .portraitUpsideDown:
+            orientation = .portraitUpsideDown
+        case .landscapeLeft:
+            orientation = .landscapeRight
+        case .landscapeRight:
+            orientation = .landscapeLeft
+        default:
+            orientation = .portrait
+        }
+        
+        photoConnection.videoOrientation = orientation
     }
     
     deinit {
         cleanupResources()
+        NotificationCenter.default.removeObserver(self)
     }
     
     private func cleanupResources() {
@@ -308,6 +345,14 @@ class CameraManager: ObservableObject {
                         }
                     }
                     
+                    // 设置照片输出的镜像状态
+                    if let photoConnection = photoOutput.connection(with: .video) {
+                        if photoConnection.isVideoMirroringSupported {
+                            photoConnection.isVideoMirrored = isMirrored
+                        }
+                        photoConnection.videoOrientation = .portrait
+                    }
+                    
                     print("[系统相机设置] 照片输出配置：")
                     print("是否支持 Live Photo：\(photoOutput.isLivePhotoCaptureSupported)")
                     
@@ -542,11 +587,14 @@ class CameraManager: ObservableObject {
             return
         }
         
+        // 更新拍摄方向
+        updatePhotoOrientation()
+        
         let settings = AVCapturePhotoSettings()
         settings.flashMode = .off
         
         // 创建照片捕获处理器
-        let processor = PhotoCaptureProcessor(completion: completion)
+        let processor = PhotoCaptureProcessor(completion: completion, isMirrored: isMirrored)
         
         // 保持对处理器的引用
         photoCaptureProcessor = processor
@@ -569,6 +617,9 @@ class CameraManager: ObservableObject {
             completion(false, "", nil, nil, nil, error)
             return
         }
+        
+        // 更新拍摄方向
+        updatePhotoOrientation()
         
         // 检查是否支持 Live Photo
         print("[Live Photo拍摄] 检查设备支持情况：")
@@ -767,9 +818,11 @@ class SimpleLivePhotoCaptureProcessor: NSObject, AVCapturePhotoCaptureDelegate {
 // 在 LivePhotoCaptureProcessor 类后添加新的 delegate 类
 class PhotoCaptureProcessor: NSObject, AVCapturePhotoCaptureDelegate {
     private let completion: (UIImage?) -> Void
+    private let isMirrored: Bool
     
-    init(completion: @escaping (UIImage?) -> Void) {
+    init(completion: @escaping (UIImage?) -> Void, isMirrored: Bool) {
         self.completion = completion
+        self.isMirrored = isMirrored
         super.init()
     }
     
@@ -781,10 +834,24 @@ class PhotoCaptureProcessor: NSObject, AVCapturePhotoCaptureDelegate {
         }
         
         guard let imageData = photo.fileDataRepresentation(),
-              let image = UIImage(data: imageData) else {
+              var image = UIImage(data: imageData) else {
             print("[系统相机] 错误：无法从照片数据创建图像")
             completion(nil)
             return
+        }
+        
+        // 在 modeA (isMirrored = true) 下进行水平翻转处理
+        if isMirrored {
+            print("[系统相机] 模式A - 执行水平翻转")
+            UIGraphicsBeginImageContextWithOptions(image.size, false, image.scale)
+            let context = UIGraphicsGetCurrentContext()!
+            context.translateBy(x: image.size.width, y: 0)
+            context.scaleBy(x: -1, y: 1)
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+            if let flippedImage = UIGraphicsGetImageFromCurrentImageContext() {
+                image = flippedImage
+            }
+            UIGraphicsEndImageContext()
         }
         
         print("[系统相机] 拍照成功")

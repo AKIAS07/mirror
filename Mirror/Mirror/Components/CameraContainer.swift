@@ -130,6 +130,7 @@ struct CameraContainer: View {
                                 .clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
                                 .scaleEffect(currentScale)
                                 .offset(y: CameraLayoutConfig.verticalOffset)
+                                .rotationEffect(Angle(degrees: shouldRotateCamera(orientation: deviceOrientation) ? 180 : 0))
                                 .simultaneousGesture(
                                     MagnificationGesture()
                                         .onChanged { scale in
@@ -189,17 +190,18 @@ struct CameraContainer: View {
                                                 
                                                 if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                                                     print("[Live Photo 拍摄] 成功，准备预览")
-                                                    captureManager.showLivePhotoPreview(
+                                                    self.captureManager.showLivePhotoPreview(
                                                         image: image,
                                                         videoURL: videoURL,
                                                         imageURL: imageURL,
                                                         identifier: identifier,
-                                                        cameraManager: cameraManager
+                                                        orientation: self.deviceOrientation,
+                                                        cameraManager: self.cameraManager
                                                     )
                                                     
                                                     // 隐藏控制区域
                                                     withAnimation(.easeInOut(duration: 0.3)) {
-                                                        isControlAreaVisible = false
+                                                        self.isControlAreaVisible = false
                                                     }
                                                     
                                                     print("------------------------")
@@ -211,24 +213,35 @@ struct CameraContainer: View {
                                             }
                                         }
                                     } else {
+                                        print("点击屏幕 - 使用自定义相机拍摄普通照片")
                                         // 延迟捕捉普通照片
                                         DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
-                                            // 捕捉当前画面
-                                            if let latestImage = processedImage {
-                                                captureManager.showPreview(
-                                                    image: latestImage, 
-                                                    scale: currentScale,
-                                                    cameraManager: cameraManager
-                                                )
-                                                
-                                                // 隐藏控制区域
-                                                withAnimation(.easeInOut(duration: 0.3)) {
-                                                    isControlAreaVisible = false
+                                            // 使用系统相机的拍照功能
+                                            self.cameraManager.capturePhoto { image in
+                                                if let image = image {
+                                                    DispatchQueue.main.async {
+                                                        self.captureManager.showPreview(
+                                                            image: image, 
+                                                            scale: self.currentScale,
+                                                            orientation: self.deviceOrientation,
+                                                            cameraManager: self.cameraManager
+                                                        )
+                                                        
+                                                        // 隐藏控制区域
+                                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                                            self.isControlAreaVisible = false
+                                                        }
+                                                        
+                                                        print("------------------------")
+                                                        print("普通照片已捕捉")
+                                                        print("------------------------")
+                                                    }
+                                                } else {
+                                                    DispatchQueue.main.async {
+                                                        self.captureState.isCapturing = false
+                                                        print("普通照片拍摄失败 - 无可用图像")
+                                                    }
                                                 }
-                                                
-                                                print("------------------------")
-                                                print("普通截图已捕捉")
-                                                print("------------------------")
                                             }
                                         }
                                     }
@@ -414,32 +427,26 @@ struct CameraContainer: View {
         // 1. 检查是否在模式A（镜像模式）
         let isModeA = isMirrored
         
-        // 2. 检查是否使用系统相机（Live模式）
-        let isLiveMode = cameraManager.isUsingSystemCamera
-        
-        // 3. 检查是否横屏
+        // 2. 检查是否横屏
         let isLandscape = orientation == .landscapeLeft || orientation == .landscapeRight
         
-        // 4. 获取摄像头状态
+        // 3. 获取摄像头状态
         let isFrontCamera = cameraManager.isFront
         
-        // 在模式A下，无论前后摄像头都不应该旋转
+        // 4. 根据模式和摄像头状态决定是否旋转
+        let shouldRotate: Bool
         if isModeA {
-            print("4. 旋转决策：")
-            print("- 模式A下不需要旋转")
-            print("- 最终结果：不旋转")
-            print("========================")
-            return false
+            // 模式A：后置摄像头横屏时旋转
+            shouldRotate = isLandscape && !isFrontCamera
+        } else {
+            // 模式B：前置摄像头横屏时旋转
+            shouldRotate = isLandscape && isFrontCamera
         }
         
-        // 在非模式A下，只有前置摄像头在横屏时需要旋转
-        let shouldRotate = !isModeA && isLiveMode && isLandscape && isFrontCamera
-        
         print("4. 旋转决策：")
-        print("- 条件1 - 非模式A：\(!isModeA)")
-        print("- 条件2 - Live模式：\(isLiveMode)")
-        print("- 条件3 - 横屏：\(isLandscape)")
-        print("- 条件4 - 前置摄像头：\(isFrontCamera)")
+        print("- 模式A：\(isModeA)")
+        print("- 横屏：\(isLandscape)")
+        print("- 前置摄像头：\(isFrontCamera)")
         print("- 最终结果：\(shouldRotate ? "需要旋转" : "不需要旋转")")
         print("========================")
         
@@ -568,17 +575,18 @@ struct SystemCameraView: View {
                     
                     if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                         print("[Live Photo 拍摄] 成功，准备预览")
-                        captureManager.showLivePhotoPreview(
+                        self.captureManager.showLivePhotoPreview(
                             image: image,
                             videoURL: videoURL,
                             imageURL: imageURL,
                             identifier: identifier,
-                            cameraManager: cameraManager
+                            orientation: self.deviceOrientation,
+                            cameraManager: self.cameraManager
                         )
                         
                         // 隐藏控制区域
                         withAnimation(.easeInOut(duration: 0.3)) {
-                            isControlAreaVisible = false
+                            self.isControlAreaVisible = false
                         }
                         
                         print("------------------------")
@@ -597,21 +605,22 @@ struct SystemCameraView: View {
         // 1. 检查是否在模式A（镜像模式）
         let isModeA = isMirrored
         
-        // 2. 检查是否使用系统相机（Live模式）
-        let isLiveMode = isSystemCamera
-        
-        // 3. 检查是否横屏
+        // 2. 检查是否横屏
         let isLandscape = orientation == .landscapeLeft || orientation == .landscapeRight
         
-        // 4. 获取摄像头状态
+        // 3. 获取摄像头状态
         let isFrontCamera = !isBackCamera
         
-        // 在模式A下，无论前后摄像头都不应该旋转
+        // 4. 根据模式和摄像头状态决定是否旋转
+        let shouldRotate: Bool
         if isModeA {
-            return false
+            // 模式A：后置摄像头横屏时旋转
+            shouldRotate = isLandscape && !isFrontCamera
+        } else {
+            // 模式B：前置摄像头横屏时旋转
+            shouldRotate = isLandscape && isFrontCamera
         }
         
-        // 在非模式A下，只有前置摄像头在横屏时需要旋转
-        return !isModeA && isLiveMode && isLandscape && isFrontCamera
+        return shouldRotate
     }
 } 

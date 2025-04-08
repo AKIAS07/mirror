@@ -22,10 +22,10 @@ public class CaptureState: ObservableObject {
     @Published public var livePhotoImageData: Data?
     @Published public var livePhotoVideoURL: URL?
     @Published public var isPlayingLivePhoto: Bool = false
-    @Published public var hasApplied180Rotation: Bool = false
     @Published public var livePhotoIdentifier: String = ""
     @Published public var tempImageURL: URL?
     @Published public var tempVideoURL: URL?
+    @Published public var captureOrientation: UIDeviceOrientation = .portrait
     
     private var isProcessingAlert = false
     
@@ -275,7 +275,6 @@ public class CaptureState: ObservableObject {
         livePhotoImageData = nil
         livePhotoVideoURL = nil
         isPlayingLivePhoto = false  // 重置播放状态
-        hasApplied180Rotation = false // 重置180度旋转状态
         onComplete?()
     }
     
@@ -430,9 +429,9 @@ public struct CaptureActionsView: View {
                                     .aspectRatio(contentMode: .fill)
                                     .frame(width: screenBounds.width, height: screenBounds.height)
                                     .scaleEffect(captureManager.currentScale)
+                                    .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
                                     .position(x: screenBounds.width/2, y: screenBounds.height/2)
                                     .allowsHitTesting(false)
-                                    .rotationEffect(shouldRotate180Degrees ? .degrees(180) : .degrees(0))
                             }
                         }
                     }
@@ -446,13 +445,14 @@ public struct CaptureActionsView: View {
                             
                             LivePhotoPlayerView(
                                 videoURL: captureManager.livePhotoVideoURL!,
-                                isPlaying: $captureManager.isPlayingLivePhoto
+                                isPlaying: $captureManager.isPlayingLivePhoto,
+                                orientation: captureManager.captureOrientation
                             )
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .scaleEffect(captureManager.currentScale)
+                            .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .allowsHitTesting(false)
-                            .rotationEffect(shouldRotate180Degrees ? .degrees(180) : .degrees(0))
                             .onAppear {
                                 print("[Live Photo播放] 视图显示")
                             }
@@ -516,7 +516,6 @@ public struct CaptureActionsView: View {
                             .padding(.vertical, 6)
                             .background(Color.black.opacity(0.6))
                             .cornerRadius(15)
-                            .rotationEffect(.degrees(getRotationAngle()))
                         }
                         .position(x: screenBounds.width/2, y: screenBounds.height - 160)
                         .zIndex(10)
@@ -545,7 +544,6 @@ public struct CaptureActionsView: View {
                                     feedbackStyle: .medium,
                                     color: styleManager.iconColor
                                 )
-                                .rotationEffect(.degrees(getRotationAngle()))
                                 
                                 Spacer()
                             }
@@ -566,7 +564,6 @@ public struct CaptureActionsView: View {
                             .padding(.horizontal, 16)
                             .background(Color.black.opacity(0.6))
                             .cornerRadius(8)
-                            .rotationEffect(.degrees(getRotationAngle()))
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                     }
                     
@@ -608,39 +605,35 @@ public struct CaptureActionsView: View {
     
     // 修改 shouldRotate180Degrees 计算属性
     private var shouldRotate180Degrees: Bool {
-        if !captureManager.hasApplied180Rotation && captureManager.isLivePhoto && (
-            orientationManager.currentOrientation == .landscapeLeft ||
-            orientationManager.currentOrientation == .landscapeRight
-        ) {
-            // 第一次检测到需要旋转时，设置标志位
-            DispatchQueue.main.async {
-                captureManager.hasApplied180Rotation = true
-            }
-            return true
-        }
-        return captureManager.hasApplied180Rotation
+        // 始终返回false，不进行180度旋转
+        return false
     }
-    
-    // 保持现有的 getRotationAngle 方法
-    private func getRotationAngle() -> Double {
-        switch orientationManager.currentOrientation {
-        case .landscapeLeft: return 90
-        case .landscapeRight: return -90
-        case .portraitUpsideDown: return 180
-        default: return 0
-        }
-    }   
+}
+
+// 添加获取旋转角度的辅助方法
+private func getRotationAngle(for orientation: UIDeviceOrientation) -> Angle {
+    switch orientation {
+    case .landscapeLeft:
+        return .degrees(90)
+    case .landscapeRight:
+        return .degrees(-90)
+    case .portraitUpsideDown:
+        return .degrees(180)
+    default:
+        return .degrees(0)
+    }
 }
 
 // 修改LivePhotoPlayerView实现，使用VideoPlayer
 struct LivePhotoPlayerView: UIViewControllerRepresentable {
     let videoURL: URL
     @Binding var isPlaying: Bool
+    let orientation: UIDeviceOrientation
 
-    
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         print("[LivePhotoPlayerView] makeUIViewController 被调用")
         print("[LivePhotoPlayerView] 视频URL: \(videoURL.absoluteString)")
+        print("[LivePhotoPlayerView] 设备方向: \(orientation)")
         
         // 检查文件是否存在
         if FileManager.default.fileExists(atPath: videoURL.path) {
@@ -654,7 +647,18 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
         playerViewController.player = player
         playerViewController.showsPlaybackControls = false
         playerViewController.videoGravity = .resizeAspectFill
-
+        
+        // 设置视频方向
+        switch orientation {
+        case .landscapeLeft:
+            playerViewController.view.transform = CGAffineTransform(rotationAngle: .pi / 2)
+        case .landscapeRight:
+            playerViewController.view.transform = CGAffineTransform(rotationAngle: -.pi / 2)
+        case .portraitUpsideDown:
+            playerViewController.view.transform = CGAffineTransform(rotationAngle: .pi)
+        default:
+            playerViewController.view.transform = .identity
+        }
         
         // 添加播放结束通知
         NotificationCenter.default.addObserver(

@@ -438,6 +438,7 @@ struct DraggableToolbar: View {
                                 videoURL: videoURL,
                                 imageURL: imageURL,
                                 identifier: identifier,
+                                orientation: orientationManager.currentOrientation,
                                 cameraManager: self.cameraManager
                             )
                             
@@ -456,23 +457,26 @@ struct DraggableToolbar: View {
                 print("使用自定义相机拍摄普通照片")
                 // 延迟捕捉普通照片，与点击屏幕行为保持一致
                 DispatchQueue.main.asyncAfter(deadline: .now() + AppConfig.AnimationConfig.Capture.delay) {
-                    // 直接使用当前处理好的图像，与点击屏幕行为保持一致
-                    if let latestImage = self.cameraManager.latestProcessedImage {
-                        DispatchQueue.main.async {
-                            self.captureManager.showPreview(
-                                image: latestImage, 
-                                scale: self.currentScale,
-                                cameraManager: self.cameraManager
-                            )
-                            
-                            print("------------------------")
-                            print("普通截图已捕捉")
-                            print("------------------------")
-                        }
-                    } else {
-                        DispatchQueue.main.async {
-                            self.captureState.isCapturing = false
-                            print("普通照片拍摄失败 - 无可用图像")
+                    // 使用系统相机的拍照功能
+                    self.cameraManager.capturePhoto { image in
+                        if let image = image {
+                            DispatchQueue.main.async {
+                                self.captureManager.showPreview(
+                                    image: image, 
+                                    scale: self.currentScale,
+                                    orientation: orientationManager.currentOrientation,
+                                    cameraManager: self.cameraManager
+                                )
+                                
+                                print("------------------------")
+                                print("普通照片已捕捉")
+                                print("------------------------")
+                            }
+                        } else {
+                            DispatchQueue.main.async {
+                                self.captureState.isCapturing = false
+                                print("普通照片拍摄失败 - 无可用图像")
+                            }
                         }
                     }
                 }

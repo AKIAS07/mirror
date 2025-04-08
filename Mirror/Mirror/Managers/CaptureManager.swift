@@ -16,17 +16,22 @@ class CaptureManager: ObservableObject {
     @Published var isCapturing = false
     @Published var showSaveSuccess = false
     @Published var isPlayingLivePhoto = false
-    @Published var hasApplied180Rotation = false
+    @Published var captureOrientation: UIDeviceOrientation = .portrait
     
     private let restartManager = ContentRestartManager.shared
+    private let orientationManager = DeviceOrientationManager.shared
     
     private init() {}
     
     // 显示预览
-    func showPreview(image: UIImage, scale: CGFloat = 1.0, cameraManager: CameraManager) {
+    func showPreview(image: UIImage, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
         self.capturedImage = image
         self.currentScale = scale
         self.isLivePhoto = false
+        self.captureOrientation = orientation
+        
+        // 锁定设备方向，防止旋转
+        orientationManager.lockOrientation()
         
         // 先显示预览
         withAnimation {
@@ -41,13 +46,17 @@ class CaptureManager: ObservableObject {
     }
     
     // 显示 Live Photo 预览
-    func showLivePhotoPreview(image: UIImage, videoURL: URL, imageURL: URL, identifier: String, cameraManager: CameraManager) {
+    func showLivePhotoPreview(image: UIImage, videoURL: URL, imageURL: URL, identifier: String, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
         self.capturedImage = image
         self.livePhotoVideoURL = videoURL
         self.tempImageURL = imageURL
         self.tempVideoURL = videoURL
         self.livePhotoIdentifier = identifier
         self.isLivePhoto = true
+        self.captureOrientation = orientation
+        
+        // 锁定设备方向，防止旋转
+        orientationManager.lockOrientation()
         
         // 先显示预览
         withAnimation {
@@ -66,8 +75,10 @@ class CaptureManager: ObservableObject {
         withAnimation {
             self.isPreviewVisible = false
             self.isPlayingLivePhoto = false
-            self.hasApplied180Rotation = false
         }
+        
+        // 解锁设备方向
+        orientationManager.unlockOrientation()
         
         // 重置状态
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -78,7 +89,6 @@ class CaptureManager: ObservableObject {
             self.livePhotoIdentifier = ""
             self.currentScale = 1.0
             self.isCapturing = false
-            
         }
     }
     
@@ -202,5 +212,18 @@ class CaptureManager: ObservableObject {
         @unknown default:
             completion(false)
         }
+    }
+    
+    // 重置所有状态
+    func reset() {
+        capturedImage = nil
+        isPreviewVisible = false
+        currentScale = 1.0
+        isLivePhoto = false
+        livePhotoVideoURL = nil
+        isPlayingLivePhoto = false
+        livePhotoIdentifier = ""
+        tempImageURL = nil
+        tempVideoURL = nil
     }
 } 

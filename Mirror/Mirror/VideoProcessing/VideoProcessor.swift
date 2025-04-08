@@ -193,12 +193,8 @@ class MainVideoProcessor: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate
             processedImage = processedImage.transformed(by: CGAffineTransform(scaleX: -1, y: 1))
             
         case .modeB:
-            // 使用有效方向来决定旋转
-            if validOrientation == .landscapeLeft || validOrientation == .landscapeRight {
-                let rotationTransform = CGAffineTransform(translationX: ciImage.extent.width, y: ciImage.extent.height)
-                    .rotated(by: .pi)
-                processedImage = processedImage.transformed(by: rotationTransform)
-            }
+            // 模式B下不进行任何旋转操作
+            break
         }
         
         // 使用高质量渲染
