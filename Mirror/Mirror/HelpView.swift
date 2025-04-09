@@ -256,7 +256,7 @@ public struct HelpPanel: View {
                                 
                                 // 基本操作
                                 VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                                    Text("屏幕功能")
+                                    Text("屏幕操作功能")
                                         .font(.headline)
                                         .foregroundColor(SettingsTheme.titleColor)
                                         .frame(maxWidth: .infinity, alignment: .center)
@@ -270,12 +270,14 @@ public struct HelpPanel: View {
                                     .frame(maxWidth: .infinity, alignment: .center)
 
                                     VStack(alignment: .leading, spacing: 5) {
+
                                         LabeledHighlightRow(
-                                            highlightText: "双击",
+                                            highlightText: "双击/",
                                             description: HStack(spacing: 4) {
                                                 Text("拍照 拍摄/退出")
                                             },
-                                            freeLabel: true
+                                            freeLabel: true,
+                                            systemImage: "circle.fill"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "闪光",
@@ -285,25 +287,51 @@ public struct HelpPanel: View {
                                             proLabel: true
                                         )
                                         LabeledHighlightRow(
-                                            highlightText: "单击",
+                                            highlightText: "单击/",
                                             description: HStack(spacing: 4) {
                                                 Text("边灯 开启/关闭")
                                             },
-                                            freeLabel: true
+                                            freeLabel: true,
+                                            systemImage: "lightbulb"
                                         )
                                         LabeledHighlightRow(
-                                            highlightText: "双指",
+                                            highlightText: "实况",
+                                            description: HStack(spacing: 4) {
+                                                Text("实况模式")
+                                            },
+                                            proLabel: true,
+                                            systemImage: "livephoto"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "翻转",
+                                            description: HStack(spacing: 4) {
+                                                Text("摄像头翻转")
+                                            },
+                                            freeLabel: true,
+                                            systemImage: "camera.rotate"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "双指/100",
                                             description: HStack(spacing: 4) {
                                                 Text("缩放画面")
                                             },
                                             freeLabel: true
                                         )
                                         LabeledHighlightRow(
-                                            highlightText: "下载分享",
+                                            highlightText: "关闭",
                                             description: HStack(spacing: 4) {
-                                                Text("图片 下载/分享")
+                                                Text("关闭摄像头")
                                             },
-                                            freeLabel: true
+                                            freeLabel: true,
+                                            systemImage: "xmark.circle.fill"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "下载",
+                                            description: HStack(spacing: 4) {
+                                                Text("图片下载")
+                                            },
+                                            freeLabel: true,
+                                            systemImage: "square.and.arrow.down"
                                         )
                                     }
                                     .font(.body)

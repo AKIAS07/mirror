@@ -69,23 +69,34 @@ class CameraManager: ObservableObject {
         updatePhotoOrientation()
     }
     
+    // 添加一个变量来存储最后一个有效的拍摄方向
+    private var lastValidVideoOrientation: AVCaptureVideoOrientation = .portrait
+    
     private func updatePhotoOrientation() {
         guard let photoOutput = photoOutput,
               let photoConnection = photoOutput.connection(with: .video) else { return }
         
-        var orientation: AVCaptureVideoOrientation = .portrait
+        var orientation: AVCaptureVideoOrientation
         
         switch currentDeviceOrientation {
         case .portrait:
             orientation = .portrait
+            lastValidVideoOrientation = orientation
         case .portraitUpsideDown:
             orientation = .portraitUpsideDown
+            lastValidVideoOrientation = orientation
         case .landscapeLeft:
             orientation = .landscapeRight
+            lastValidVideoOrientation = orientation
         case .landscapeRight:
             orientation = .landscapeLeft
+            lastValidVideoOrientation = orientation
+        case .faceUp, .faceDown:
+            // 当设备面朝上或面朝下时，保持上一次有效的方向
+            orientation = lastValidVideoOrientation
         default:
-            orientation = .portrait
+            // 对于其他未知方向，仍然使用最后一个有效方向
+            orientation = lastValidVideoOrientation
         }
         
         photoConnection.videoOrientation = orientation
@@ -589,6 +600,7 @@ class CameraManager: ObservableObject {
         
         // 更新拍摄方向
         updatePhotoOrientation()
+        print("[系统相机] 当前设备方向：\(currentDeviceOrientation.rawValue)，使用的拍摄方向：\(lastValidVideoOrientation.rawValue)")
         
         let settings = AVCapturePhotoSettings()
         settings.flashMode = .off
@@ -618,13 +630,14 @@ class CameraManager: ObservableObject {
             return
         }
         
-        // 更新拍摄方向
+        // 更新拍摄方向（现在会保持设备面朝上时的之前有效方向）
         updatePhotoOrientation()
         
         // 检查是否支持 Live Photo
         print("[Live Photo拍摄] 检查设备支持情况：")
         print("是否支持Live Photo：\(photoOutput.isLivePhotoCaptureSupported)")
         print("Live Photo是否已启用：\(photoOutput.isLivePhotoCaptureEnabled)")
+        print("当前设备方向：\(currentDeviceOrientation.rawValue)，使用的拍摄方向：\(lastValidVideoOrientation.rawValue)")
         
         guard photoOutput.isLivePhotoCaptureSupported else {
             let error = NSError(domain: "CameraManager", 

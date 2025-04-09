@@ -424,10 +424,14 @@ public struct CaptureActionsView: View {
                     if let image = captureManager.capturedImage {
                         if !(captureManager.isLivePhoto && captureManager.isPlayingLivePhoto) {
                             ZStack {
+                                let isLandscape = captureManager.captureOrientation.isLandscape
+                                let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
+                                let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
+                                
                                 Image(uiImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .frame(width: screenBounds.width, height: screenBounds.height)
+                                    .frame(width: displayWidth, height: displayHeight)
                                     .scaleEffect(captureManager.currentScale)
                                     .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
                                     .position(x: screenBounds.width/2, y: screenBounds.height/2)
@@ -439,8 +443,12 @@ public struct CaptureActionsView: View {
                     // 添加Live Photo播放视图
                     if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && captureManager.isPlayingLivePhoto {
                         ZStack {
+                            let isLandscape = captureManager.captureOrientation.isLandscape
+                            let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
+                            let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
+                            
                             Color.black
-                                .frame(width: screenBounds.width, height: screenBounds.height)
+                                .frame(width: displayWidth, height: displayHeight)
                                 .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             
                             LivePhotoPlayerView(
@@ -448,7 +456,7 @@ public struct CaptureActionsView: View {
                                 isPlaying: $captureManager.isPlayingLivePhoto,
                                 orientation: captureManager.captureOrientation
                             )
-                            .frame(width: screenBounds.width, height: screenBounds.height)
+                            .frame(width: displayWidth, height: displayHeight)
                             .scaleEffect(captureManager.currentScale)
                             .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
@@ -624,7 +632,7 @@ private func getRotationAngle(for orientation: UIDeviceOrientation) -> Angle {
     }
 }
 
-// 修改LivePhotoPlayerView实现，使用VideoPlayer
+// 修改LivePhotoPlayerView实现，使用AVPlayerLayer的transform来控制视频方向
 struct LivePhotoPlayerView: UIViewControllerRepresentable {
     let videoURL: URL
     @Binding var isPlaying: Bool
@@ -649,15 +657,22 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
         playerViewController.videoGravity = .resizeAspectFill
         
         // 设置视频方向
-        switch orientation {
-        case .landscapeLeft:
-            playerViewController.view.transform = CGAffineTransform(rotationAngle: .pi / 2)
-        case .landscapeRight:
-            playerViewController.view.transform = CGAffineTransform(rotationAngle: -.pi / 2)
-        case .portraitUpsideDown:
-            playerViewController.view.transform = CGAffineTransform(rotationAngle: .pi)
-        default:
-            playerViewController.view.transform = .identity
+        if let playerLayer = playerViewController.view.layer as? AVPlayerLayer {
+            let transform: CGAffineTransform
+            
+            switch orientation {
+            case .landscapeLeft:
+                transform = CGAffineTransform(rotationAngle: .pi / 2)
+            case .landscapeRight:
+                transform = CGAffineTransform(rotationAngle: -.pi / 2)
+            case .portraitUpsideDown:
+                transform = CGAffineTransform(rotationAngle: .pi)
+            default:
+                transform = .identity
+            }
+            
+            // 应用变换到播放器层
+            playerLayer.setAffineTransform(transform)
         }
         
         // 添加播放结束通知

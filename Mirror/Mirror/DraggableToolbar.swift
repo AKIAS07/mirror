@@ -129,8 +129,6 @@ struct DraggableToolbar: View {
     
     var body: some View {
         GeometryReader { geometry in
-            let isVertical = orientationManager.currentOrientation == .portrait || orientationManager.currentOrientation == .portraitUpsideDown
-            
             HStack(spacing: 0) {
                 if position == .left || position == .leftBottom {
                     toolbarContent(isVertical: true, geometry: geometry)
