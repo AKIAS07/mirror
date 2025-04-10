@@ -323,7 +323,15 @@ public struct HelpPanel: View {
                                                 Text("关闭摄像头")
                                             },
                                             freeLabel: true,
-                                            systemImage: "xmark.circle.fill"
+                                            systemImage: "xmark.circle"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "参考",
+                                            description: HStack(spacing: 4) {
+                                                Text("添加参考图片")
+                                            },
+                                            proLabel: true,
+                                            systemImage: "plus.circle"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "下载",

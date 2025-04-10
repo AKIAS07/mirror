@@ -73,14 +73,48 @@ enum UtilityButtonType: Int, CaseIterable {
     
     var icon: String {
         switch self {
-        case .add: return "plus"
-        case .drag: return "arrow.up.and.down.and.arrow.left.and.right"
-        case .close: return "xmark"
+        case .add: return "plus.circle"
+        case .drag: return "icon-star"  // 修改为使用自定义图标
+        case .close: return "xmark.circle"
         }
     }
     
     var size: CGFloat {
-        return 25  // 减小按钮尺寸（原值为30）
+        return 20  // 减小按钮尺寸（原值为30）
+    }
+    
+    // 添加属性来判断是否为系统图标
+    var isSystemIcon: Bool {
+        switch self {
+        case .drag: return false  // icon-star不是系统图标
+        default: return true
+        }
+    }
+}
+
+// 添加工具栏主题观察者类
+class ToolbarThemeObserver: NSObject {
+    var styleManager = BorderLightStyleManager.shared
+    
+    override init() {
+        super.init()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: NSNotification.Name("UpdateButtonColors"),
+            object: nil
+        )
+    }
+    
+    @objc func handleThemeChange() {
+        print("------------------------")
+        print("[工具栏] 接收到主题颜色变化通知")
+        print("当前主题颜色：\(styleManager.iconColor)")
+        print("------------------------")
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }
 
@@ -97,6 +131,15 @@ struct DraggableToolbar: View {
     @StateObject private var captureManager = CaptureManager.shared
     @StateObject private var restartManager = ContentRestartManager.shared  // 添加 RestartManager
     @Binding var isVisible: Bool
+    
+    // 添加是否收缩的状态
+    @State private var isCollapsed: Bool = false {
+        didSet {
+            print("------------------------")
+            print("工具栏状态变化：\(isCollapsed ? "收缩" : "展开")")
+            print("------------------------")
+        }
+    }
     
     // 添加化妆视图状态
     @Binding var showMakeupView: Bool
@@ -124,11 +167,31 @@ struct DraggableToolbar: View {
     // 添加设备方向
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     
+    // 添加主题样式管理器
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    
+    // 添加主题变化观察者
+    private let themeObserver = ToolbarThemeObserver()
+    
     // 添加触觉反馈生成器
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
     
     // 添加新状态来跟踪是否已移动位置
     @State private var hasMovedPosition = false
+    
+    // 获取设备方向的旋转角度
+    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        case .portraitUpsideDown:
+            return .degrees(180)
+        default:
+            return .degrees(0)
+        }
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -313,12 +376,16 @@ struct DraggableToolbar: View {
             height: isVertical ? nil : 150  // 保持高度为150
         )
         .background(
-            RoundedRectangle(cornerRadius: isVertical ? 0 : 0)
-                .fill(Color.black.opacity(0.15))
-                .overlay(
-                    RoundedRectangle(cornerRadius: isVertical ? 0 : 0)
-                        .stroke(Color.white.opacity(isDragging ? 0.3 : 0), lineWidth: 2)
-                )
+            Group {
+                if !isCollapsed {
+                    RoundedRectangle(cornerRadius: isVertical ? 12 : 20)
+                        .fill(Color.black.opacity(0.15))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: isVertical ? 12 : 20)
+                                .stroke(Color.white.opacity(isDragging ? 0.3 : 0), lineWidth: 2)
+                        )
+                }
+            }
         )
     }
     
@@ -331,8 +398,12 @@ struct DraggableToolbar: View {
                 .padding(.vertical, 5)  // 减小垂直内边距
                 .padding(.horizontal, 5)  // 减小水平内边距
                 .background(
-                    RoundedRectangle(cornerRadius: 0)
-                        .fill(Color.yellow.opacity(0.2))
+                    Group {
+                        if !isCollapsed {
+                            RoundedRectangle(cornerRadius: 0)
+                                .fill(Color.yellow.opacity(0.15))
+                        }
+                    }
                 )
                 .frame(width: 40)  // 限制垂直布局时的宽度
             } else {
@@ -342,8 +413,12 @@ struct DraggableToolbar: View {
                 .padding(.vertical, 5)  // 减小垂直内边距
                 .padding(.horizontal, 10)  // 减小水平内边距
                 .background(
-                    RoundedRectangle(cornerRadius: 0)
-                        .fill(Color.yellow.opacity(0.2))
+                    Group {
+                        if !isCollapsed {
+                            RoundedRectangle(cornerRadius: 0)
+                                .fill(Color.yellow.opacity(0.15))
+                        }
+                    }
                 )
                 .frame(height: 40)  // 限制水平布局时的高度
             }
@@ -353,40 +428,44 @@ struct DraggableToolbar: View {
     private func toolbarButtons() -> some View {
         Group {
             ForEach(ToolbarButtonType.allCases, id: \.rawValue) { buttonType in
-                Button(action: {
-                    handleButtonTap(buttonType)
-                }) {
-                    Group {
-                        if buttonType == .capture {
-                            Circle()
-                                .fill(restartManager.isCameraActive ? Color.white : Color.gray)
-                                .frame(width: buttonType.size, height: buttonType.size)
-                        } else if buttonType == .zoom {
-                            let percentage = Int(currentScale * 100)
-                            let roundedPercentage = Int(round(Double(percentage) / 50.0) * 50)
-                            let zoomText = currentScale <= 1.0 ? "100" : 
-                                          currentScale >= 10.0 ? "1000" : 
-                                          "\(roundedPercentage)"
-                            Text(zoomText)
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(restartManager.isCameraActive ? .white : .gray)
-                                .frame(width: buttonType.size, height: buttonType.size)
-                        } else if buttonType == .live {
-                            Image(systemName: cameraManager.isUsingSystemCamera ? "livephoto" : "livephoto.slash")
-                                .font(.system(size: 22))
-                                .foregroundColor(restartManager.isCameraActive ? (cameraManager.isUsingSystemCamera ? .yellow : .white) : .gray)
-                                .frame(width: buttonType.size, height: buttonType.size)
-                        } else {
-                            Image(systemName: buttonType.icon)
-                                .font(.system(size: 22))
-                                .foregroundColor(restartManager.isCameraActive ? .white : .gray)
-                                .frame(width: buttonType.size, height: buttonType.size)
+                if !isCollapsed || buttonType == .capture {
+                    Button(action: {
+                        handleButtonTap(buttonType)
+                    }) {
+                        Group {
+                            if buttonType == .capture {
+                                Circle()
+                                    .fill(restartManager.isCameraActive ? styleManager.iconColor : Color.gray)
+                                    .frame(width: buttonType.size, height: buttonType.size)
+                            } else if buttonType == .zoom {
+                                let percentage = Int(currentScale * 100)
+                                let roundedPercentage = Int(round(Double(percentage) / 50.0) * 50)
+                                let zoomText = currentScale <= 1.0 ? "100" : 
+                                              currentScale >= 10.0 ? "1000" : 
+                                              "\(roundedPercentage)"
+                                Text(zoomText)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : Color.gray)
+                                    .frame(width: buttonType.size, height: buttonType.size)
+                            } else if buttonType == .live {
+                                Image(systemName: cameraManager.isUsingSystemCamera ? "livephoto" : "livephoto.slash")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(restartManager.isCameraActive ? (cameraManager.isUsingSystemCamera ? .yellow : styleManager.iconColor) : .gray)
+                                    .frame(width: buttonType.size, height: buttonType.size)
+                            } else {
+                                Image(systemName: buttonType.icon)
+                                    .font(.system(size: 22))
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                    .frame(width: buttonType.size, height: buttonType.size)
+                            }
                         }
+                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                        .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                     }
+                    .disabled(!restartManager.isCameraActive)  // 根据相机状态禁用按钮
+                    .scaleEffect(isDragging ? 0.95 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
                 }
-                .disabled(!restartManager.isCameraActive)  // 根据相机状态禁用按钮
-                .scaleEffect(isDragging ? 0.95 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
             }
         }
     }
@@ -584,41 +663,90 @@ struct DraggableToolbar: View {
     
     private func utilityButtonsContent() -> some View {
         ForEach(UtilityButtonType.allCases, id: \.rawValue) { buttonType in
-            Group {
-                if buttonType == .drag {
-                    // 拖拽按钮添加拖拽手势
-                    GeometryReader { geometry in
-                        Image(systemName: buttonType.icon)
-                            .font(.system(size: 16))
-                            .foregroundColor(restartManager.isCameraActive ? .white : .gray)
-                            .frame(width: buttonType.size, height: buttonType.size)
-                            .gesture(
+            if !isCollapsed || buttonType == .drag {
+                Group {
+                    if buttonType == .drag {
+                        // 拖拽按钮添加拖拽手势
+                        GeometryReader { geometry in
+                            Group {
+                                if buttonType.isSystemIcon {
+                                    Image(systemName: buttonType.icon)
+                                        .font(.system(size: 16))
+                                        .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                        .frame(width: buttonType.size, height: buttonType.size)
+                                } else {
+                                    Image(buttonType.icon)
+                                        .resizable()
+                                        .renderingMode(.template) // 添加template渲染模式
+                                        .scaledToFit()
+                                        .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                        .frame(width: buttonType.size, height: buttonType.size)
+                                }
+                            }
+                            .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                            .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                            .onTapGesture {
+                                print("------------------------")
+                                print("工具栏：单击拖拽按钮 (onTapGesture)")
+                                print("切换收缩状态：\(isCollapsed ? "展开" : "收缩")")
+                                print("------------------------")
+                                
+                                feedbackGenerator.impactOccurred()
+                                ViewActionLogger.shared.logAction(.utilityAction(.drag))
+                                
+                                // 切换收缩状态
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    isCollapsed.toggle()
+                                }
+                            }
+                            .simultaneousGesture(
                                 DragGesture(minimumDistance: 10)
                                     .onChanged { value in
+                                        print("------------------------")
+                                        print("工具栏：拖拽按钮拖动开始")
+                                        print("拖拽距离：\(sqrt(pow(value.translation.width, 2) + pow(value.translation.height, 2)))")
+                                        print("------------------------")
+                                        
                                         handleDragChange(value, in: geometry)
                                     }
                                     .onEnded { value in
+                                        print("------------------------")
+                                        print("工具栏：拖拽按钮拖动结束")
+                                        print("------------------------")
+                                        
                                         handleDragEnd(value, in: geometry)
                                     }
                             )
                             .disabled(!restartManager.isCameraActive)
                             .scaleEffect(isDragging ? 0.95 : 1.0)
+                        }
+                        .frame(width: buttonType.size, height: buttonType.size)
+                    } else {
+                        Button(action: {
+                            handleUtilityButtonTap(buttonType)
+                        }) {
+                            if buttonType.isSystemIcon {
+                                Image(systemName: buttonType.icon)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                    .frame(width: buttonType.size, height: buttonType.size)
+                            } else {
+                                Image(buttonType.icon)
+                                    .resizable()
+                                    .renderingMode(.template) // 添加template渲染模式
+                                    .scaledToFit()
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                    .frame(width: buttonType.size, height: buttonType.size)
+                            }
+                        }
+                        .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
+                        .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                        .disabled(!restartManager.isCameraActive)
+                        .scaleEffect(isDragging ? 0.95 : 1.0)
                     }
-                    .frame(width: buttonType.size, height: buttonType.size)
-                } else {
-                    Button(action: {
-                        handleUtilityButtonTap(buttonType)
-                    }) {
-                        Image(systemName: buttonType.icon)
-                            .font(.system(size: 16))
-                            .foregroundColor(restartManager.isCameraActive ? .white : .gray)
-                            .frame(width: buttonType.size, height: buttonType.size)
-                    }
-                    .disabled(!restartManager.isCameraActive)
-                    .scaleEffect(isDragging ? 0.95 : 1.0)
                 }
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
         }
     }
     
@@ -638,9 +766,9 @@ struct DraggableToolbar: View {
             }
             
         case .drag:
-            ViewActionLogger.shared.logAction(.utilityAction(.drag))
+            // 注意：拖拽按钮的点击现在由onTapGesture处理
             print("------------------------")
-            print("工具栏：点击拖拽按钮")
+            print("工具栏：点击拖拽按钮（此路径不应被执行）")
             print("------------------------")
             
         case .close:

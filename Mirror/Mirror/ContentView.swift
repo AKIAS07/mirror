@@ -194,7 +194,7 @@ struct ContentView: View {
                                 // 第一个容器
                                 VStack(spacing: 0) {
                                     Rectangle()
-                                        .fill(Color.black.opacity(0.35))
+                                        .fill(Color.black.opacity(0.15))
                                         .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .animation(.easeInOut(duration: 0.3), value: isLighted)
                                         .overlay(
@@ -222,7 +222,7 @@ struct ContentView: View {
                                 // 第二个容器
                                 VStack(spacing: 0) {
                                     Rectangle()
-                                        .fill(Color.black.opacity(0.35))
+                                        .fill(Color.black.opacity(0.15))
                                         .frame(width: isLighted ? geometry.size.width : geometry.size.width, height: 120)
                                         .overlay(
                                             ZStack {

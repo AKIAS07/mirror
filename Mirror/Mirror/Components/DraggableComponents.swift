@@ -266,7 +266,7 @@ struct DraggableArrow: View {
                         .resizable()
                         .renderingMode(.template)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: isExpanded ? 40 : 30)
+                        .frame(width: isExpanded ? 40 : 20)
                         .foregroundColor(styleManager.iconColor)
                         .frame(width: ArrowLayoutConfig.arrowWidth, height: ArrowLayoutConfig.arrowHeight)
                         .rotationEffect(getIconRotationAngle(deviceOrientation))  // 设备旋转
