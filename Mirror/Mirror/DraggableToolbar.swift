@@ -130,6 +130,7 @@ struct DraggableToolbar: View {
     @ObservedObject var captureState: CaptureState
     @StateObject private var captureManager = CaptureManager.shared
     @StateObject private var restartManager = ContentRestartManager.shared  // 添加 RestartManager
+    @StateObject private var proManager = ProManager.shared  // 添加 ProManager 引用
     @Binding var isVisible: Bool
     
     // 添加是否收缩的状态
@@ -401,7 +402,7 @@ struct DraggableToolbar: View {
                     Group {
                         if !isCollapsed {
                             RoundedRectangle(cornerRadius: 0)
-                                .fill(Color.yellow.opacity(0.15))
+                                .fill(Color.yellow.opacity(0))
                         }
                     }
                 )
@@ -416,7 +417,7 @@ struct DraggableToolbar: View {
                     Group {
                         if !isCollapsed {
                             RoundedRectangle(cornerRadius: 0)
-                                .fill(Color.yellow.opacity(0.15))
+                                .fill(Color.yellow.opacity(0))
                         }
                     }
                 )
@@ -430,12 +431,22 @@ struct DraggableToolbar: View {
             ForEach(ToolbarButtonType.allCases, id: \.rawValue) { buttonType in
                 if !isCollapsed || buttonType == .capture {
                     Button(action: {
-                        handleButtonTap(buttonType)
+                        // 如果是实况按钮且用户不是Pro会员，则显示升级弹窗
+                        if buttonType == .live && !proManager.isPro {
+                            proManager.showProUpgrade()
+                            print("------------------------")
+                            print("[实况按钮] 点击")
+                            print("状态：需要升级")
+                            print("动作：显示升级弹窗")
+                            print("------------------------")
+                        } else {
+                            handleButtonTap(buttonType)
+                        }
                     }) {
                         Group {
                             if buttonType == .capture {
                                 Circle()
-                                    .fill(restartManager.isCameraActive ? styleManager.iconColor : Color.gray)
+                                    .fill(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             } else if buttonType == .zoom {
                                 let percentage = Int(currentScale * 100)
@@ -445,24 +456,34 @@ struct DraggableToolbar: View {
                                               "\(roundedPercentage)"
                                 Text(zoomText)
                                     .font(.system(size: 15, weight: .medium))
-                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : Color.gray)
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             } else if buttonType == .live {
-                                Image(systemName: cameraManager.isUsingSystemCamera ? "livephoto" : "livephoto.slash")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(restartManager.isCameraActive ? (cameraManager.isUsingSystemCamera ? .yellow : styleManager.iconColor) : .gray)
-                                    .frame(width: buttonType.size, height: buttonType.size)
+                                ZStack {
+                                    Image(systemName: cameraManager.isUsingSystemCamera ? "livephoto" : "livephoto.slash")
+                                        .font(.system(size: 22))
+                                        .foregroundColor(restartManager.isCameraActive ? (cameraManager.isUsingSystemCamera ? styleManager.iconColor : styleManager.iconColor.opacity(0.3)) : styleManager.iconColor.opacity(0.3))
+                                        .frame(width: buttonType.size, height: buttonType.size)
+                                    
+                                    // 如果不是Pro会员，显示锁定图标
+                                    if !proManager.isPro {
+                                        Image(systemName: "lock.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(styleManager.iconColor.opacity(0.8))
+                                            .offset(y: -15)  // 将锁定图标向上偏移
+                                    }
+                                }
                             } else {
                                 Image(systemName: buttonType.icon)
                                     .font(.system(size: 22))
-                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             }
                         }
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                     }
-                    .disabled(!restartManager.isCameraActive)  // 根据相机状态禁用按钮
+                    .disabled(!restartManager.isCameraActive)  // 只在相机未激活时禁用按钮
                     .scaleEffect(isDragging ? 0.95 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
                 }
@@ -672,14 +693,14 @@ struct DraggableToolbar: View {
                                 if buttonType.isSystemIcon {
                                     Image(systemName: buttonType.icon)
                                         .font(.system(size: 16))
-                                        .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                        .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                         .frame(width: buttonType.size, height: buttonType.size)
                                 } else {
                                     Image(buttonType.icon)
                                         .resizable()
                                         .renderingMode(.template) // 添加template渲染模式
                                         .scaledToFit()
-                                        .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                        .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                         .frame(width: buttonType.size, height: buttonType.size)
                                 }
                             }
@@ -728,14 +749,14 @@ struct DraggableToolbar: View {
                             if buttonType.isSystemIcon {
                                 Image(systemName: buttonType.icon)
                                     .font(.system(size: 16))
-                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             } else {
                                 Image(buttonType.icon)
                                     .resizable()
                                     .renderingMode(.template) // 添加template渲染模式
                                     .scaledToFit()
-                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : .gray)
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             }
                         }

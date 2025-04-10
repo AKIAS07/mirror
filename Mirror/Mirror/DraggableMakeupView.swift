@@ -34,10 +34,10 @@ struct DraggableMakeupView: View {
     @State private var selectedImage: UIImage?
     @State private var showImagePicker = false
     @StateObject private var permissionManager = PermissionManager.shared
+    @StateObject private var proManager = ProManager.shared  // 添加 ProManager 引用
     
-    // 添加设备方向状态
-    @State private var deviceOrientation: UIDeviceOrientation = UIDevice.current.orientation
-    @State private var rotationAngle: Angle = .degrees(0)
+    // 使用DeviceOrientationManager替代原有的设备方向控制
+    @StateObject private var orientationManager = DeviceOrientationManager.shared
     
     // 添加图片缩放和位置状态
     @State private var imageScale: CGFloat = 1.0
@@ -89,16 +89,7 @@ struct DraggableMakeupView: View {
     
     // 计算设备方向对应的旋转角度
     private func calculateRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
-        switch orientation {
-        case .portraitUpsideDown:
-            return .degrees(180)
-        case .landscapeLeft:
-            return .degrees(90)
-        case .landscapeRight:
-            return .degrees(-90)
-        default:
-            return .degrees(0) // 默认竖屏
-        }
+        return orientationManager.getRotationAngle(orientation)
     }
     
     var body: some View {
@@ -106,8 +97,8 @@ struct DraggableMakeupView: View {
             ZStack {
                 // 添加半透明红色矩形显示可移动范围
                 Rectangle()
-                    .stroke(Color.red.opacity(0.5), lineWidth: 2)
-                    .background(Color.red.opacity(0.1))
+                    .stroke(Color.red.opacity(0), lineWidth: 2)
+                    .background(Color.clear)
                     .frame(width: geometry.size.width - totalWidth, height: geometry.size.height - totalHeight)
                     .position(x: geometry.size.width/2, y: geometry.size.height/2)
                     .allowsHitTesting(false)
@@ -270,14 +261,30 @@ struct DraggableMakeupView: View {
                             .clipped() // 确保内容被裁剪在边界内
                         } else {
                             Button(action: {
-                                checkAndRequestPhotoAccess()
+                                if proManager.isPro {
+                                    checkAndRequestPhotoAccess()
+                                } else {
+                                    print("------------------------")
+                                    print("[化妆视图] 点击上传按钮")
+                                    print("状态：需要升级")
+                                    print("动作：显示升级弹窗")
+                                    print("------------------------")
+                                    proManager.showProUpgrade()
+                                }
                             }) {
                                 VStack(spacing: 10) {
+                                    if !proManager.isPro {
+                                        // 非会员显示锁定图标
+                                        Image(systemName: "lock.fill")
+                                            .font(.system(size: 30))
+                                            .foregroundColor(styleManager.iconColor)
+                                            .padding(.bottom, 0)
+                                    }
                                     Image(systemName: "photo.badge.plus")
                                         .font(.system(size: 30))
-                                        .foregroundColor(styleManager.iconColor)
-                                    Text("上传图片")
-                                        .foregroundColor(styleManager.iconColor)
+                                        .foregroundColor(styleManager.iconColor.opacity(proManager.isPro ? 1 : 0.5))
+                                    Text(proManager.isPro ? "上传图片" : "上传图片")
+                                        .foregroundColor(styleManager.iconColor.opacity(proManager.isPro ? 1 : 0.5))
                                         .font(.system(size: 16))
                                 }
                             }
@@ -342,12 +349,12 @@ struct DraggableMakeupView: View {
                 .frame(width: totalWidth, height: totalHeight)
                 .cornerRadius(12)
                 .shadow(radius: 10)
-                .rotationEffect(rotationAngle)
+                .rotationEffect(orientationManager.getRotationAngle(orientationManager.validOrientation))
                 .position(x: position.x, y: position.y)
                 
                 // 添加视图位置标记点（不跟随旋转）
                 Circle()
-                    .fill(Color.red)
+                    .fill(Color.red.opacity(0))
                     .frame(width: 6, height: 6)
                     .position(x: position.x, y: position.y)
             }
@@ -383,29 +390,7 @@ struct DraggableMakeupView: View {
     
     // 设置设备方向变化监听
     private func setupOrientationNotification() {
-        NotificationCenter.default.addObserver(
-            forName: UIDevice.orientationDidChangeNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            let newOrientation = UIDevice.current.orientation
-            
-            // 仅处理有效的设备方向
-            if newOrientation.isValidInterfaceOrientation {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    self.deviceOrientation = newOrientation
-                    self.rotationAngle = calculateRotationAngle(newOrientation)
-                    
-                    print("------------------------")
-                    print("[设备方向] 变化")
-                    print("当前方向：\(newOrientation.rawValue)")
-                    print("旋转角度：\(rotationAngle.degrees)°")
-                    print("------------------------")
-                }
-            }
-        }
-        
-        // 确保设备方向检测已开启
+        // 不再需要自己处理设备方向变化，因为DeviceOrientationManager已经处理了
         if !UIDevice.current.isGeneratingDeviceOrientationNotifications {
             UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         }

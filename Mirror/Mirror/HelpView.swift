@@ -359,18 +359,20 @@ public struct HelpPanel: View {
                                     
                                     VStack(alignment: .leading, spacing: 5) {
                                         LabeledHighlightRow(
-                                            highlightText: "上下拖动",
+                                            highlightText: "拖动",
                                             description: HStack(spacing: 4) {
-                                                Text("面板 扩展/还原")
+                                                Text("扩展/还原/移动")
                                             },
-                                            freeLabel: true
+                                            freeLabel: true,
+                                            systemImage: "sun.max.fill"
                                         )
                                         LabeledHighlightRow(
-                                            highlightText: "左右拖动",
+                                            highlightText: "点击工具条",
                                             description: HStack(spacing: 4) {
-                                                Text("面板 隐藏/显示")
+                                                Text("隐藏/扩展")
                                             },
-                                            freeLabel: true
+                                            freeLabel: true,
+                                            systemImage: "sun.max.fill"
                                         )
                                     }
                                     .font(.body)
