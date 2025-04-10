@@ -443,12 +443,12 @@ struct CameraContainer: View {
             shouldRotate = isLandscape && isFrontCamera
         }
         
-        print("4. 旋转决策：")
-        print("- 模式A：\(isModeA)")
-        print("- 横屏：\(isLandscape)")
-        print("- 前置摄像头：\(isFrontCamera)")
-        print("- 最终结果：\(shouldRotate ? "需要旋转" : "不需要旋转")")
-        print("========================")
+        // print("4. 旋转决策：")
+        // print("- 模式A：\(isModeA)")
+        // print("- 横屏：\(isLandscape)")
+        // print("- 前置摄像头：\(isFrontCamera)")
+        // print("- 最终结果：\(shouldRotate ? "需要旋转" : "不需要旋转")")
+        // print("========================")
         
         return shouldRotate
     }

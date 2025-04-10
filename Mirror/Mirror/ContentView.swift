@@ -87,6 +87,9 @@ struct ContentView: View {
     @State private var showLiveAlert = false
     @State private var liveAlertMessage = ""
     
+    // 添加化妆视图状态
+    @State private var showMakeupView = false
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -319,6 +322,7 @@ struct ContentView: View {
                     DraggableToolbar(
                         captureState: captureState,
                         isVisible: $isControlsVisible,
+                        showMakeupView: $showMakeupView,  // 传递化妆视图状态
                         containerSelected: cameraManager.isMirrored ? $ModeASelected : $ModeBSelected,
                         isLighted: $isLighted,
                         previousBrightness: previousBrightness,
@@ -395,6 +399,12 @@ struct ContentView: View {
                 // 添加全局权限管理视图，确保在最上层
                 PermissionManagerView()
                     .zIndex(1000)
+                
+                // 添加化妆视图
+                if showMakeupView {
+                    DraggableMakeupView(isVisible: $showMakeupView)
+                        .zIndex(8)  // 确保显示在最上层
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {

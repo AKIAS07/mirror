@@ -98,6 +98,9 @@ struct DraggableToolbar: View {
     @StateObject private var restartManager = ContentRestartManager.shared  // 添加 RestartManager
     @Binding var isVisible: Bool
     
+    // 添加化妆视图状态
+    @Binding var showMakeupView: Bool
+    
     // 添加边框灯状态绑定
     @Binding var containerSelected: Bool
     @Binding var isLighted: Bool
@@ -628,7 +631,11 @@ struct DraggableToolbar: View {
             ViewActionLogger.shared.logAction(.utilityAction(.add))
             print("------------------------")
             print("工具栏：点击添加按钮")
+            print("显示化妆工具视图")
             print("------------------------")
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showMakeupView = true
+            }
             
         case .drag:
             ViewActionLogger.shared.logAction(.utilityAction(.drag))
@@ -652,6 +659,7 @@ struct DraggableToolbar: View {
     DraggableToolbar(
         captureState: CaptureState(),
         isVisible: .constant(true),
+        showMakeupView: .constant(false),
         containerSelected: .constant(false),
         isLighted: .constant(false),
         previousBrightness: UIScreen.main.brightness,
