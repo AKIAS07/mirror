@@ -215,9 +215,9 @@ struct CameraBorderView: View {
         GeometryReader { geometry in
             let availableHeight = geometry.size.height
             let containerFrame = CGRect(
-                x: CameraLayoutConfig.horizontalPadding,
+                x: 0,
                 y: CameraLayoutConfig.verticalOffset,
-                width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2),
+                width: geometry.size.width,
                 height: availableHeight - CameraLayoutConfig.bottomOffset
             )
             

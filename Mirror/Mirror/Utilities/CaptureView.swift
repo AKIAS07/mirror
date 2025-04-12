@@ -458,23 +458,17 @@ public struct CaptureActionsView: View {
                 let screenBounds = UIScreen.main.bounds
                 
                 ZStack {
-                    // 修改全屏背景层的实现
+                    // 背景层
                     Color.black.opacity(0.0001)
                         .frame(width: screenBounds.width, height: screenBounds.height)
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                        .contentShape(Rectangle())
-                        .allowsHitTesting(true)
-                        .onTapGesture {
-                            withAnimation {
-                                captureManager.hidePreview(cameraManager: cameraManager)
-                                onDismiss()
-                            }
-                        }
+                        .allowsHitTesting(false)
 
-                    // 图片层 - 在播放Live Photo时隐藏
-                    if let image = captureManager.capturedImage {
-                        if !(captureManager.isLivePhoto && captureManager.isPlayingLivePhoto) {
-                            ZStack {
+                    // 主要内容层
+                    ZStack {
+                        // 图片层 - 在播放Live Photo时隐藏
+                        if let image = captureManager.capturedImage {
+                            if !(captureManager.isLivePhoto && captureManager.isPlayingLivePhoto) {
                                 let isLandscape = captureManager.captureOrientation.isLandscape
                                 let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
                                 let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
@@ -482,82 +476,90 @@ public struct CaptureActionsView: View {
                                 Image(uiImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .frame(width: displayWidth, height: displayHeight)
+                                    .frame(width: displayWidth+100, height: displayHeight)
                                     .scaleEffect(captureManager.currentScale)
                                     .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
-                                    .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                                    .allowsHitTesting(false)
                             }
                         }
-                    }
-                    
-                    // 添加Live Photo播放视图
-                    if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && captureManager.isPlayingLivePhoto {
-                        ZStack {
-                            let isLandscape = captureManager.captureOrientation.isLandscape
-                            let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
-                            let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
-                            
-                            Color.black
-                                .frame(width: displayWidth, height: displayHeight)
-                                .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                            
-                            LivePhotoPlayerView(
-                                videoURL: captureManager.livePhotoVideoURL!,
-                                isPlaying: $captureManager.isPlayingLivePhoto,
-                                orientation: captureManager.captureOrientation
-                            )
-                            .frame(width: displayWidth, height: displayHeight)
-                            .scaleEffect(captureManager.currentScale)
-                            .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
+                        
+                        // Live Photo播放视图
+                        if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && captureManager.isPlayingLivePhoto {
+                            ZStack {
+                                let isLandscape = captureManager.captureOrientation.isLandscape
+                                let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
+                                let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
+                                
+                                Color.clear
+                                    //.frame(width: displayWidth, height: displayHeight)
+                                
+                                LivePhotoPlayerView(
+                                    videoURL: captureManager.livePhotoVideoURL!,
+                                    isPlaying: $captureManager.isPlayingLivePhoto,
+                                    orientation: captureManager.captureOrientation
+                                )
+                                .frame(width: displayWidth+300, height: displayHeight)
+                                .scaleEffect(captureManager.currentScale)
+                                .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
+                            }
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .allowsHitTesting(false)
-                            .onAppear {
-                                print("[Live Photo播放] 视图显示")
-                            }
                         }
-                        .zIndex(20)
+                        
+                        // 触控层 - 处理缩放、点击和长按
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .frame(width: screenBounds.width, height: screenBounds.height)
+                            .gesture(
+                                SimultaneousGesture(
+                                    SimultaneousGesture(
+                                        MagnificationGesture()
+                                            .onChanged { value in
+                                                print("[缩放手势] 正在缩放 - 当前值: \(value)")
+                                                let newScale = value * captureManager.currentScale
+                                                print("[缩放手势] 计算新比例: \(newScale)")
+                                                captureManager.currentScale = min(max(newScale, 0.6), 10.0)
+                                                print("[缩放手势] 最终比例: \(captureManager.currentScale)")
+                                            }
+                                            .onEnded { value in
+                                                print("[缩放手势] 缩放结束 - 最终值: \(value)")
+                                                let generator = UIImpactFeedbackGenerator(style: .light)
+                                                generator.impactOccurred()
+                                            },
+                                        DragGesture(minimumDistance: 0)
+                                            .onChanged { _ in
+                                                if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && !captureManager.isPlayingLivePhoto {
+                                                    // 触发震动反馈
+                                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                                    generator.impactOccurred()
+                                                    
+                                                    print("[拖动手势] 开始播放Live Photo")
+                                                    withAnimation {
+                                                        captureManager.isPlayingLivePhoto = true
+                                                    }
+                                                }
+                                            }
+                                            .onEnded { _ in
+                                                if captureManager.isPlayingLivePhoto {
+                                                    print("[拖动手势] 停止播放Live Photo")
+                                                    withAnimation {
+                                                        captureManager.isPlayingLivePhoto = false
+                                                    }
+                                                }
+                                            }
+                                    ),
+                                    TapGesture(count: BorderLightStyleManager.shared.captureGestureCount)
+                                        .onEnded {
+                                            print("[触控层] 点击事件被触发")
+                                            withAnimation {
+                                                captureManager.hidePreview(cameraManager: cameraManager)
+                                                onDismiss()
+                                            }
+                                        }
+                                )
+                            )
                     }
-                    
-                    // 半透明背景层（用于点击隐藏按钮和长按播放Live Photo）
-                    Color.black.opacity(0.01)
-                        .frame(width: screenBounds.width, height: screenBounds.height)
-                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: BorderLightStyleManager.shared.captureGestureCount) {
-                            // 触发震动反馈
-                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                            generator.prepare()
-                            generator.impactOccurred()
-                            
-                            withAnimation {
-                                captureManager.hidePreview(cameraManager: cameraManager)
-                                onDismiss()
-                            }
-                        }
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { _ in
-                                    if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && !captureManager.isPlayingLivePhoto {
-                                        // 触发震动反馈
-                                        let generator = UIImpactFeedbackGenerator(style: .medium)
-                                        generator.impactOccurred()
-                                        
-                                        print("[拖动手势] 开始播放Live Photo")
-                                        withAnimation {
-                                            captureManager.isPlayingLivePhoto = true
-                                        }
-                                    }
-                                }
-                                .onEnded { _ in
-                                    if captureManager.isPlayingLivePhoto {
-                                        print("[拖动手势] 停止播放Live Photo")
-                                        withAnimation {
-                                            captureManager.isPlayingLivePhoto = false
-                                        }
-                                    }
-                                }
-                        )
+                    .frame(width: screenBounds.width, height: screenBounds.height)
+                    .position(x: screenBounds.width/2, y: screenBounds.height/2)
                     
                     // Live Photo提示标识
                     if captureManager.isLivePhoto && !captureManager.isPlayingLivePhoto {
@@ -578,6 +580,22 @@ public struct CaptureActionsView: View {
                         }
                         .position(x: screenBounds.width/2, y: screenBounds.height - 160)
                         .zIndex(10)
+                    }
+                    
+                    // 保存成功提示
+                    if captureManager.showSaveSuccess {
+                        Text("已保存到相册")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 16)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(8)
+                            .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                            .zIndex(11)
                     }
                     
                     // 底部操作按钮
@@ -611,21 +629,6 @@ public struct CaptureActionsView: View {
                     }
                     .frame(width: screenBounds.width, height: screenBounds.height)
                     
-                    // 添加保存成功提示
-                    if captureManager.showSaveSuccess {
-                        Text("已保存到相册")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 16)
-                            .background(Color.black.opacity(0.6))
-                            .cornerRadius(8)
-                            .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                    }
-                    
                     // 将关闭按钮移到最上层
                     VStack {
                         HStack {
@@ -656,9 +659,9 @@ public struct CaptureActionsView: View {
                     }
                     .zIndex(100)
                 }
+                .ignoresSafeArea()
+                .zIndex(9)
             }
-            .ignoresSafeArea()
-            .zIndex(9)
         }
     }
     

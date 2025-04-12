@@ -41,7 +41,7 @@ struct ContentView: View {
     @State private var dragOffset: CGFloat = 0
     @State private var dragVerticalOffset: CGFloat = 0
     
-    private let minScale: CGFloat = 1.0
+    private let minScale: CGFloat = 0.6
     private let maxScale: CGFloat = 10.0
     private let verticalDestination: CGFloat = 120.0
     private let verticalDragThreshold: CGFloat = 20.0
