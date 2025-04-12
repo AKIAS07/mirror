@@ -318,11 +318,11 @@ struct ContentView: View {
                 }
                 
                 // 添加工具栏到最顶层
-                if isControlsVisible {
+                if isControlsVisible && !showSettings && !showHelp {
                     DraggableToolbar(
                         captureState: captureState,
                         isVisible: $isControlsVisible,
-                        showMakeupView: $showMakeupView,  // 传递化妆视图状态
+                        showMakeupView: $showMakeupView,
                         containerSelected: cameraManager.isMirrored ? $ModeASelected : $ModeBSelected,
                         isLighted: $isLighted,
                         previousBrightness: previousBrightness,
@@ -384,27 +384,27 @@ struct ContentView: View {
                         .zIndex(4)
                 }
                 
+                // 将化妆视图移到弹窗之前
+                if showMakeupView {
+                    DraggableMakeupView(isVisible: $showMakeupView)
+                        .zIndex(6)  // 降低层级
+                }
+                
                 // 添加设置面板
                 if showSettings {
                     SettingsPanel(isPresented: $showSettings)
-                        .zIndex(4)  // 确保设置面板显示在最上层
+                        .zIndex(8)  // 提高层级
                 }
                 
                 // 添加帮助面板
                 if showHelp {
                     HelpPanel(isPresented: $showHelp)
-                        .zIndex(4)  // 确保帮助面板显示在最上层
+                        .zIndex(8)  // 提高层级
                 }
                 
                 // 添加全局权限管理视图，确保在最上层
                 PermissionManagerView()
                     .zIndex(1000)
-                
-                // 添加化妆视图
-                if showMakeupView {
-                    DraggableMakeupView(isVisible: $showMakeupView)
-                        .zIndex(8)  // 确保显示在最上层
-                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {

@@ -364,7 +364,7 @@ public struct HelpPanel: View {
                                                 Text("扩展/还原/移动")
                                             },
                                             freeLabel: true,
-                                            systemImage: "sun.max.fill"
+                                            systemImage: "icon-star"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "点击工具条",
@@ -372,7 +372,7 @@ public struct HelpPanel: View {
                                                 Text("隐藏/扩展")
                                             },
                                             freeLabel: true,
-                                            systemImage: "sun.max.fill"
+                                            systemImage: "icon-star"
                                         )
                                     }
                                     .font(.body)

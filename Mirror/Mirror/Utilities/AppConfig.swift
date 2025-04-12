@@ -5,7 +5,7 @@ struct AppConfig {
     // 动画时间配置
     struct AnimationConfig {
         // 通用动画持续时间
-        static let defaultDuration: TimeInterval = 0.3
+        static let defaultDuration: TimeInterval = 0.7
         
         // 闪光动画配置
         struct Flash {
@@ -19,7 +19,7 @@ struct AppConfig {
             enum Intensity: Double, CaseIterable {
                 case weak = 0.3
                 case medium = 0.6
-                case strong = 1.0
+                case strong = 0.9
                 
                 var description: String {
                     switch self {
@@ -35,9 +35,9 @@ struct AppConfig {
                 set { _intensity = newValue }
             }
             
-            static let fadeInDuration: Double = 0.1
-            static let fadeOutDuration: Double = 0.3
-            static let displayDuration: Double = 0.5
+            static let fadeInDuration: Double = 0.2
+            static let fadeOutDuration: Double = 0.2
+            static let displayDuration: Double = 2.0
         }
         
         // 截图延迟配置
@@ -49,7 +49,7 @@ struct AppConfig {
         
         // 提示显示时间
         struct Toast {
-            static let duration: TimeInterval = 1.0
+            static let duration: TimeInterval = 2.0
         }
         
         // 分屏定格配置

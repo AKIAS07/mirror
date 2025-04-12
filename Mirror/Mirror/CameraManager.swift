@@ -621,137 +621,145 @@ class CameraManager: ObservableObject {
         print("[Live Photo拍摄] 开始")
         print("------------------------")
         
-        guard let photoOutput = photoOutput else {
-            let error = NSError(domain: "CameraManager", 
-                               code: 1, 
-                               userInfo: [NSLocalizedDescriptionKey: "PhotoOutput未初始化"])
-            print("[Live Photo拍摄] 错误：PhotoOutput未初始化")
-            completion(false, "", nil, nil, nil, error)
-            return
-        }
-        
-        // 更新拍摄方向（现在会保持设备面朝上时的之前有效方向）
-        updatePhotoOrientation()
-        
-        // 检查是否支持 Live Photo
-        print("[Live Photo拍摄] 检查设备支持情况：")
-        print("是否支持Live Photo：\(photoOutput.isLivePhotoCaptureSupported)")
-        print("Live Photo是否已启用：\(photoOutput.isLivePhotoCaptureEnabled)")
-        print("当前设备方向：\(currentDeviceOrientation.rawValue)，使用的拍摄方向：\(lastValidVideoOrientation.rawValue)")
-        
-        guard photoOutput.isLivePhotoCaptureSupported else {
-            let error = NSError(domain: "CameraManager", 
-                               code: 2, 
-                               userInfo: [NSLocalizedDescriptionKey: "设备不支持Live Photo"])
-            print("[Live Photo拍摄] 错误：设备不支持Live Photo")
-            completion(false, "", nil, nil, nil, error)
-            return
-        }
-        
-        // 生成唯一标识符
-        let identifier = UUID().uuidString
-        print("[Live Photo拍摄] 生成标识符：\(identifier)")
-        
-        // 创建临时文件路径
-        let tempDir = FileManager.default.temporaryDirectory
-        let imageURL = tempDir.appendingPathComponent("\(identifier).heic")
-        let videoURL = tempDir.appendingPathComponent("\(identifier).mov")
-        
-        print("[Live Photo拍摄] 临时文件路径：")
-        print("图片路径：\(imageURL.path)")
-        print("视频路径：\(videoURL.path)")
-        
-        // 修改拍摄设置
-        var settings: AVCapturePhotoSettings
-        
-        // 根据 iOS 版本设置 HEIF 格式
-        if #available(iOS 11.0, *) {
-            if photoOutput.availablePhotoCodecTypes.contains(.hevc) {
-                settings = AVCapturePhotoSettings(format: [
-                    AVVideoCodecKey: AVVideoCodecType.hevc
-                ])
-                print("[Live Photo拍摄] 使用 HEIF/HEVC 编码")
-            } else {
-                settings = AVCapturePhotoSettings()
-                print("[Live Photo拍摄] 设备不支持 HEIF/HEVC，使用默认编码")
-            }
-        } else {
-            settings = AVCapturePhotoSettings()
-            print("[Live Photo拍摄] iOS 版本低于11.0，使用默认编码")
-        }
-        
-        // 设置 Live Photo 视频路径
-        settings.livePhotoMovieFileURL = videoURL
-        
-        // 配置 Live Photo 设置
-        settings.isHighResolutionPhotoEnabled = true
-        
-        // 设置基本的质量参数
-        if #available(iOS 13.0, *) {
-            settings.photoQualityPrioritization = .balanced
-            print("[Live Photo拍摄] 使用平衡质量模式")
-        }
-        
-        photoOutput.isLivePhotoCaptureEnabled = true
-        
-        // 设置视频编码
-        if #available(iOS 11.0, *) {
-            settings.livePhotoVideoCodecType = .hevc
-            print("[Live Photo拍摄] 视频编码：HEVC")
-        }
-        
-        print("[Live Photo拍摄] 文件设置：")
-        if #available(iOS 11.0, *) {
-            print("图片编码类型：\(settings.availablePreviewPhotoPixelFormatTypes.first ?? 0)")
-            print("视频编码类型：\(settings.livePhotoVideoCodecType.rawValue)")
-        }
-        
-        // 检查会话状态
-        print("[Live Photo拍摄] 会话状态：")
-        print("会话是否在运行：\(session.isRunning)")
-        print("当前会话预设：\(session.sessionPreset.rawValue)")
-        
-        // 检查相机输入状态
-        if let currentInput = currentCameraInput {
-            print("[Live Photo拍摄] 相机输入状态：")
-            print("设备位置：\(currentInput.device.position.rawValue)")
-            print("设备格式：\(currentInput.device.activeFormat.description)")
-        }
-        
-        // 创建处理器时传入文件路径
-        let processor = LivePhotoPreviewProcessor(
-            identifier: identifier,
-            imageURL: imageURL,
-            videoURL: videoURL
-        ) { success, error in
-            print("[Live Photo拍摄] 处理完成")
-            print("处理结果：\(success ? "成功" : "失败")")
-            if let error = error {
-                print("错误信息：\(error.localizedDescription)")
-                completion(false, identifier, nil, nil, nil, error)
+        // 添加 0.5 秒延迟
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self = self else {
+                completion(false, "", nil, nil, nil, NSError(domain: "CameraManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "相机管理器已释放"]))
                 return
             }
             
-            if success {
-                do {
-                    let imageData = try Data(contentsOf: imageURL)
-                    if let image = UIImage(data: imageData) {
-                        print("[Live Photo拍摄] 成功创建图片对象")
-                        completion(true, identifier, imageURL, videoURL, image, nil)
-                    } else {
-                        throw NSError(domain: "CameraManager", code: 4, userInfo: [NSLocalizedDescriptionKey: "无法创建图片对象"])
-                    }
-                } catch {
-                    print("[Live Photo拍摄] 处理图片时出错：\(error.localizedDescription)")
+            guard let photoOutput = self.photoOutput else {
+                let error = NSError(domain: "CameraManager", 
+                                   code: 1, 
+                                   userInfo: [NSLocalizedDescriptionKey: "PhotoOutput未初始化"])
+                print("[Live Photo拍摄] 错误：PhotoOutput未初始化")
+                completion(false, "", nil, nil, nil, error)
+                return
+            }
+            
+            // 更新拍摄方向（现在会保持设备面朝上时的之前有效方向）
+            self.updatePhotoOrientation()
+            
+            // 检查是否支持 Live Photo
+            print("[Live Photo拍摄] 检查设备支持情况：")
+            print("是否支持Live Photo：\(photoOutput.isLivePhotoCaptureSupported)")
+            print("Live Photo是否已启用：\(photoOutput.isLivePhotoCaptureEnabled)")
+            print("当前设备方向：\(self.currentDeviceOrientation.rawValue)，使用的拍摄方向：\(self.lastValidVideoOrientation.rawValue)")
+            
+            guard photoOutput.isLivePhotoCaptureSupported else {
+                let error = NSError(domain: "CameraManager", 
+                                   code: 2, 
+                                   userInfo: [NSLocalizedDescriptionKey: "设备不支持Live Photo"])
+                print("[Live Photo拍摄] 错误：设备不支持Live Photo")
+                completion(false, "", nil, nil, nil, error)
+                return
+            }
+            
+            // 生成唯一标识符
+            let identifier = UUID().uuidString
+            print("[Live Photo拍摄] 生成标识符：\(identifier)")
+            
+            // 创建临时文件路径
+            let tempDir = FileManager.default.temporaryDirectory
+            let imageURL = tempDir.appendingPathComponent("\(identifier).heic")
+            let videoURL = tempDir.appendingPathComponent("\(identifier).mov")
+            
+            print("[Live Photo拍摄] 临时文件路径：")
+            print("图片路径：\(imageURL.path)")
+            print("视频路径：\(videoURL.path)")
+            
+            // 修改拍摄设置
+            var settings: AVCapturePhotoSettings
+            
+            // 根据 iOS 版本设置 HEIF 格式
+            if #available(iOS 11.0, *) {
+                if photoOutput.availablePhotoCodecTypes.contains(.hevc) {
+                    settings = AVCapturePhotoSettings(format: [
+                        AVVideoCodecKey: AVVideoCodecType.hevc
+                    ])
+                    print("[Live Photo拍摄] 使用 HEIF/HEVC 编码")
+                } else {
+                    settings = AVCapturePhotoSettings()
+                    print("[Live Photo拍摄] 设备不支持 HEIF/HEVC，使用默认编码")
+                }
+            } else {
+                settings = AVCapturePhotoSettings()
+                print("[Live Photo拍摄] iOS 版本低于11.0，使用默认编码")
+            }
+            
+            // 设置 Live Photo 视频路径
+            settings.livePhotoMovieFileURL = videoURL
+            
+            // 配置 Live Photo 设置
+            settings.isHighResolutionPhotoEnabled = true
+            
+            // 设置基本的质量参数
+            if #available(iOS 13.0, *) {
+                settings.photoQualityPrioritization = .balanced
+                print("[Live Photo拍摄] 使用平衡质量模式")
+            }
+            
+            photoOutput.isLivePhotoCaptureEnabled = true
+            
+            // 设置视频编码
+            if #available(iOS 11.0, *) {
+                settings.livePhotoVideoCodecType = .hevc
+                print("[Live Photo拍摄] 视频编码：HEVC")
+            }
+            
+            print("[Live Photo拍摄] 文件设置：")
+            if #available(iOS 11.0, *) {
+                print("图片编码类型：\(settings.availablePreviewPhotoPixelFormatTypes.first ?? 0)")
+                print("视频编码类型：\(settings.livePhotoVideoCodecType.rawValue)")
+            }
+            
+            // 检查会话状态
+            print("[Live Photo拍摄] 会话状态：")
+            print("会话是否在运行：\(self.session.isRunning)")
+            print("当前会话预设：\(self.session.sessionPreset.rawValue)")
+            
+            // 检查相机输入状态
+            if let currentInput = self.currentCameraInput {
+                print("[Live Photo拍摄] 相机输入状态：")
+                print("设备位置：\(currentInput.device.position.rawValue)")
+                print("设备格式：\(currentInput.device.activeFormat.description)")
+            }
+            
+            // 创建处理器时传入文件路径
+            let processor = LivePhotoPreviewProcessor(
+                identifier: identifier,
+                imageURL: imageURL,
+                videoURL: videoURL
+            ) { success, error in
+                print("[Live Photo拍摄] 处理完成")
+                print("处理结果：\(success ? "成功" : "失败")")
+                if let error = error {
+                    print("错误信息：\(error.localizedDescription)")
                     completion(false, identifier, nil, nil, nil, error)
+                    return
+                }
+                
+                if success {
+                    do {
+                        let imageData = try Data(contentsOf: imageURL)
+                        if let image = UIImage(data: imageData) {
+                            print("[Live Photo拍摄] 成功创建图片对象")
+                            completion(true, identifier, imageURL, videoURL, image, nil)
+                        } else {
+                            throw NSError(domain: "CameraManager", code: 4, userInfo: [NSLocalizedDescriptionKey: "无法创建图片对象"])
+                        }
+                    } catch {
+                        print("[Live Photo拍摄] 处理图片时出错：\(error.localizedDescription)")
+                        completion(false, identifier, nil, nil, nil, error)
+                    }
                 }
             }
+            
+            self.livePhotoCaptureProcessor = processor
+            
+            print("[Live Photo拍摄] 开始捕获")
+            photoOutput.capturePhoto(with: settings, delegate: processor)
         }
-        
-        livePhotoCaptureProcessor = processor
-        
-        print("[Live Photo拍摄] 开始捕获")
-        photoOutput.capturePhoto(with: settings, delegate: processor)
     }
     
     func updateLatestProcessedImage(_ image: UIImage) {
