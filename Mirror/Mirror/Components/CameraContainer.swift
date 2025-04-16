@@ -29,6 +29,7 @@ struct CameraContainer: View {
     @Binding var currentIndicatorScale: CGFloat
     let onPinchChanged: (CGFloat) -> Void
     let onPinchEnded: (CGFloat) -> Void
+    let minScale: CGFloat
     
     private let feedbackGenerator = UIImpactFeedbackGenerator(style: .heavy)
     
@@ -69,6 +70,7 @@ struct CameraContainer: View {
          currentIndicatorScale: Binding<CGFloat>,
          onPinchChanged: @escaping (CGFloat) -> Void,
          onPinchEnded: @escaping (CGFloat) -> Void,
+         minScale: CGFloat = 0.6,
          captureState: CaptureState = CaptureState()) {
         self.session = session
         self.isMirrored = isMirrored
@@ -85,6 +87,7 @@ struct CameraContainer: View {
         _currentIndicatorScale = currentIndicatorScale
         self.onPinchChanged = onPinchChanged
         self.onPinchEnded = onPinchEnded
+        self.minScale = minScale
         self.captureState = captureState
     }
     
@@ -193,13 +196,20 @@ struct CameraContainer: View {
                                                     
                                                     if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                                                         print("[Live Photo 拍摄] 成功，准备预览")
+                                                        print("- 图片URL：\(imageURL.path)")
+                                                        print("- 视频URL：\(videoURL.path)")
+                                                        print("- 标识符：\(identifier)")
+                                                        print("- 设备方向：\(self.deviceOrientation.rawValue)")
+                                                        print("- 缩放比例：\(self.currentScale)")
+                                                        
                                                         self.captureManager.showLivePhotoPreview(
                                                             image: image,
                                                             videoURL: videoURL,
                                                             imageURL: imageURL,
                                                             identifier: identifier,
                                                             orientation: self.deviceOrientation,
-                                                            cameraManager: self.cameraManager
+                                                            cameraManager: self.cameraManager,
+                                                            scale: self.currentScale
                                                         )
                                                         
                                                         // 隐藏控制区域
@@ -211,7 +221,11 @@ struct CameraContainer: View {
                                                         print("Live Photo 已捕捉")
                                                         print("------------------------")
                                                     } else {
-                                                        print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
+                                                        print("[Live Photo 拍摄] 失败")
+                                                        print("- 成功状态：\(success)")
+                                                        print("- 图片URL：\(String(describing: imageURL))")
+                                                        print("- 视频URL：\(String(describing: videoURL))")
+                                                        print("- 错误信息：\(String(describing: error?.localizedDescription))")
                                                     }
                                                 }
                                             }
@@ -268,7 +282,8 @@ struct CameraContainer: View {
                     if showScaleIndicator {
                         ScaleIndicatorView(
                             scale: currentScale,
-                            deviceOrientation: deviceOrientation
+                            deviceOrientation: deviceOrientation,
+                            isMinScale: abs(currentScale - minScale) < 0.01
                         )
                         .position(x: geometry.size.width/2, y: geometry.size.height/2)
                         .animation(.easeInOut(duration: 0.2), value: currentScale)
@@ -278,7 +293,7 @@ struct CameraContainer: View {
                     // 添加截图操作按钮
                     VStack {
                         Spacer()
-                        CaptureActionsView(captureState: captureState, cameraManager: cameraManager) {
+                        CaptureActionsView(captureManager: captureManager, cameraManager: cameraManager) {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 isControlAreaVisible = true
                             }
@@ -582,13 +597,20 @@ struct SystemCameraView: View {
                     
                     if success, let imageURL = imageURL, let videoURL = videoURL, let image = image {
                         print("[Live Photo 拍摄] 成功，准备预览")
+                        print("- 图片URL：\(imageURL.path)")
+                        print("- 视频URL：\(videoURL.path)")
+                        print("- 标识符：\(identifier)")
+                        print("- 设备方向：\(self.deviceOrientation.rawValue)")
+                        print("- 缩放比例：\(self.currentScale)")
+                        
                         self.captureManager.showLivePhotoPreview(
                             image: image,
                             videoURL: videoURL,
                             imageURL: imageURL,
                             identifier: identifier,
                             orientation: self.deviceOrientation,
-                            cameraManager: self.cameraManager
+                            cameraManager: self.cameraManager,
+                            scale: self.currentScale
                         )
                         
                         // 隐藏控制区域
@@ -600,7 +622,11 @@ struct SystemCameraView: View {
                         print("Live Photo 已捕捉")
                         print("------------------------")
                     } else {
-                        print("[Live Photo 拍摄] 失败: \(error?.localizedDescription ?? "未知错误")")
+                        print("[Live Photo 拍摄] 失败")
+                        print("- 成功状态：\(success)")
+                        print("- 图片URL：\(String(describing: imageURL))")
+                        print("- 视频URL：\(String(describing: videoURL))")
+                        print("- 错误信息：\(String(describing: error?.localizedDescription))")
                     }
                 }
             }

@@ -1552,7 +1552,8 @@ struct TwoOfMeScreens: View {
                 if showScaleIndicator, let activeScreen = activeScalingScreen {
                     ScaleIndicatorView(
                         scale: currentIndicatorScale,
-                        deviceOrientation: orientationManager.currentOrientation  // 传入设备方向
+                        deviceOrientation: orientationManager.currentOrientation,  // 传入设备方向
+                        isMinScale: currentIndicatorScale <= 1.0  // 添加isMinScale参数
                     )
                     .position(
                         x: screenWidth/2,

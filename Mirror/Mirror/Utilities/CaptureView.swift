@@ -433,24 +433,18 @@ public struct CaptureActionButton: View {
 
 // 截图操作视图
 public struct CaptureActionsView: View {
-    @ObservedObject var captureState: CaptureState
+    @ObservedObject var captureManager: CaptureManager
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
-    @ObservedObject private var captureManager = CaptureManager.shared
     let cameraManager: CameraManager
     let onDismiss: () -> Void
     
-    // 添加长按手势状态
-    @GestureState private var isLongPressed = false
+    // 使用普通的 State 来跟踪长按状态
+    @State private var isLongPressed = false
     
-    // 添加初始化方法
-    init(captureState: CaptureState, 
-         cameraManager: CameraManager,
-         onDismiss: @escaping () -> Void) {
-        self.captureState = captureState
-        self.cameraManager = cameraManager
-        self.onDismiss = onDismiss
-    }
+    // 添加缩放相关状态
+    @State private var showScaleIndicator = false
+    @State private var currentIndicatorScale: CGFloat = 1.0
     
     public var body: some View {
         if captureManager.isPreviewVisible {
@@ -459,7 +453,7 @@ public struct CaptureActionsView: View {
                 
                 ZStack {
                     // 背景层
-                    Color.black.opacity(0.0001)
+                    Color.black
                         .frame(width: screenBounds.width, height: screenBounds.height)
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
                         .allowsHitTesting(false)
@@ -476,7 +470,7 @@ public struct CaptureActionsView: View {
                                 Image(uiImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .frame(width: displayWidth+100, height: displayHeight)
+                                    .frame(width: displayWidth, height: displayHeight)
                                     .scaleEffect(captureManager.currentScale)
                                     .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
                             }
@@ -490,19 +484,19 @@ public struct CaptureActionsView: View {
                                 let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
                                 
                                 Color.clear
-                                    //.frame(width: displayWidth, height: displayHeight)
                                 
                                 LivePhotoPlayerView(
                                     videoURL: captureManager.livePhotoVideoURL!,
                                     isPlaying: $captureManager.isPlayingLivePhoto,
                                     orientation: captureManager.captureOrientation
                                 )
-                                .frame(width: displayWidth+300, height: displayHeight)
+                                .frame(width: isLandscape ? displayWidth:displayWidth+250, height: isLandscape ? displayHeight+250:displayHeight)
                                 .scaleEffect(captureManager.currentScale)
                                 .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
                             }
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .allowsHitTesting(false)
+                            .zIndex(1)
                         }
                         
                         // 触控层 - 处理缩放、点击和长按
@@ -511,45 +505,27 @@ public struct CaptureActionsView: View {
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .gesture(
                                 SimultaneousGesture(
-                                    SimultaneousGesture(
-                                        MagnificationGesture()
-                                            .onChanged { value in
-                                                print("[缩放手势] 正在缩放 - 当前值: \(value)")
-                                                let newScale = value * captureManager.currentScale
-                                                print("[缩放手势] 计算新比例: \(newScale)")
-                                                captureManager.currentScale = min(max(newScale, 0.6), 10.0)
-                                                print("[缩放手势] 最终比例: \(captureManager.currentScale)")
+                                    MagnificationGesture()
+                                        .onChanged { value in
+                                            let newScale = value * captureManager.currentScale
+                                            captureManager.currentScale = min(max(newScale, 0.6), 10.0)
+                                            
+                                            // 更新缩放指示器
+                                            currentIndicatorScale = captureManager.currentScale
+                                            showScaleIndicator = true
+                                        }
+                                        .onEnded { _ in
+                                            // 添加震动反馈
+                                            let generator = UIImpactFeedbackGenerator(style: .light)
+                                            generator.impactOccurred()
+                                            
+                                            // 延迟隐藏缩放指示器
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                                showScaleIndicator = false
                                             }
-                                            .onEnded { value in
-                                                print("[缩放手势] 缩放结束 - 最终值: \(value)")
-                                                let generator = UIImpactFeedbackGenerator(style: .light)
-                                                generator.impactOccurred()
-                                            },
-                                        DragGesture(minimumDistance: 0)
-                                            .onChanged { _ in
-                                                if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && !captureManager.isPlayingLivePhoto {
-                                                    // 触发震动反馈
-                                                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                                                    generator.impactOccurred()
-                                                    
-                                                    print("[拖动手势] 开始播放Live Photo")
-                                                    withAnimation {
-                                                        captureManager.isPlayingLivePhoto = true
-                                                    }
-                                                }
-                                            }
-                                            .onEnded { _ in
-                                                if captureManager.isPlayingLivePhoto {
-                                                    print("[拖动手势] 停止播放Live Photo")
-                                                    withAnimation {
-                                                        captureManager.isPlayingLivePhoto = false
-                                                    }
-                                                }
-                                            }
-                                    ),
+                                        },
                                     TapGesture(count: BorderLightStyleManager.shared.captureGestureCount)
                                         .onEnded {
-                                            print("[触控层] 点击事件被触发")
                                             withAnimation {
                                                 captureManager.hidePreview(cameraManager: cameraManager)
                                                 onDismiss()
@@ -557,6 +533,45 @@ public struct CaptureActionsView: View {
                                         }
                                 )
                             )
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onEnded { _ in
+                                        if isLongPressed {
+                                            print("[长按手势] 结束")
+                                            isLongPressed = false
+                                            if captureManager.isPlayingLivePhoto {
+                                                print("[长按手势] 停止播放Live Photo")
+                                                withAnimation {
+                                                    captureManager.isPlayingLivePhoto = false
+                                                }
+                                            }
+                                        }
+                                    }
+                            )
+                            .highPriorityGesture(
+                                LongPressGesture(minimumDuration: 0.5)
+                                    .onEnded { _ in
+                                        print("[长按手势] 开始")
+                                        print("[长按手势] Live Photo状态：\(captureManager.isLivePhoto)")
+                                        print("[长按手势] 视频URL：\(String(describing: captureManager.livePhotoVideoURL))")
+                                        print("[长按手势] 当前播放状态：\(captureManager.isPlayingLivePhoto)")
+                                        
+                                        if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && !captureManager.isPlayingLivePhoto {
+                                            isLongPressed = true
+                                            // 触发震动反馈
+                                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                                            generator.impactOccurred()
+                                            
+                                            print("[长按手势] 开始播放Live Photo")
+                                            withAnimation {
+                                                captureManager.isPlayingLivePhoto = true
+                                            }
+                                        }
+                                    }
+                            )
+                            .onTapGesture { } // 添加空的点击手势以确保视图可以接收触摸事件
+                            .allowsHitTesting(true)
+                            .zIndex(2)
                     }
                     .frame(width: screenBounds.width, height: screenBounds.height)
                     .position(x: screenBounds.width/2, y: screenBounds.height/2)
@@ -625,6 +640,8 @@ public struct CaptureActionsView: View {
                                 Spacer()
                             }
                         }
+                        .rotationEffect(getRotationAngle(for:orientationManager.currentOrientation))
+                        .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                         .frame(height: 120)
                     }
                     .frame(width: screenBounds.width, height: screenBounds.height)
@@ -652,12 +669,25 @@ public struct CaptureActionsView: View {
                                     .background(Color.black.opacity(0.35))
                                     .clipShape(Circle())
                             }
+                            .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
+                            .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                             .padding(.top, 80)
                             Spacer()
                         }
                         Spacer()
                     }
                     .zIndex(100)
+                    
+                    // 添加缩放指示器
+                    if showScaleIndicator {
+                        ScaleIndicatorView(
+                            scale: currentIndicatorScale,
+                            deviceOrientation: orientationManager.currentOrientation,
+                            isMinScale: abs(currentIndicatorScale - 0.6) < 0.01
+                        )
+                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .zIndex(10)
+                    }
                 }
                 .ignoresSafeArea()
                 .zIndex(9)
@@ -691,6 +721,30 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
     let videoURL: URL
     @Binding var isPlaying: Bool
     let orientation: UIDeviceOrientation
+    
+    // 添加播放器引用
+    private let player = AVPlayer()
+    
+    class Coordinator: NSObject {
+        var parent: LivePhotoPlayerView
+        var playerTimeObserver: Any?
+        var playerItemObserver: NSKeyValueObservation?
+        
+        init(_ parent: LivePhotoPlayerView) {
+            self.parent = parent
+        }
+        
+        deinit {
+            if let observer = playerTimeObserver {
+                parent.player.removeTimeObserver(observer)
+            }
+            playerItemObserver?.invalidate()
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         print("[LivePhotoPlayerView] makeUIViewController 被调用")
@@ -702,13 +756,29 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
             print("[LivePhotoPlayerView] 视频文件存在")
         } else {
             print("[LivePhotoPlayerView] 错误：视频文件不存在")
+            return AVPlayerViewController()
         }
         
-        let player = AVPlayer(url: videoURL)
         let playerViewController = AVPlayerViewController()
         playerViewController.player = player
         playerViewController.showsPlaybackControls = false
         playerViewController.videoGravity = .resizeAspectFill
+        
+        // 设置视频源
+        let playerItem = AVPlayerItem(url: videoURL)
+        player.replaceCurrentItem(with: playerItem)
+        
+        // 监听播放器状态
+        context.coordinator.playerItemObserver = playerItem.observe(\.status, options: [.new]) { item, _ in
+            print("[LivePhotoPlayerView] 播放器状态更新: \(item.status.rawValue)")
+            if item.status == .readyToPlay {
+                print("[LivePhotoPlayerView] 播放器准备就绪")
+                if self.isPlaying {
+                    print("[LivePhotoPlayerView] 开始播放")
+                    self.player.play()
+                }
+            }
+        }
         
         // 设置视频方向
         if let playerLayer = playerViewController.view.layer as? AVPlayerLayer {
@@ -736,8 +806,8 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
             queue: .main
         ) { _ in
             print("[LivePhotoPlayerView] 视频播放完毕，重置到第一帧")
-            player.seek(to: .zero)
-            player.pause()
+            self.player.seek(to: .zero)
+            self.player.pause()
             
             // 通知外部停止播放
             DispatchQueue.main.async {
@@ -745,33 +815,38 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
             }
         }
         
-        // 自动播放
-        print("[LivePhotoPlayerView] 开始播放视频")
-        player.play()
-        
         return playerViewController
     }
     
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {
         print("[LivePhotoPlayerView] updateUIViewController 被调用")
+        print("[LivePhotoPlayerView] 播放状态: \(player.timeControlStatus.rawValue)")
         
-        
-        if let player = uiViewController.player {
-            print("[LivePhotoPlayerView] 播放状态: \(player.timeControlStatus.rawValue)")
-            
-            if player.timeControlStatus != .playing && isPlaying {
-                print("[LivePhotoPlayerView] 重新开始播放")
-                player.seek(to: .zero)
-                player.play()
+        if isPlaying {
+            if player.timeControlStatus != .playing {
+                if player.currentItem?.status == .readyToPlay {
+                    print("[LivePhotoPlayerView] 开始/恢复播放")
+                    player.seek(to: .zero)
+                    player.play()
+                } else {
+                    print("[LivePhotoPlayerView] 等待播放器就绪")
+                }
+            }
+        } else {
+            if player.timeControlStatus == .playing {
+                print("[LivePhotoPlayerView] 暂停播放")
+                player.pause()
             }
         }
     }
     
-    
-    static func dismantleUIViewController(_ uiViewController: AVPlayerViewController, coordinator: ()) {
+    static func dismantleUIViewController(_ uiViewController: AVPlayerViewController, coordinator: Coordinator) {
         print("[LivePhotoPlayerView] dismantleUIViewController 被调用")
-        NotificationCenter.default.removeObserver(uiViewController)
-        uiViewController.player?.pause()
+        coordinator.playerItemObserver?.invalidate()
+        if let player = uiViewController.player {
+            player.pause()
+            NotificationCenter.default.removeObserver(player)
+        }
         uiViewController.player = nil
     }
 }   

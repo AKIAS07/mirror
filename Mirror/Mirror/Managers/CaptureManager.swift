@@ -51,7 +51,12 @@ class CaptureManager: ObservableObject {
     }
     
     // 显示 Live Photo 预览
-    func showLivePhotoPreview(image: UIImage, videoURL: URL, imageURL: URL, identifier: String, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
+    func showLivePhotoPreview(image: UIImage, videoURL: URL, imageURL: URL, identifier: String, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager, scale: CGFloat = 1.0) {
+        print("------------------------")
+        print("[Live Photo预览] 开始初始化")
+        print("设备方向：\(orientation.rawValue)")
+        print("缩放比例：\(scale)")
+        
         // 首先将文件复制到持久化目录
         let persistentImageURL = persistentDirectory.appendingPathComponent("\(identifier).heic")
         let persistentVideoURL = persistentDirectory.appendingPathComponent("\(identifier).mov")
@@ -66,9 +71,11 @@ class CaptureManager: ObservableObject {
             // 如果文件已存在，先删除
             if fileManager.fileExists(atPath: persistentImageURL.path) {
                 try fileManager.removeItem(at: persistentImageURL)
+                print("[Live Photo预览] 删除已存在的图片文件")
             }
             if fileManager.fileExists(atPath: persistentVideoURL.path) {
                 try fileManager.removeItem(at: persistentVideoURL)
+                print("[Live Photo预览] 删除已存在的视频文件")
             }
             
             // 复制文件
@@ -76,6 +83,9 @@ class CaptureManager: ObservableObject {
             try fileManager.copyItem(at: videoURL, to: persistentVideoURL)
             
             print("[Live Photo预览] 文件持久化成功")
+            print("[Live Photo预览] 验证文件：")
+            print("- 图片文件存在：\(fileManager.fileExists(atPath: persistentImageURL.path))")
+            print("- 视频文件存在：\(fileManager.fileExists(atPath: persistentVideoURL.path))")
             
             self.capturedImage = image
             self.livePhotoVideoURL = persistentVideoURL
@@ -84,6 +94,12 @@ class CaptureManager: ObservableObject {
             self.livePhotoIdentifier = identifier
             self.isLivePhoto = true
             self.captureOrientation = orientation
+            self.currentScale = scale
+            
+            print("[Live Photo预览] 状态更新：")
+            print("- isLivePhoto：\(self.isLivePhoto)")
+            print("- livePhotoVideoURL：\(String(describing: self.livePhotoVideoURL))")
+            print("- isPlayingLivePhoto：\(self.isPlayingLivePhoto)")
             
             // 锁定设备方向，防止旋转
             orientationManager.lockOrientation()
@@ -101,7 +117,9 @@ class CaptureManager: ObservableObject {
             
         } catch {
             print("[Live Photo预览] 文件持久化失败：\(error.localizedDescription)")
+            print("错误详情：\(error)")
         }
+        print("------------------------")
     }
     
     // 隐藏预览

@@ -182,15 +182,19 @@ struct SquareCornerAnimationView: View {
 struct ScaleIndicatorView: View {
     let scale: CGFloat
     let deviceOrientation: UIDeviceOrientation  // 添加设备方向参数
+    let isMinScale: Bool  // 添加是否最小比例参数
     @State private var opacity: Double = 0
     
     private var scaleText: String {
+        // 如果是最小比例，显示4:3比例
+        if isMinScale {
+            return "小屏模式"
+        }
+        
         let scalePercentage = Int(scale * 100)
         
-        // 在最小和最大缩放比例时显示固定值
-        if scale <= 1.0 {
-            return "100%"
-        } else if scale >= 10.0 {
+        // 在最大缩放比例时显示固定值
+        if scale >= 10.0 {
             return "1000%"
         }
         
@@ -214,20 +218,28 @@ struct ScaleIndicatorView: View {
     }
     
     var body: some View {
-        Text(scaleText)
-            .font(.system(size: 40, weight: .bold))
-            .foregroundColor(.white)
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 15)
-                    .fill(Color.black.opacity(0.2))
-            )
-            .rotationEffect(getRotationAngle(deviceOrientation))  // 添加旋转效果
-            .opacity(opacity)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    opacity = 1
-                }
+        VStack(spacing: 4) {
+            // 当比例为 100% 时显示"全屏模式"
+            if abs(scale - 1.0) < 0.01 {
+                Text("全屏模式")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(.white)
             }
+            Text(scaleText)
+                .font(.system(size: 40, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 15)
+                .fill(Color.black.opacity(0.2))
+        )
+        .rotationEffect(getRotationAngle(deviceOrientation))  // 添加旋转效果
+        .opacity(opacity)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                opacity = 1
+            }
+        }
     }
 } 

@@ -8,10 +8,11 @@ class CameraManager: ObservableObject {
     @Published var permissionGranted = false
     @Published var isUsingSystemCamera = false
     @Published var isCapturingLivePhoto = false
-    private var currentCameraInput: AVCaptureDeviceInput?
     @Published var isMirrored = false
     @Published var isFront = true
     @Published var isBack = false
+    @Published var currentScale: CGFloat = 1.0  // 添加缩放比例属性
+    private var currentCameraInput: AVCaptureDeviceInput?
     private var currentDeviceOrientation: UIDeviceOrientation = .portrait
     
     // 添加后置摄像头状态的计算属性
@@ -264,19 +265,16 @@ class CameraManager: ObservableObject {
             session.commitConfiguration()
             print("[相机设置] 配置提交完成")
             
-            // 在配置完成后，使用单独的队列启动会话
+            // 在单独的队列中启动会话
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 guard let self = self else { return }
                 
                 // 确保会话没有在运行
                 if !self.session.isRunning {
+                    print("------------------------")
+                    print("[相机设置] 启动会话")
+                    print("------------------------")
                     self.session.startRunning()
-                    
-                    DispatchQueue.main.async {
-                        print("------------------------")
-                        print("相机会话已启动")
-                        print("------------------------")
-                    }
                 }
             }
             
@@ -377,23 +375,6 @@ class CameraManager: ObservableObject {
                         print("尝试启用 Live Photo 后的状态：\(photoOutput.isLivePhotoCaptureEnabled)")
                     }
                 }
-            }
-        }
-        
-        // 修改视频输出配置部分
-               // 设置视频输出
-        if session.canAddOutput(videoOutput) {
-            videoOutput.videoSettings = [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-            ]
-            videoOutput.alwaysDiscardsLateVideoFrames = true
-            session.addOutput(videoOutput)
-            
-            if let connection = videoOutput.connection(with: .video) {
-                if connection.isVideoMirroringSupported {
-                    connection.isVideoMirrored = isMirrored
-                }
-                connection.videoOrientation = .portrait
             }
         }
     }
@@ -501,6 +482,7 @@ class CameraManager: ObservableObject {
             
             let zoom = max(1.0, min(level, device.activeFormat.videoMaxZoomFactor))
             device.videoZoomFactor = zoom
+            currentScale = zoom  // 更新当前缩放比例
             
             device.unlockForConfiguration()
             

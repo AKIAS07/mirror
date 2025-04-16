@@ -40,6 +40,7 @@ struct ContentView: View {
     @State private var isControlPanelVisible: Bool = true
     @State private var dragOffset: CGFloat = 0
     @State private var dragVerticalOffset: CGFloat = 0
+    @State private var shouldIgnoreScale: Bool = false  // 添加新的状态变量
     
     private let minScale: CGFloat = 0.6
     private let maxScale: CGFloat = 10.0
@@ -114,6 +115,7 @@ struct ContentView: View {
                                 currentIndicatorScale: $currentIndicatorScale,
                                 onPinchChanged: handlePinchGesture,
                                 onPinchEnded: handlePinchEnd,
+                                minScale: minScale,
                                 captureState: captureState
                             )
                         }
@@ -140,6 +142,7 @@ struct ContentView: View {
                                 currentIndicatorScale: $currentIndicatorScale,
                                 onPinchChanged: handlePinchGesture,
                                 onPinchEnded: handlePinchEnd,
+                                minScale: minScale,
                                 captureState: captureState
                             )
                         }
@@ -336,7 +339,7 @@ struct ContentView: View {
                 // 添加截图操作视图
                 if captureManager.isPreviewVisible {
                     CaptureActionsView(
-                        captureState: captureState,
+                        captureManager: captureManager,
                         cameraManager: cameraManager,
                         onDismiss: {
                             // 截图操作完成后显示所有控制界面
@@ -579,12 +582,48 @@ struct ContentView: View {
     
     // 修改缩放处理函数
     private func handlePinchGesture(scale: CGFloat) {
+        // 如果应该忽略缩放，直接返回
+        if shouldIgnoreScale {
+            return
+        }
+        
         let newScale = baseScale * scale
         
         // 更新缩放提示
         currentIndicatorScale = currentScale
         showScaleIndicator = true
         
+        // 特殊处理100%和60%之间的缩放
+        if abs(currentScale - 1.0) < 0.01 && scale < 1.0 {
+            // 从100%缩小时，直接跳到60%
+            currentScale = minScale
+            baseScale = minScale
+            currentIndicatorScale = minScale  // 确保提示显示正确的比例
+            
+            print("------------------------")
+            print("从100%直接缩小到4:3比例")
+            print("------------------------")
+            
+            // 记录缩放操作
+            ViewActionLogger.shared.logZoomAction(scale: currentScale)
+            return
+        } else if abs(currentScale - minScale) < 0.01 && scale > 1.0 {
+            // 从60%放大时，直接跳到100%并结束当前手势
+            currentScale = 1.0
+            baseScale = 1.0
+            currentIndicatorScale = 1.0  // 确保提示显示正确的比例
+            shouldIgnoreScale = true  // 设置忽略标志
+            
+            print("------------------------")
+            print("从4:3比例直接放大到100%")
+            print("------------------------")
+            
+            // 记录缩放操作
+            ViewActionLogger.shared.logZoomAction(scale: currentScale)
+            return
+        }
+        
+        // 处理其他缩放情况
         if newScale >= maxScale && scale > 1.0 {
             currentScale = maxScale
             if !showScaleLimitMessage {
@@ -604,34 +643,39 @@ struct ContentView: View {
             currentScale = minScale
             if !showScaleLimitMessage {
                 print("------------------------")
-                print("已缩小至最小尺寸")
+                print("已缩小至4:3比例")
                 print("------------------------")
                 showScaleLimitMessage = true
-                scaleLimitMessage = "已缩小至最小尺寸"
+                scaleLimitMessage = "已缩小至4:3比例"
                 
                 // 记录缩放限制
                 ViewActionLogger.shared.logAction(
                     .gestureAction(.pinch),
-                    additionalInfo: ["状态": "达到最小缩放限制"]
+                    additionalInfo: ["状态": "达到4:3比例"]
                 )
             }
-        } else {
-            currentScale = min(max(newScale, minScale), maxScale)
+        } else if currentScale >= 1.0 {
+            // 在100%以上时允许自由缩放
+            currentScale = min(newScale, maxScale)
             showScaleLimitMessage = false
         }
+        
+        // 更新提示比例
+        currentIndicatorScale = currentScale
         
         // 记录缩放操作
         ViewActionLogger.shared.logZoomAction(scale: currentScale)
         
         // 打印日志
-        let currentPercentage = Int(currentScale * 100)
+        let scaleDescription = abs(currentScale - minScale) < 0.01 ? "小尺寸模式" : "\(Int(currentScale * 100))%"
         print("------------------------")
         print("双指缩放")
-        print("当前比例：\(currentPercentage)%")
+        print("当前比例：\(scaleDescription)")
         print("------------------------")
     }
     
     private func handlePinchEnd(scale: CGFloat) {
+        shouldIgnoreScale = false  // 重置忽略标志
         baseScale = currentScale
         showScaleLimitMessage = false
         

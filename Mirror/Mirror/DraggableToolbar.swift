@@ -540,7 +540,8 @@ struct DraggableToolbar: View {
                                 imageURL: imageURL,
                                 identifier: identifier,
                                 orientation: orientationManager.currentOrientation,
-                                cameraManager: self.cameraManager
+                                cameraManager: self.cameraManager,
+                                scale: self.currentScale  // 使用 currentScale 而不是 cameraManager.currentScale
                             )
                             
                             print("------------------------")
