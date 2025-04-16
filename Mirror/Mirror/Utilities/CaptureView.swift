@@ -26,6 +26,8 @@ public class CaptureState: ObservableObject {
     @Published public var tempImageURL: URL?
     @Published public var tempVideoURL: URL?
     @Published public var captureOrientation: UIDeviceOrientation = .portrait
+    @Published var showScaleIndicator = false
+    @Published var currentIndicatorScale: CGFloat = 1.0
     
     private var isProcessingAlert = false
     private let fileManager = FileManager.default
@@ -473,6 +475,8 @@ public struct CaptureActionsView: View {
                                     .frame(width: displayWidth, height: displayHeight)
                                     .scaleEffect(captureManager.currentScale)
                                     .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
+                                    .offset(captureManager.dragOffset)
+                                    .clipped()
                             }
                         }
                         
@@ -492,6 +496,7 @@ public struct CaptureActionsView: View {
                                 )
                                 .frame(width: isLandscape ? displayWidth:displayWidth+250, height: isLandscape ? displayHeight+250:displayHeight)
                                 .scaleEffect(captureManager.currentScale)
+                                .offset(captureManager.dragOffset)
                                 .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
                             }
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
@@ -499,31 +504,136 @@ public struct CaptureActionsView: View {
                             .zIndex(1)
                         }
                         
-                        // 触控层 - 处理缩放、点击和长按
+                        // 触控层 - 处理缩放、拖动和点击
                         Color.clear
                             .contentShape(Rectangle())
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .gesture(
                                 SimultaneousGesture(
-                                    MagnificationGesture()
-                                        .onChanged { value in
-                                            let newScale = value * captureManager.currentScale
-                                            captureManager.currentScale = min(max(newScale, 0.6), 10.0)
-                                            
-                                            // 更新缩放指示器
-                                            currentIndicatorScale = captureManager.currentScale
-                                            showScaleIndicator = true
-                                        }
-                                        .onEnded { _ in
-                                            // 添加震动反馈
-                                            let generator = UIImpactFeedbackGenerator(style: .light)
-                                            generator.impactOccurred()
-                                            
-                                            // 延迟隐藏缩放指示器
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                                showScaleIndicator = false
+                                    SimultaneousGesture(
+                                        // 缩放手势
+                                        MagnificationGesture()
+                                            .onChanged { value in
+                                                // 移除动画以提供更直接的反馈
+                                                let newScale = value * captureManager.currentScale
+                                                let oldScale = captureManager.currentScale
+                                                captureManager.currentScale = min(max(newScale, 0.6), 10.0)
+                                                
+                                                // 根据缩放比例调整偏移量
+                                                if captureManager.currentScale <= 1.0 {
+                                                    // 如果缩放比例小于等于1，重置到中心位置
+                                                    withAnimation(.easeOut(duration: 0.2)) {
+                                                        captureManager.dragOffset = .zero
+                                                        captureManager.lastDragOffset = .zero
+                                                    }
+                                                } else {
+                                                    // 计算缩放前后的比例
+                                                    let scaleFactor = captureManager.currentScale / oldScale
+                                                    
+                                                    // 按比例调整偏移量
+                                                    let newOffset = CGSize(
+                                                        width: captureManager.dragOffset.width * scaleFactor,
+                                                        height: captureManager.dragOffset.height * scaleFactor
+                                                    )
+                                                    
+                                                    // 计算新的最大偏移范围
+                                                    let maxOffset = calculateMaxOffset(
+                                                        scale: captureManager.currentScale,
+                                                        screenSize: screenBounds.size,
+                                                        imageSize: captureManager.capturedImage?.size ?? screenBounds.size
+                                                    )
+                                                    
+                                                    // 限制新的偏移量在有效范围内
+                                                    captureManager.dragOffset = CGSize(
+                                                        width: max(-maxOffset.width, min(maxOffset.width, newOffset.width)),
+                                                        height: max(-maxOffset.height, min(maxOffset.height, newOffset.height))
+                                                    )
+                                                    captureManager.lastDragOffset = captureManager.dragOffset
+                                                }
+                                                
+                                                captureManager.currentIndicatorScale = captureManager.currentScale
+                                                captureManager.showScaleIndicator = true
                                             }
-                                        },
+                                            .onEnded { _ in
+                                                // 添加震动反馈
+                                                let generator = UIImpactFeedbackGenerator(style: .light)
+                                                generator.impactOccurred()
+                                                
+                                                // 如果缩放比例接近1，重置位置
+                                                if abs(captureManager.currentScale - 1.0) < 0.1 {
+                                                    withAnimation(.easeOut(duration: 0.2)) {
+                                                        captureManager.currentScale = 1.0
+                                                        captureManager.dragOffset = .zero
+                                                        captureManager.lastDragOffset = .zero
+                                                    }
+                                                }
+                                                
+                                                // 延迟隐藏缩放指示器
+                                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                                    withAnimation {
+                                                        captureManager.showScaleIndicator = false
+                                                    }
+                                                }
+                                            },
+                                        // 拖动手势
+                                        DragGesture()
+                                            .onChanged { value in
+                                                // 只有在缩放比例大于1时才允许拖动
+                                                if captureManager.currentScale > 1.0 {
+                                                    // 计算可拖动的最大范围
+                                                    let maxOffset = calculateMaxOffset(
+                                                        scale: captureManager.currentScale,
+                                                        screenSize: screenBounds.size,
+                                                        imageSize: captureManager.capturedImage?.size ?? screenBounds.size
+                                                    )
+                                                    
+                                                    // 计算新的偏移量
+                                                    var newOffset = CGSize(
+                                                        width: captureManager.lastDragOffset.width + value.translation.width,
+                                                        height: captureManager.lastDragOffset.height + value.translation.height
+                                                    )
+                                                    
+                                                    // 添加边缘阻尼效果
+                                                    let dampingFactor: CGFloat = 0.2
+                                                    if abs(newOffset.width) > maxOffset.width {
+                                                        let overscroll = abs(newOffset.width) - maxOffset.width
+                                                        let damping = 1.0 - min(overscroll / maxOffset.width, dampingFactor)
+                                                        newOffset.width *= damping
+                                                    }
+                                                    if abs(newOffset.height) > maxOffset.height {
+                                                        let overscroll = abs(newOffset.height) - maxOffset.height
+                                                        let damping = 1.0 - min(overscroll / maxOffset.height, dampingFactor)
+                                                        newOffset.height *= damping
+                                                    }
+                                                    
+                                                    // 限制拖动范围
+                                                    newOffset.width = max(-maxOffset.width, min(maxOffset.width, newOffset.width))
+                                                    newOffset.height = max(-maxOffset.height, min(maxOffset.height, newOffset.height))
+                                                    
+                                                    // 直接更新偏移量，不使用动画
+                                                    captureManager.dragOffset = newOffset
+                                                }
+                                            }
+                                            .onEnded { value in
+                                                if captureManager.currentScale > 1.0 {
+                                                    // 计算最终位置时添加边界检查
+                                                    let maxOffset = calculateMaxOffset(
+                                                        scale: captureManager.currentScale,
+                                                        screenSize: screenBounds.size,
+                                                        imageSize: captureManager.capturedImage?.size ?? screenBounds.size
+                                                    )
+                                                    
+                                                    var finalOffset = captureManager.dragOffset
+                                                    finalOffset.width = max(-maxOffset.width, min(maxOffset.width, finalOffset.width))
+                                                    finalOffset.height = max(-maxOffset.height, min(maxOffset.height, finalOffset.height))
+                                                    
+                                                    withAnimation(.easeOut(duration: 0.2)) {
+                                                        captureManager.dragOffset = finalOffset
+                                                    }
+                                                    captureManager.lastDragOffset = finalOffset
+                                                }
+                                            }
+                                    ),
                                     TapGesture(count: BorderLightStyleManager.shared.captureGestureCount)
                                         .onEnded {
                                             withAnimation {
@@ -640,7 +750,7 @@ public struct CaptureActionsView: View {
                                 Spacer()
                             }
                         }
-                        .rotationEffect(getRotationAngle(for:orientationManager.currentOrientation))
+                        .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                         .frame(height: 120)
                     }
@@ -679,11 +789,11 @@ public struct CaptureActionsView: View {
                     .zIndex(100)
                     
                     // 添加缩放指示器
-                    if showScaleIndicator {
+                    if captureManager.showScaleIndicator {
                         ScaleIndicatorView(
-                            scale: currentIndicatorScale,
+                            scale: captureManager.currentIndicatorScale,
                             deviceOrientation: orientationManager.currentOrientation,
-                            isMinScale: abs(currentIndicatorScale - 0.6) < 0.01
+                            isMinScale: abs(captureManager.currentIndicatorScale - 0.6) < 0.01
                         )
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
                         .zIndex(10)
@@ -849,4 +959,34 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
         }
         uiViewController.player = nil
     }
-}   
+}
+
+// 添加计算最大拖动范围的辅助函数
+private func calculateMaxOffset(scale: CGFloat, screenSize: CGSize, imageSize: CGSize) -> CGSize {
+    // 计算图片在屏幕上的实际显示尺寸
+    let imageAspect = imageSize.width / imageSize.height
+    let screenAspect = screenSize.width / screenSize.height
+    
+    var displayWidth: CGFloat
+    var displayHeight: CGFloat
+    
+    if imageAspect > screenAspect {
+        // 图片较宽，以高度为基准
+        displayHeight = screenSize.height
+        displayWidth = displayHeight * imageAspect
+    } else {
+        // 图片较高，以宽度为基准
+        displayWidth = screenSize.width
+        displayHeight = displayWidth / imageAspect
+    }
+    
+    // 应用缩放
+    displayWidth *= scale
+    displayHeight *= scale
+    
+    // 计算可拖动的最大范围
+    let maxOffsetX = max(0, (displayWidth - screenSize.width) / 2)
+    let maxOffsetY = max(0, (displayHeight - screenSize.height) / 2)
+    
+    return CGSize(width: maxOffsetX, height: maxOffsetY)
+}

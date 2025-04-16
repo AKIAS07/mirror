@@ -181,14 +181,19 @@ struct SquareCornerAnimationView: View {
 // 修改缩放提示动画视图
 struct ScaleIndicatorView: View {
     let scale: CGFloat
-    let deviceOrientation: UIDeviceOrientation  // 添加设备方向参数
-    let isMinScale: Bool  // 添加是否最小比例参数
+    let deviceOrientation: UIDeviceOrientation
+    let isMinScale: Bool
     @State private var opacity: Double = 0
     
     private var scaleText: String {
-        // 如果是最小比例，显示4:3比例
+        // 如果是最小比例，显示小屏模式
         if isMinScale {
             return "小屏模式"
+        }
+        
+        // 如果是 100%，显示全屏模式
+        if abs(scale - 1.0) < 0.01 {
+            return "全屏模式"
         }
         
         let scalePercentage = Int(scale * 100)
@@ -203,7 +208,6 @@ struct ScaleIndicatorView: View {
         return "\(roundedPercentage)%"
     }
     
-    // 添加获取旋转角度的方法
     private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
         switch orientation {
         case .landscapeLeft:
@@ -221,7 +225,7 @@ struct ScaleIndicatorView: View {
         VStack(spacing: 4) {
             // 当比例为 100% 时显示"全屏模式"
             if abs(scale - 1.0) < 0.01 {
-                Text("全屏模式")
+                Text("100%")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundColor(.white)
             }
@@ -234,12 +238,17 @@ struct ScaleIndicatorView: View {
             RoundedRectangle(cornerRadius: 15)
                 .fill(Color.black.opacity(0.2))
         )
-        .rotationEffect(getRotationAngle(deviceOrientation))  // 添加旋转效果
+        .rotationEffect(getRotationAngle(deviceOrientation))
         .opacity(opacity)
         .onAppear {
             withAnimation(.easeInOut(duration: 0.2)) {
                 opacity = 1
             }
         }
+        .onChange(of: scale) { newScale in
+            withAnimation(.interpolatingSpring(stiffness: 300, damping: 15)) {
+                opacity = 1
+            }
+        }
     }
-} 
+}

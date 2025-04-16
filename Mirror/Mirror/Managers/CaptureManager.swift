@@ -17,6 +17,10 @@ class CaptureManager: ObservableObject {
     @Published var showSaveSuccess = false
     @Published var isPlayingLivePhoto = false
     @Published var captureOrientation: UIDeviceOrientation = .portrait
+    @Published var showScaleIndicator = false
+    @Published var currentIndicatorScale: CGFloat = 1.0
+    @Published var dragOffset: CGSize = .zero  // 拖动偏移量
+    @Published var lastDragOffset: CGSize = .zero  // 上次拖动的偏移量
     
     private let restartManager = ContentRestartManager.shared
     private let orientationManager = DeviceOrientationManager.shared
@@ -32,15 +36,24 @@ class CaptureManager: ObservableObject {
     func showPreview(image: UIImage, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
         self.capturedImage = image
         self.currentScale = scale
+        self.currentIndicatorScale = scale
         self.isLivePhoto = false
         self.captureOrientation = orientation
         
         // 锁定设备方向，防止旋转
         orientationManager.lockOrientation()
         
-        // 先显示预览
+        // 先显示预览和缩放指示器
         withAnimation {
             self.isPreviewVisible = true
+            self.showScaleIndicator = true
+        }
+        
+        // 延迟隐藏缩放指示器
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation {
+                self.showScaleIndicator = false
+            }
         }
 
         // 延迟0.5秒后关闭摄像头
@@ -95,6 +108,7 @@ class CaptureManager: ObservableObject {
             self.isLivePhoto = true
             self.captureOrientation = orientation
             self.currentScale = scale
+            self.currentIndicatorScale = scale
             
             print("[Live Photo预览] 状态更新：")
             print("- isLivePhoto：\(self.isLivePhoto)")
@@ -104,9 +118,17 @@ class CaptureManager: ObservableObject {
             // 锁定设备方向，防止旋转
             orientationManager.lockOrientation()
             
-            // 显示预览
+            // 显示预览和缩放指示器
             withAnimation {
                 self.isPreviewVisible = true
+                self.showScaleIndicator = true
+            }
+            
+            // 延迟隐藏缩放指示器
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                withAnimation {
+                    self.showScaleIndicator = false
+                }
             }
             
             // 延迟关闭摄像头
@@ -127,6 +149,10 @@ class CaptureManager: ObservableObject {
         withAnimation {
             self.isPreviewVisible = false
             self.isPlayingLivePhoto = false
+            self.showScaleIndicator = false
+            // 重置拖动状态
+            self.dragOffset = .zero
+            self.lastDragOffset = .zero
         }
         
         // 解锁设备方向
