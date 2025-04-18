@@ -443,10 +443,13 @@ public struct CaptureActionsView: View {
     
     // 使用普通的 State 来跟踪长按状态
     @State private var isLongPressed = false
+    @State private var isScalingFrom60Percent = false  // 添加新状态跟踪是否从60%开始缩放
     
     // 添加缩放相关状态
     @State private var showScaleIndicator = false
     @State private var currentIndicatorScale: CGFloat = 1.0
+    @State private var baseScale: CGFloat = 1.0
+    @State private var shouldIgnoreScale: Bool = false
     
     public var body: some View {
         if captureManager.isPreviewVisible {
@@ -466,15 +469,15 @@ public struct CaptureActionsView: View {
                         if let image = captureManager.capturedImage {
                             if !(captureManager.isLivePhoto && captureManager.isPlayingLivePhoto) {
                                 let isLandscape = captureManager.captureOrientation.isLandscape
-                                let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
-                                let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
+                                let displayWidth = screenBounds.width
+                                let displayHeight = screenBounds.height
                                 
                                 Image(uiImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                                     .frame(width: displayWidth, height: displayHeight)
                                     .scaleEffect(captureManager.currentScale)
-                                    .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
+                                    //.rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
                                     .offset(captureManager.dragOffset)
                                     .clipped()
                             }
@@ -514,50 +517,87 @@ public struct CaptureActionsView: View {
                                         // 缩放手势
                                         MagnificationGesture()
                                             .onChanged { value in
-                                                // 移除动画以提供更直接的反馈
-                                                let newScale = value * captureManager.currentScale
-                                                let oldScale = captureManager.currentScale
-                                                captureManager.currentScale = min(max(newScale, 0.6), 10.0)
+                                                // 如果应该忽略缩放，直接返回
+                                                if shouldIgnoreScale {
+                                                    return
+                                                }
                                                 
-                                                // 根据缩放比例调整偏移量
-                                                if captureManager.currentScale <= 1.0 {
-                                                    // 如果缩放比例小于等于1，重置到中心位置
+                                                let minScale: CGFloat = 0.6 // 最小缩放比例 (60%)
+                                                let maxScale: CGFloat = 10.0 // 最大缩放比例
+                                                let newScale = baseScale * value
+                                                
+                                                // 更新缩放提示
+                                                captureManager.currentIndicatorScale = captureManager.currentScale
+                                                captureManager.showScaleIndicator = true
+                                                
+                                                // 特殊处理100%和60%之间的缩放
+                                                if abs(captureManager.currentScale - 1.0) < 0.01 && value < 1.0 {
+                                                    // 从100%缩小时，直接跳到60%
+                                                    captureManager.currentScale = minScale
+                                                    baseScale = minScale
+                                                    captureManager.currentIndicatorScale = minScale
+                                                    
+                                                    // 重置偏移量
                                                     withAnimation(.easeOut(duration: 0.2)) {
                                                         captureManager.dragOffset = .zero
                                                         captureManager.lastDragOffset = .zero
                                                     }
-                                                } else {
-                                                    // 计算缩放前后的比例
-                                                    let scaleFactor = captureManager.currentScale / oldScale
+                                                    return
+                                                } else if abs(captureManager.currentScale - minScale) < 0.01 && value > 1.0 {
+                                                    // 从60%放大时，直接跳到100%并结束当前手势
+                                                    captureManager.currentScale = 1.0
+                                                    baseScale = 1.0
+                                                    captureManager.currentIndicatorScale = 1.0
+                                                    shouldIgnoreScale = true
                                                     
-                                                    // 按比例调整偏移量
-                                                    let newOffset = CGSize(
-                                                        width: captureManager.dragOffset.width * scaleFactor,
-                                                        height: captureManager.dragOffset.height * scaleFactor
-                                                    )
+                                                    // 重置偏移量
+                                                    withAnimation(.easeOut(duration: 0.2)) {
+                                                        captureManager.dragOffset = .zero
+                                                        captureManager.lastDragOffset = .zero
+                                                    }
+                                                    return
+                                                } else if captureManager.currentScale >= 1.0 {
+                                                    // 在100%以上时允许自由缩放
+                                                    let oldScale = captureManager.currentScale
+                                                    captureManager.currentScale = min(max(newScale, 1.0), maxScale)
                                                     
-                                                    // 计算新的最大偏移范围
-                                                    let maxOffset = calculateMaxOffset(
-                                                        scale: captureManager.currentScale,
-                                                        screenSize: screenBounds.size,
-                                                        imageSize: captureManager.capturedImage?.size ?? screenBounds.size
-                                                    )
-                                                    
-                                                    // 限制新的偏移量在有效范围内
-                                                    captureManager.dragOffset = CGSize(
-                                                        width: max(-maxOffset.width, min(maxOffset.width, newOffset.width)),
-                                                        height: max(-maxOffset.height, min(maxOffset.height, newOffset.height))
-                                                    )
-                                                    captureManager.lastDragOffset = captureManager.dragOffset
+                                                    // 根据缩放比例调整偏移量
+                                                    if captureManager.currentScale > 1.0 {
+                                                        // 计算缩放前后的比例
+                                                        let scaleFactor = captureManager.currentScale / oldScale
+                                                        
+                                                        // 按比例调整偏移量
+                                                        let newOffset = CGSize(
+                                                            width: captureManager.dragOffset.width * scaleFactor,
+                                                            height: captureManager.dragOffset.height * scaleFactor
+                                                        )
+                                                        
+                                                        // 计算新的最大偏移范围
+                                                        let maxOffset = calculateMaxOffset(
+                                                            scale: captureManager.currentScale,
+                                                            screenSize: screenBounds.size,
+                                                            imageSize: captureManager.capturedImage?.size ?? screenBounds.size
+                                                        )
+                                                        
+                                                        // 限制新的偏移量在有效范围内
+                                                        captureManager.dragOffset = CGSize(
+                                                            width: max(-maxOffset.width, min(maxOffset.width, newOffset.width)),
+                                                            height: max(-maxOffset.height, min(maxOffset.height, newOffset.height))
+                                                        )
+                                                        captureManager.lastDragOffset = captureManager.dragOffset
+                                                    }
                                                 }
                                                 
                                                 captureManager.currentIndicatorScale = captureManager.currentScale
-                                                captureManager.showScaleIndicator = true
                                             }
                                             .onEnded { _ in
                                                 // 添加震动反馈
                                                 let generator = UIImpactFeedbackGenerator(style: .light)
                                                 generator.impactOccurred()
+                                                
+                                                // 重置缩放状态
+                                                shouldIgnoreScale = false
+                                                baseScale = captureManager.currentScale
                                                 
                                                 // 如果缩放比例接近1，重置位置
                                                 if abs(captureManager.currentScale - 1.0) < 0.1 {
@@ -657,6 +697,15 @@ public struct CaptureActionsView: View {
                                             }
                                         }
                                     }
+                                    .onChanged { _ in
+                                        // 如果手指移动时已经不是长按状态，则停止播放
+                                        if !isLongPressed && captureManager.isPlayingLivePhoto {
+                                            print("[长按手势] 手指移动，停止播放Live Photo")
+                                            withAnimation {
+                                                captureManager.isPlayingLivePhoto = false
+                                            }
+                                        }
+                                    }
                             )
                             .highPriorityGesture(
                                 LongPressGesture(minimumDuration: 0.5)
@@ -676,6 +725,19 @@ public struct CaptureActionsView: View {
                                             withAnimation {
                                                 captureManager.isPlayingLivePhoto = true
                                             }
+                                        }
+                                    }
+                            )
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onEnded { _ in
+                                        // 在拖动结束时也检查是否需要停止播放
+                                        if captureManager.isPlayingLivePhoto {
+                                            print("[拖动手势] 结束，停止播放Live Photo")
+                                            withAnimation {
+                                                captureManager.isPlayingLivePhoto = false
+                                            }
+                                            isLongPressed = false
                                         }
                                     }
                             )
