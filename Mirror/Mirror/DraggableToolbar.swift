@@ -144,6 +144,8 @@ struct DraggableToolbar: View {
     
     // 添加化妆视图状态
     @Binding var showMakeupView: Bool
+    // 添加控制添加按钮状态的变量
+    @State private var isAddButtonEnabled: Bool = true
     
     // 添加边框灯状态绑定
     @Binding var containerSelected: Bool
@@ -180,6 +182,14 @@ struct DraggableToolbar: View {
     // 添加新状态来跟踪是否已移动位置
     @State private var hasMovedPosition = false
     
+    // 添加按钮点击保护状态
+    @State private var buttonCooldowns: [ToolbarButtonType: Bool] = [:]
+    @State private var isProcessingLiveMode: Bool = false
+    
+    // 添加冷却时间常量
+    private let buttonCooldownDuration: TimeInterval = 0.5  // 普通按钮冷却时间
+    private let liveCooldownDuration: TimeInterval = 1.0    // Live按钮冷却时间
+    
     // 获取设备方向的旋转角度
     private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
         switch orientation {
@@ -213,6 +223,12 @@ struct DraggableToolbar: View {
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: position)
             .animation(.easeInOut(duration: 0.2), value: dragOffset)
             .ignoresSafeArea(.all, edges: .top)
+            .onChange(of: showMakeupView) { newValue in
+                if !newValue {
+                    // 当化妆视图关闭时，重新启用添加按钮
+                    isAddButtonEnabled = true
+                }
+            }
         }
     }
     
@@ -431,6 +447,23 @@ struct DraggableToolbar: View {
             ForEach(ToolbarButtonType.allCases, id: \.rawValue) { buttonType in
                 if !isCollapsed || buttonType == .capture {
                     Button(action: {
+                        // 检查按钮是否在冷却中
+                        if buttonCooldowns[buttonType] == true {
+                            print("------------------------")
+                            print("按钮在冷却中，忽略点击")
+                            print("按钮类型：\(buttonType)")
+                            print("------------------------")
+                            return
+                        }
+                        
+                        // 如果是Live按钮且正在处理中，忽略点击
+                        if buttonType == .live && isProcessingLiveMode {
+                            print("------------------------")
+                            print("Live模式切换正在处理中，忽略点击")
+                            print("------------------------")
+                            return
+                        }
+                        
                         // 如果是实况按钮且用户不是Pro会员，则显示升级弹窗
                         if buttonType == .live && !proManager.isPro {
                             proManager.showProUpgrade()
@@ -440,7 +473,16 @@ struct DraggableToolbar: View {
                             print("动作：显示升级弹窗")
                             print("------------------------")
                         } else {
+                            // 设置按钮冷却
+                            buttonCooldowns[buttonType] = true
+                            
+                            // 处理按钮点击
                             handleButtonTap(buttonType)
+                            
+                            // 延迟重置按钮冷却状态
+                            DispatchQueue.main.asyncAfter(deadline: .now() + (buttonType == .live ? liveCooldownDuration : buttonCooldownDuration)) {
+                                buttonCooldowns[buttonType] = false
+                            }
                         }
                     }) {
                         Group {
@@ -483,7 +525,8 @@ struct DraggableToolbar: View {
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                     }
-                    .disabled(!restartManager.isCameraActive)  // 只在相机未激活时禁用按钮
+                    .disabled(!restartManager.isCameraActive || buttonCooldowns[buttonType] == true)
+                    .opacity(buttonCooldowns[buttonType] == true ? 0.5 : 1.0)
                     .scaleEffect(isDragging ? 0.95 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
                 }
@@ -610,10 +653,23 @@ struct DraggableToolbar: View {
             print("------------------------")
             print("工具栏：点击 Live 按钮")
             print("切换前系统相机状态：\(cameraManager.isUsingSystemCamera)")
-            // 切换系统相机
-            cameraManager.toggleSystemCamera()
-            print("切换后系统相机状态：\(cameraManager.isUsingSystemCamera)")
-            print("------------------------")
+            
+            // 设置处理状态
+            isProcessingLiveMode = true
+            
+            // 延迟执行相机切换，确保上一次操作完成
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                // 切换系统相机
+                cameraManager.toggleSystemCamera()
+                
+                print("切换后系统相机状态：\(cameraManager.isUsingSystemCamera)")
+                print("------------------------")
+                
+                // 重置处理状态
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isProcessingLiveMode = false
+                }
+            }
             
         case .camera:
             print("------------------------")
@@ -750,20 +806,20 @@ struct DraggableToolbar: View {
                             if buttonType.isSystemIcon {
                                 Image(systemName: buttonType.icon)
                                     .font(.system(size: 16))
-                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
+                                    .foregroundColor(buttonType == .add && !isAddButtonEnabled ? styleManager.iconColor.opacity(0.3) : (restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3)))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             } else {
                                 Image(buttonType.icon)
                                     .resizable()
-                                    .renderingMode(.template) // 添加template渲染模式
+                                    .renderingMode(.template)
                                     .scaledToFit()
-                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
+                                    .foregroundColor(buttonType == .add && !isAddButtonEnabled ? styleManager.iconColor.opacity(0.3) : (restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3)))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             }
                         }
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                        .disabled(!restartManager.isCameraActive)
+                        .disabled(!restartManager.isCameraActive || (buttonType == .add && !isAddButtonEnabled))
                         .scaleEffect(isDragging ? 0.95 : 1.0)
                     }
                 }
@@ -785,6 +841,7 @@ struct DraggableToolbar: View {
             print("------------------------")
             withAnimation(.easeInOut(duration: 0.2)) {
                 showMakeupView = true
+                isAddButtonEnabled = false  // 禁用添加按钮
             }
             
         case .drag:

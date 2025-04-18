@@ -369,14 +369,21 @@ struct DraggableMakeupView: View {
             imageOffset = .zero
             lastImageOffset = .zero
         }
+        .onChange(of: isVisible) { newValue in
+            if !newValue {
+                // 当视图关闭时清理图片缓存
+                cleanupImageCache()
+            }
+        }
         .onAppear {
             // 注意：setupOrientationNotification 已在初始化时调用
         }
         .onDisappear {
-            // 清理旋转通知
+            // 清理旋转通知和图片缓存
             NotificationCenter.default.removeObserver(
                 UIDevice.orientationDidChangeNotification
             )
+            cleanupImageCache()
         }
     }
     
@@ -394,6 +401,27 @@ struct DraggableMakeupView: View {
         if !UIDevice.current.isGeneratingDeviceOrientationNotifications {
             UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         }
+    }
+    
+    // 添加清理图片缓存的方法
+    private func cleanupImageCache() {
+        print("------------------------")
+        print("[化妆视图] 清理图片缓存")
+        if selectedImage != nil {
+            print("状态：清理选中的图片")
+        } else {
+            print("状态：无需清理（没有选中的图片）")
+        }
+        print("------------------------")
+        
+        // 清理选中的图片
+        selectedImage = nil
+        
+        // 重置图片相关状态
+        imageScale = 1.0
+        lastImageScale = 1.0
+        imageOffset = .zero
+        lastImageOffset = .zero
     }
 }
 

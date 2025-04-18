@@ -1324,7 +1324,7 @@ struct TwoOfMeScreens: View {
                             
                             // Mirrored屏幕中心的按钮
                             Button(action: {
-                                // 暂时为空
+                                cameraManager.switchMirroredScreenCamera()
                             }) {
                                 Image(systemName: "arrow.up.arrow.down.circle.fill")
                                     .font(.system(size: 30))

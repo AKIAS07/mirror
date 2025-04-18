@@ -12,6 +12,7 @@ class CameraManager: ObservableObject {
     @Published var isFront = true
     @Published var isBack = false
     @Published var currentScale: CGFloat = 1.0  // 添加缩放比例属性
+    @Published var isMirroredScreenFront = true  // 新增：控制 Mirrored 屏幕的摄像头状态
     private var currentCameraInput: AVCaptureDeviceInput?
     private var currentDeviceOrientation: UIDeviceOrientation = .portrait
     
@@ -385,8 +386,8 @@ class CameraManager: ObservableObject {
         session.sessionPreset = .photo
         
         // 设置视频输入
-        let cameraPosition: AVCaptureDevice.Position = isFront ? .front : .back
-        print("[自定义相机设置] 获取\(isFront ? "前置" : "后置")相机")
+        let cameraPosition: AVCaptureDevice.Position = isMirroredScreenFront ? .front : .back
+        print("[自定义相机设置] 获取\(isMirroredScreenFront ? "前置" : "后置")相机")
         
         let discoverySession = AVCaptureDevice.DiscoverySession(
             deviceTypes: [.builtInWideAngleCamera],
@@ -746,6 +747,25 @@ class CameraManager: ObservableObject {
     
     func updateLatestProcessedImage(_ image: UIImage) {
         self.latestProcessedImage = image
+    }
+    
+    // 新增：切换 Mirrored 屏幕的摄像头
+    func switchMirroredScreenCamera() {
+        print("========================")
+        print("[切换Mirrored屏摄像头] 状态变化")
+        print("------------------------")
+        print("切换前：")
+        print("- Mirrored屏前置/后置：\(isMirroredScreenFront ? "前置" : "后置")")
+        print("- Original屏前置/后置：\(isFront ? "前置" : "后置")")
+        
+        isMirroredScreenFront.toggle()
+        
+        print("切换后：")
+        print("- Mirrored屏前置/后置：\(isMirroredScreenFront ? "前置" : "后置")")
+        print("- Original屏前置/后置：\(isFront ? "前置" : "后置")")
+        print("========================")
+        
+        restartCamera()
     }
 }
 
