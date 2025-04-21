@@ -468,7 +468,7 @@ public struct CaptureActionsView: View {
                         // 图片层 - 在播放Live Photo时隐藏
                         if let image = captureManager.capturedImage {
                             if !(captureManager.isLivePhoto && captureManager.isPlayingLivePhoto) {
-                                let isLandscape = captureManager.captureOrientation.isLandscape
+                                let _ = captureManager.captureOrientation.isLandscape
                                 let displayWidth = screenBounds.width
                                 let displayHeight = screenBounds.height
                                 

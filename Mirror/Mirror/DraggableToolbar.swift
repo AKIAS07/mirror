@@ -189,44 +189,36 @@ struct DraggableToolbar: View {
     // 添加冷却时间常量
     private let buttonCooldownDuration: TimeInterval = 0.5  // 普通按钮冷却时间
     private let liveCooldownDuration: TimeInterval = 1.0    // Live按钮冷却时间
-    
-    // 获取设备方向的旋转角度
-    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
-        switch orientation {
-        case .landscapeLeft:
-            return .degrees(90)
-        case .landscapeRight:
-            return .degrees(-90)
-        case .portraitUpsideDown:
-            return .degrees(180)
-        default:
-            return .degrees(0)
-        }
-    }
+
+    // 添加权限管理器
+    @ObservedObject private var permissionManager = PermissionManager.shared
     
     var body: some View {
-        GeometryReader { geometry in
-            HStack(spacing: 0) {
-                if position == .left || position == .leftBottom {
-                    toolbarContent(isVertical: true, geometry: geometry)
+        // 只有在相机权限已授权时才显示工具条
+        if permissionManager.cameraPermissionGranted {
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    if position == .left || position == .leftBottom {
+                        toolbarContent(isVertical: true, geometry: geometry)
+                    }
+                    
+                    if position == .top {
+                        toolbarContent(isVertical: false, geometry: geometry)
+                    }
+                    
+                    if position == .right || position == .rightBottom {
+                        toolbarContent(isVertical: true, geometry: geometry)
+                    }
                 }
-                
-                if position == .top {
-                    toolbarContent(isVertical: false, geometry: geometry)
-                }
-                
-                if position == .right || position == .rightBottom {
-                    toolbarContent(isVertical: true, geometry: geometry)
-                }
-            }
-            .position(calculatePosition(in: geometry))
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: position)
-            .animation(.easeInOut(duration: 0.2), value: dragOffset)
-            .ignoresSafeArea(.all, edges: .top)
-            .onChange(of: showMakeupView) { newValue in
-                if !newValue {
-                    // 当化妆视图关闭时，重新启用添加按钮
-                    isAddButtonEnabled = true
+                .position(calculatePosition(in: geometry))
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: position)
+                .animation(.easeInOut(duration: 0.2), value: dragOffset)
+                .ignoresSafeArea(.all, edges: .top)
+                .onChange(of: showMakeupView) { newValue in
+                    if !newValue {
+                        // 当化妆视图关闭时，重新启用添加按钮
+                        isAddButtonEnabled = true
+                    }
                 }
             }
         }
@@ -858,6 +850,20 @@ struct DraggableToolbar: View {
             
             // 调用 handleRestartViewAppear 方法
             restartManager.handleRestartViewAppear(cameraManager: cameraManager)
+        }
+    }
+    
+    // 获取设备方向的旋转角度
+    private func getRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
+        switch orientation {
+        case .landscapeLeft:
+            return .degrees(90)
+        case .landscapeRight:
+            return .degrees(-90)
+        case .portraitUpsideDown:
+            return .degrees(180)
+        default:
+            return .degrees(0)
         }
     }
 }

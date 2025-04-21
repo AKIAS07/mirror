@@ -188,7 +188,7 @@ struct ScaleIndicatorView: View {
     private var scaleText: String {
         // 如果是最小比例，显示小屏模式
         if isMinScale {
-            return "小屏模式"
+            return "全景模式"
         }
         
         // 如果是 100%，显示全屏模式

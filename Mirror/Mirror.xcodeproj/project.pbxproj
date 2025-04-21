@@ -412,7 +412,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Mira Pro";
+				INFOPLIST_KEY_CFBundleDisplayName = Mira;
 				INFOPLIST_KEY_NSCameraUsageDescription = "为了正常使用镜子或拍摄照片，应用需要访问您的相机";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "上传图片到应用或保存照片到本地相册";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -458,7 +458,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Mira Pro";
+				INFOPLIST_KEY_CFBundleDisplayName = Mira;
 				INFOPLIST_KEY_NSCameraUsageDescription = "为了正常使用镜子或拍摄照片，应用需要访问您的相机";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "上传图片到应用或保存照片到本地相册";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

@@ -683,7 +683,7 @@ public struct SettingsPanel: View {
                         
                         // 版本信息
                         VStack(spacing: SettingsTheme.buttonSpacing) {
-                            Text("Mira Pro")
+                            Text("Mira")
                                 .font(.headline)
                                 .foregroundColor(.gray)
                             Text("Version 1.0")

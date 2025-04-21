@@ -37,7 +37,7 @@ class ProManager: ObservableObject {
         
         // 开发阶段可添加测试代码
         #if DEBUG
-        isPro = true // 强制开启付费功能
+        isPro = false // 强制开启付费功能
         #endif
     }
     
@@ -150,7 +150,7 @@ struct ProUpgradeView: View {
             
             Spacer()
             
-            HStack(spacing: 16) {
+            VStack(spacing: 12) {
                 Button(action: {
                     dismiss()
                     // 只有当是从中间按钮点击时，才执行 onDismiss
@@ -166,11 +166,56 @@ struct ProUpgradeView: View {
                 }
                 
                 Button(action: {
+                    // 恢复购买
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.prepare()
+                    generator.impactOccurred()
+                    
+                    // 监听购买恢复成功通知
+                    NotificationCenter.default.addObserver(forName: .iapPurchaseSuccess, object: nil, queue: .main) { _ in
+                        generator.impactOccurred()
+                        dismiss()
+                        // 移除观察者
+                        NotificationCenter.default.removeObserver(self, name: .iapPurchaseSuccess, object: nil)
+                    }
+                    
+                    // 使用新的恢复购买方法
+                    IAPManager.shared.restorePurchases { success in
+                        if !success {
+                            // 如果恢复失败，显示提示
+                            print("------------------------")
+                            print("[恢复购买] 失败")
+                            print("原因：未找到购买记录")
+                            print("------------------------")
+                        }
+                    }
+                }) {
+                    Text("恢复购买")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue.opacity(0.1))
+                        .foregroundColor(.blue)
+                        .cornerRadius(10)
+                }
+                
+                Button(action: {
                     // 如果有可用的商品，直接发起购买
                     if let product = IAPManager.shared.products.first {
+                        // 添加购买中状态
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.prepare()
+                        generator.impactOccurred()
+                        
+                        // 监听购买成功通知
+                        NotificationCenter.default.addObserver(forName: .iapPurchaseSuccess, object: nil, queue: .main) { _ in
+                            generator.impactOccurred()
+                            dismiss()
+                            // 移除观察者
+                            NotificationCenter.default.removeObserver(self, name: .iapPurchaseSuccess, object: nil)
+                        }
+                        
                         IAPManager.shared.purchase(product: product)
                     }
-                    dismiss()
                 }) {
                     Text("去购买")
                         .frame(maxWidth: .infinity)
@@ -180,6 +225,8 @@ struct ProUpgradeView: View {
                         .cornerRadius(10)
                 }
             }
+            .padding(.horizontal)
+            .padding(.bottom, 20)
         }
         .padding()
     }

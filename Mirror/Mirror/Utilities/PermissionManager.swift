@@ -329,7 +329,7 @@ struct CameraPermissionView: View {
                 
                 VStack(spacing: 50) { // 添加固定间距
                     // 图片保持原位置
-                    Image("color7")
+                    Image("icon-bf-white")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 120, height: 120)

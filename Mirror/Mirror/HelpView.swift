@@ -9,7 +9,7 @@ struct HighlightText: View {
         HStack(spacing: 4) {
             Text(text)
             if let imageName = systemImage {
-                if imageName.hasPrefix("icon-bf") {
+                if imageName.hasPrefix("icon-bf") || imageName == "icon-star" {
                     // 使用自定义图片
                     Image(imageName)
                         .resizable()
@@ -202,7 +202,7 @@ public struct HelpPanel: View {
 
                                     HStack(spacing: 4) {
                                         ProLabel(text: "Pro")
-                                        Text("（支持旋转）")
+                                        Text("支持横屏旋转")
                                             .font(.subheadline)
                                             .foregroundColor(SettingsTheme.subtitleColor)
                                     }
@@ -263,7 +263,7 @@ public struct HelpPanel: View {
 
                                     HStack(spacing: 4) {
                                         ProLabel(text: "Pro")
-                                        Text("（手势可切换）")
+                                        Text("手势可切换）")
                                             .font(.subheadline)
                                             .foregroundColor(SettingsTheme.subtitleColor)
                                     }
@@ -367,9 +367,9 @@ public struct HelpPanel: View {
                                             systemImage: "icon-star"
                                         )
                                         LabeledHighlightRow(
-                                            highlightText: "点击工具条",
+                                            highlightText: "点击",
                                             description: HStack(spacing: 4) {
-                                                Text("隐藏/扩展")
+                                                Text("提示/隐藏/扩展")
                                             },
                                             freeLabel: true,
                                             systemImage: "icon-star"
@@ -396,7 +396,7 @@ public struct HelpPanel: View {
 
                                     HStack(spacing: 4) {
                                         ProLabel(text: "Pro")
-                                        Text("（支持旋转）")
+                                        Text("支持横屏旋转")
                                             .font(.subheadline)
                                             .foregroundColor(SettingsTheme.subtitleColor)
                                     }
@@ -436,7 +436,7 @@ public struct HelpPanel: View {
 
                                     HStack(spacing: 4) {
                                         ProLabel(text: "Pro")
-                                        Text("（手势可切换）")
+                                        Text("手势可切换")
                                             .font(.subheadline)
                                             .foregroundColor(SettingsTheme.subtitleColor)
                                     }
@@ -487,7 +487,7 @@ public struct HelpPanel: View {
                                     
                                     HStack(spacing: 4) {
                                         ProLabel(text: "Pro")
-                                        Text("（手势可切换）")
+                                        Text("手势可切换")
                                             .font(.subheadline)
                                             .foregroundColor(SettingsTheme.subtitleColor)
                                     }
@@ -565,7 +565,7 @@ public struct HelpPanel: View {
 
                         // 版本信息
                         VStack(spacing: SettingsTheme.buttonSpacing) {
-                            Text("Mira Pro")
+                            Text("Mira")
                                 .font(.headline)
                                 .foregroundColor(.gray)
                             Text("Version 1.0")
