@@ -686,7 +686,7 @@ public struct SettingsPanel: View {
                             Text("Mira")
                                 .font(.headline)
                                 .foregroundColor(.gray)
-                            Text("Version 1.0")
+                            Text("Version 1.1")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                             

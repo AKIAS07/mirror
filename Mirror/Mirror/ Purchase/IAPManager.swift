@@ -8,7 +8,7 @@ extension Notification.Name {
 class IAPManager: NSObject, SKPaymentTransactionObserver, SKProductsRequestDelegate {
     static let shared = IAPManager()
     var products: [SKProduct] = []  // 初始化为空数组
-    var productID: String = "com.mirrorworld.camera.pro"
+    var productID: String = "mira.pro1"
     
     // 添加购买状态检查的回调
     var purchaseStatusCheck: ((Bool) -> Void)?
