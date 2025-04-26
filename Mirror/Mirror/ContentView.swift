@@ -91,6 +91,9 @@ struct ContentView: View {
     // 添加化妆视图状态
     @State private var showMakeupView = false
     
+    // 添加参考格纹图显示状态
+    @State private var showReferenceGrid = false
+
     var body: some View {
         GeometryReader { geometry in
             
@@ -316,6 +319,12 @@ struct ContentView: View {
                         CameraBorderView(isSelected: ModeBSelected, isLighted: isLighted)
                             .zIndex(5)  // 提高边框视图的层级
                     }
+                    
+                    // 添加参考格纹图视图
+                    if showReferenceGrid {
+                        ReferenceGridView()
+                            .zIndex(4)  // 确保在相机视图之上，但在工具栏之下
+                    }
                 } else {
                     CameraPermissionView()
                 }
@@ -331,7 +340,8 @@ struct ContentView: View {
                         previousBrightness: previousBrightness,
                         currentScale: $currentScale,
                         baseScale: $baseScale,
-                        cameraManager: cameraManager
+                        cameraManager: cameraManager,
+                        showReferenceGrid: $showReferenceGrid  // 添加参考格纹图状态绑定
                     )
                     .zIndex(6)
                 }

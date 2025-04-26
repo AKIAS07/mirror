@@ -23,12 +23,16 @@ enum ToolbarAction {
 // 定义工具按钮操作类型
 enum UtilityAction {
     case add        // 添加
+    case reference  // 参考图
+    case brush      // 画笔
     case drag       // 拖拽
     case close      // 关闭
     
     var description: String {
         switch self {
         case .add: return "添加"
+        case .reference: return "参考图"
+        case .brush: return "画笔"
         case .drag: return "拖拽"
         case .close: return "关闭"
         }

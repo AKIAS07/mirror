@@ -68,13 +68,17 @@ enum ToolbarButtonType: Int, CaseIterable {
 // 在 ToolbarButtonType 枚举后添加新的按钮类型枚举
 enum UtilityButtonType: Int, CaseIterable {
     case add = 0
+    case reference  // 新增参考图标按钮
     case drag
+    case brush      // 新增画笔图标按钮
     case close
     
     var icon: String {
         switch self {
         case .add: return "plus.circle"
+        case .reference: return "ruler"  // 使用尺子图标
         case .drag: return "icon-star"  // 修改为使用自定义图标
+        case .brush: return "pencil.tip.crop.circle"  // 使用画笔图标
         case .close: return "xmark.circle"
         }
     }
@@ -158,6 +162,9 @@ struct DraggableToolbar: View {
     
     // 添加相机管理器
     let cameraManager: CameraManager
+    
+    // 添加参考格纹图显示状态
+    @Binding var showReferenceGrid: Bool
     
     // 工具栏尺寸常量
     private let toolbarHeight: CGFloat = 60
@@ -836,11 +843,28 @@ struct DraggableToolbar: View {
                 isAddButtonEnabled = false  // 禁用添加按钮
             }
             
+        case .reference:
+            ViewActionLogger.shared.logAction(.utilityAction(.reference))
+            print("------------------------")
+            print("工具栏：点击参考图标按钮")
+            print("切换参考格纹图显示状态：\(showReferenceGrid ? "隐藏" : "显示")")
+            print("------------------------")
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showReferenceGrid.toggle()
+            }
+            
         case .drag:
             // 注意：拖拽按钮的点击现在由onTapGesture处理
             print("------------------------")
             print("工具栏：点击拖拽按钮（此路径不应被执行）")
             print("------------------------")
+            
+        case .brush:
+            ViewActionLogger.shared.logAction(.utilityAction(.brush))
+            print("------------------------")
+            print("工具栏：点击画笔按钮")
+            print("------------------------")
+            // TODO: 实现画笔功能
             
         case .close:
             ViewActionLogger.shared.logAction(.utilityAction(.close))
@@ -878,7 +902,8 @@ struct DraggableToolbar: View {
         previousBrightness: UIScreen.main.brightness,
         currentScale: .constant(1.0),
         baseScale: .constant(1.0),
-        cameraManager: CameraManager()  // 添加相机管理器
+        cameraManager: CameraManager(),
+        showReferenceGrid: .constant(false)  // 添加参考格纹图状态
     )
 }
 
