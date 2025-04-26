@@ -386,8 +386,8 @@ class CameraManager: ObservableObject {
         session.sessionPreset = .photo
         
         // 设置视频输入
-        let cameraPosition: AVCaptureDevice.Position = isMirroredScreenFront ? .front : .back
-        print("[自定义相机设置] 获取\(isMirroredScreenFront ? "前置" : "后置")相机")
+        let cameraPosition: AVCaptureDevice.Position = isFront ? .front : .back
+        print("[自定义相机设置] 获取\(isFront ? "前置" : "后置")相机")
         
         let discoverySession = AVCaptureDevice.DiscoverySession(
             deviceTypes: [.builtInWideAngleCamera],

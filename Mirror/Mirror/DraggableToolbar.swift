@@ -166,6 +166,13 @@ struct DraggableToolbar: View {
     // 添加参考格纹图显示状态
     @Binding var showReferenceGrid: Bool
     
+    // 添加画布状态
+    @State private var showDrawingCanvas = false
+    @State private var isDrawingPinned = false
+    
+    // 添加工具条显示状态
+    @State private var shouldHideToolbar: Bool = false
+    
     // 工具栏尺寸常量
     private let toolbarHeight: CGFloat = 60
     private let toolbarWidth: CGFloat = UIScreen.main.bounds.width
@@ -204,27 +211,60 @@ struct DraggableToolbar: View {
         // 只有在相机权限已授权时才显示工具条
         if permissionManager.cameraPermissionGranted {
             GeometryReader { geometry in
-                HStack(spacing: 0) {
-                    if position == .left || position == .leftBottom {
-                        toolbarContent(isVertical: true, geometry: geometry)
+                ZStack {
+                    HStack(spacing: 0) {
+                        if position == .left || position == .leftBottom {
+                            toolbarContent(isVertical: true, geometry: geometry)
+                        }
+                        
+                        if position == .top {
+                            toolbarContent(isVertical: false, geometry: geometry)
+                        }
+                        
+                        if position == .right || position == .rightBottom {
+                            toolbarContent(isVertical: true, geometry: geometry)
+                        }
                     }
+                    .position(calculatePosition(in: geometry))
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: position)
+                    .animation(.easeInOut(duration: 0.2), value: dragOffset)
+                    .opacity(shouldHideToolbar ? 0 : 1) // 添加透明度动画
+                    .animation(.easeInOut(duration: 0.3), value: shouldHideToolbar)
                     
-                    if position == .top {
-                        toolbarContent(isVertical: false, geometry: geometry)
-                    }
-                    
-                    if position == .right || position == .rightBottom {
-                        toolbarContent(isVertical: true, geometry: geometry)
+                    // 添加画布视图（带有iOS 15检查）
+                    if #available(iOS 15.0, *) {
+                        if showDrawingCanvas || isDrawingPinned {
+                            DrawingCanvasView(isVisible: $showDrawingCanvas, isPinned: $isDrawingPinned)
+                        }
                     }
                 }
-                .position(calculatePosition(in: geometry))
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: position)
-                .animation(.easeInOut(duration: 0.2), value: dragOffset)
                 .ignoresSafeArea(.all, edges: .top)
                 .onChange(of: showMakeupView) { newValue in
                     if !newValue {
                         // 当化妆视图关闭时，重新启用添加按钮
                         isAddButtonEnabled = true
+                    }
+                }
+                .onAppear {
+                    // 添加通知监听器
+                    NotificationCenter.default.addObserver(
+                        forName: NSNotification.Name("HideToolbars"),
+                        object: nil,
+                        queue: .main
+                    ) { _ in
+                        withAnimation {
+                            shouldHideToolbar = true
+                        }
+                    }
+                    
+                    NotificationCenter.default.addObserver(
+                        forName: NSNotification.Name("ShowToolbars"),
+                        object: nil,
+                        queue: .main
+                    ) { _ in
+                        withAnimation {
+                            shouldHideToolbar = false
+                        }
                     }
                 }
             }
@@ -860,11 +900,20 @@ struct DraggableToolbar: View {
             print("------------------------")
             
         case .brush:
-            ViewActionLogger.shared.logAction(.utilityAction(.brush))
-            print("------------------------")
-            print("工具栏：点击画笔按钮")
-            print("------------------------")
-            // TODO: 实现画笔功能
+            if #available(iOS 15.0, *) {
+                ViewActionLogger.shared.logAction(.utilityAction(.brush))
+                print("------------------------")
+                print("工具栏：点击画笔按钮")
+                print("显示绘画画布")
+                print("------------------------")
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showDrawingCanvas = true
+                }
+            } else {
+                print("------------------------")
+                print("工具栏：画笔功能需要 iOS 15.0 或更高版本")
+                print("------------------------")
+            }
             
         case .close:
             ViewActionLogger.shared.logAction(.utilityAction(.close))
