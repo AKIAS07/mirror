@@ -32,7 +32,10 @@ struct DraggableMakeupView: View {
     @State private var position = CGPoint(x: UIScreen.main.bounds.width / 2, y: 200)
     @State private var dragOffset = CGSize.zero
     @State private var selectedImage: UIImage?
+    @State private var originalImage: UIImage?  // 添加原始图片存储
     @State private var showImagePicker = false
+    @State private var isEditing: Bool = false
+    @State private var showImageEditor = false
     @StateObject private var permissionManager = PermissionManager.shared
     @StateObject private var proManager = ProManager.shared  // 添加 ProManager 引用
     
@@ -127,9 +130,24 @@ struct DraggableMakeupView: View {
                     }
                 
                 VStack(spacing: 0) {
-                    // 上区 - 关闭按钮
+                    // 上区 - 关闭按钮和编辑按钮
                     HStack {
                         Spacer()
+                        if selectedImage != nil {
+                            Button(action: {
+                                showImageEditor = true
+                                print("------------------------")
+                                print("[化妆视图] 编辑按钮点击")
+                                print("显示图片编辑器")
+                                print("------------------------")
+                            }) {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(styleManager.iconColor)
+                            }
+                            .frame(width: 40, height: topAreaHeight)
+                            .contentShape(Rectangle())
+                        }
                         Button(action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 isVisible = false
@@ -351,6 +369,15 @@ struct DraggableMakeupView: View {
                 .shadow(radius: 10)
                 .rotationEffect(orientationManager.getRotationAngle(orientationManager.validOrientation))
                 .position(x: position.x, y: position.y)
+                .sheet(isPresented: $showImageEditor) {
+                    if let original = originalImage {  // 使用原始图片
+                        ImageEditView(
+                            sourceImage: original,
+                            editedImage: $selectedImage,
+                            editingKey: "makeup_edit_\(original.hashValue)"  // 添加唯一的编辑状态键
+                        )
+                    }
+                }
                 
                 // 添加视图位置标记点（不跟随旋转）
                 Circle()
@@ -360,7 +387,7 @@ struct DraggableMakeupView: View {
             }
         }
         .sheet(isPresented: $showImagePicker) {
-            PhotoPicker(selectedImage: $selectedImage)
+            PhotoPicker(selectedImage: $selectedImage, originalImage: $originalImage)
         }
         .onChange(of: selectedImage) { _ in
             // 重置图片状态
@@ -414,14 +441,20 @@ struct DraggableMakeupView: View {
         }
         print("------------------------")
         
-        // 清理选中的图片
+        // 清理选中的图片和原始图片
         selectedImage = nil
+        originalImage = nil
         
         // 重置图片相关状态
         imageScale = 1.0
         lastImageScale = 1.0
         imageOffset = .zero
         lastImageOffset = .zero
+        
+        // 清除编辑状态
+        if let original = originalImage {
+            UserDefaults.standard.removeObject(forKey: "makeup_edit_\(original.hashValue)")
+        }
     }
 }
 
@@ -436,6 +469,7 @@ extension UIDeviceOrientation {
 // 修改图片选择器结构体名称避免冲突
 struct PhotoPicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
+    @Binding var originalImage: UIImage?
     @Environment(\.presentationMode) private var presentationMode
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
@@ -468,7 +502,10 @@ struct PhotoPicker: UIViewControllerRepresentable {
             if provider.canLoadObject(ofClass: UIImage.self) {
                 provider.loadObject(ofClass: UIImage.self) { image, _ in
                     DispatchQueue.main.async {
-                        self.parent.selectedImage = image as? UIImage
+                        if let image = image as? UIImage {
+                            self.parent.selectedImage = image
+                            self.parent.originalImage = image  // 同时设置原始图片
+                        }
                     }
                 }
             }
