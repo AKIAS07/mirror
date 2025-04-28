@@ -39,6 +39,8 @@ struct DraggableMakeupView: View {
     @StateObject private var permissionManager = PermissionManager.shared
     @StateObject private var proManager = ProManager.shared  // 添加 ProManager 引用
     @State private var isSimplifiedMode: Bool = false  // 添加简化模式状态
+    @StateObject private var restartManager = ContentRestartManager.shared  // 添加 RestartManager 引用
+    let cameraManager: CameraManager  // 添加 CameraManager 引用
     
     // 使用DeviceOrientationManager替代原有的设备方向控制
     @StateObject private var orientationManager = DeviceOrientationManager.shared
@@ -142,6 +144,10 @@ struct DraggableMakeupView: View {
                                     print("[化妆视图] 编辑按钮点击")
                                     print("显示图片编辑器")
                                     print("------------------------")
+                                    
+                                    // 关闭摄像头
+                                    restartManager.isCameraActive = false
+                                    restartManager.showRestartHint = true
                                 }
                             }) {
                                 Image(systemName: "slider.horizontal.3")
@@ -391,7 +397,8 @@ struct DraggableMakeupView: View {
                             sourceImage: original,
                             editedImage: $selectedImage,
                             editingKey: "makeup_edit_\(original.hashValue)",
-                            isPresented: $showImageEditor
+                            isPresented: $showImageEditor,
+                            cameraManager: cameraManager
                         )
                     }
                 }
@@ -531,6 +538,6 @@ struct PhotoPicker: UIViewControllerRepresentable {
 }
 
 #Preview {
-    DraggableMakeupView(isVisible: .constant(true))
+    DraggableMakeupView(isVisible: .constant(true), cameraManager: CameraManager())
         .background(Color.gray)
 } 

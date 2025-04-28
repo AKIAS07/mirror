@@ -20,6 +20,17 @@ struct DrawingCanvas: View {
     let tool: ImageSelectionTool
     @Binding var showAlert: Bool
     @Binding var alertMessage: String
+    @State private var dragOffset: CGPoint = .zero
+    @State private var isDragging = false
+    
+    // 删除按钮的大小
+    private let deleteButtonSize: CGFloat = 20
+    
+    // 获取删除按钮的位置
+    private func deleteButtonPosition(for path: DrawingPath) -> CGPoint {
+        let boundingBox = path.getBoundingBox()
+        return CGPoint(x: boundingBox.maxX, y: boundingBox.minY)
+    }
     
     // 固定4:3显示区域的尺寸计算
     private func calculateDisplayFrame(in geometry: GeometryProxy) -> CGRect {
@@ -108,32 +119,81 @@ struct DrawingCanvas: View {
                     }
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
+                
+                // 删除按钮层
+                ForEach(paths.indices, id: \.self) { index in
+                    if paths[index].isSelected {
+                        let buttonPosition = deleteButtonPosition(for: paths[index])
+                        Button(action: {
+                            paths.remove(at: index)
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.red)
+                                .frame(width: deleteButtonSize, height: deleteButtonSize)
+                        }
+                        .position(x: buttonPosition.x, y: buttonPosition.y)
+                    }
+                }
             }
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        // 检查点是否在显示区域内
                         guard displayFrame.contains(value.location) else { return }
                         
-                        let location = value.location
-                        
-                        print("------------------------")
-                        print("[绘画] 触摸位置")
-                        print("原始位置：\(value.location)")
-                        print("显示区域：\(displayFrame)")
-                        print("图片区域：\(imageFrame)")
-                        print("------------------------")
-                        
-                        if currentPath == nil {
-                            currentPath = DrawingPath(points: [location], tool: tool)
+                        if currentPath == nil && !isDragging {
+                            // 检查是否点击了现有路径
+                            if let index = paths.firstIndex(where: { $0.contains(value.location) }) {
+                                // 涂抹笔不支持选中和拖动
+                                if paths[index].tool != .smudge {
+                                    // 取消其他路径的选中状态
+                                    for i in paths.indices {
+                                        paths[i].isSelected = (i == index)
+                                    }
+                                    isDragging = true
+                                    dragOffset = value.location
+                                }
+                            } else {
+                                // 取消所有路径的选中状态
+                                for i in paths.indices {
+                                    paths[i].isSelected = false
+                                }
+                                // 开始新的绘制
+                                if tool == .smudge {
+                                    currentPath = DrawingPath(points: [value.location], tool: tool)
+                                } else {
+                                    currentPath = DrawingPath(points: [value.location], tool: tool)
+                                }
+                            }
+                        } else if isDragging {
+                            // 更新选中路径的位置
+                            if let index = paths.firstIndex(where: { $0.isSelected }) {
+                                let delta = CGPoint(
+                                    x: value.location.x - dragOffset.x,
+                                    y: value.location.y - dragOffset.y
+                                )
+                                paths[index].offset = CGPoint(
+                                    x: paths[index].offset.x + delta.x,
+                                    y: paths[index].offset.y + delta.y
+                                )
+                                dragOffset = value.location
+                            }
+                        } else if tool == .smudge {
+                            // 涂抹笔的处理逻辑
+                            if currentPath == nil {
+                                currentPath = DrawingPath(points: [value.location], tool: tool)
+                            } else {
+                                currentPath?.points.append(value.location)
+                            }
                         } else {
-                            currentPath?.points.append(location)
+                            // 其他工具的绘制逻辑
+                            currentPath?.points.append(value.location)
                         }
                     }
                     .onEnded { value in
-                        if let path = currentPath {
+                        if isDragging {
+                            isDragging = false
+                        } else if let path = currentPath {
                             if tool == .brush && !path.points.isPathClosed() {
-                                // 如果是画笔工具且路径未闭合，显示提示
                                 showAlert = true
                                 alertMessage = "请重新绘画，闭合区域"
                                 currentPath = nil
@@ -148,35 +208,129 @@ struct DrawingCanvas: View {
     }
     
     private func drawPath(context: GraphicsContext, size: CGSize, path: DrawingPath, displayFrame: CGRect) {
-        guard !path.points.isEmpty else { return }
-        
-        // 判断路径是否闭合
-        let isPathComplete: Bool
-        switch path.tool {
-        case .brush:
-            isPathComplete = path.points.isPathClosed()
-        case .rectangle, .circle:
-            isPathComplete = path.points.count >= 2
-        }
-        
         // 设置绘制颜色
-        let drawingColor: Color = isPathComplete ? .blue : .red
+        let drawingColor: Color
+        if path.tool == .smudge {
+            drawingColor = .blue.opacity(0.2)
+        } else {
+            drawingColor = path.isSelected ? .green : (isPathComplete(path) ? .blue : .red)
+        }
         
         // 创建绘制路径
         let drawPath = Path { p in
+            // 应用偏移量到所有点
+            let offsetPoints = path.points.map { CGPoint(x: $0.x + path.offset.x, y: $0.y + path.offset.y) }
+            
             switch path.tool {
             case .brush:
-                p.move(to: path.points[0])
-                for point in path.points.dropFirst() {
+                let firstPoint = offsetPoints[0]
+                p.move(to: firstPoint)
+                for point in offsetPoints.dropFirst() {
                     p.addLine(to: point)
                 }
-                if isPathComplete {
+                if isPathComplete(path) {
+                    p.closeSubpath()
+                }
+                
+            case .smudge:
+                guard offsetPoints.count >= 2 else { break }
+                
+                // 创建平滑的路径
+                let points = offsetPoints
+                let strokeWidth: CGFloat = 20.0  // 涂抹笔的宽度
+                
+                if points.count == 2 {
+                    // 只有两个点时，直接连接并加宽
+                    let start = points[0]
+                    let end = points[1]
+                    
+                    // 计算垂直偏移
+                    let dx = end.x - start.x
+                    let dy = end.y - start.y
+                    let angle = atan2(dy, dx)
+                    let perpendicular = angle + .pi/2
+                    
+                    // 计算四个角点
+                    let offsetX = strokeWidth/2 * cos(perpendicular)
+                    let offsetY = strokeWidth/2 * sin(perpendicular)
+                    
+                    // 绘制加宽的路径
+                    p.move(to: CGPoint(x: start.x + offsetX, y: start.y + offsetY))
+                    p.addLine(to: CGPoint(x: end.x + offsetX, y: end.y + offsetY))
+                    p.addLine(to: CGPoint(x: end.x - offsetX, y: end.y - offsetY))
+                    p.addLine(to: CGPoint(x: start.x - offsetX, y: start.y - offsetY))
+                    p.closeSubpath()
+                } else {
+                    // 三个或更多点时，使用平滑曲线
+                    var pathPoints = [CGPoint]()
+                    
+                    // 为每个点创建扩展的轮廓点
+                    for i in 0..<points.count {
+                        let current = points[i]
+                        let prev = i > 0 ? points[i-1] : current
+                        let next = i < points.count - 1 ? points[i+1] : current
+                        
+                        // 计算方向向量
+                        let dx1 = current.x - prev.x
+                        let dy1 = current.y - prev.y
+                        let dx2 = next.x - current.x
+                        let dy2 = next.y - current.y
+                        
+                        // 计算平均方向
+                        let angle = atan2((dy1 + dy2)/2, (dx1 + dx2)/2)
+                        let perpendicular = angle + .pi/2
+                        
+                        // 添加扩展点
+                        let offsetX = strokeWidth/2 * cos(perpendicular)
+                        let offsetY = strokeWidth/2 * sin(perpendicular)
+                        
+                        pathPoints.append(CGPoint(x: current.x + offsetX, y: current.y + offsetY))
+                    }
+                    
+                    // 添加返回路径的点（反向）
+                    for i in (0..<points.count).reversed() {
+                        let current = points[i]
+                        let prev = i > 0 ? points[i-1] : current
+                        let next = i < points.count - 1 ? points[i+1] : current
+                        
+                        let dx1 = current.x - prev.x
+                        let dy1 = current.y - prev.y
+                        let dx2 = next.x - current.x
+                        let dy2 = next.y - current.y
+                        
+                        let angle = atan2((dy1 + dy2)/2, (dx1 + dx2)/2)
+                        let perpendicular = angle + .pi/2
+                        
+                        let offsetX = strokeWidth/2 * cos(perpendicular)
+                        let offsetY = strokeWidth/2 * sin(perpendicular)
+                        
+                        pathPoints.append(CGPoint(x: current.x - offsetX, y: current.y - offsetY))
+                    }
+                    
+                    // 绘制平滑路径
+                    p.move(to: pathPoints[0])
+                    
+                    // 使用贝塞尔曲线连接点
+                    for i in 0..<pathPoints.count {
+                        let current = pathPoints[i]
+                        let next = pathPoints[(i + 1) % pathPoints.count]
+                        
+                        if i == 0 {
+                            p.move(to: current)
+                        } else {
+                            let control1 = CGPoint(
+                                x: current.x + (next.x - current.x) * 0.5,
+                                y: current.y + (next.y - current.y) * 0.5
+                            )
+                            p.addQuadCurve(to: next, control: control1)
+                        }
+                    }
                     p.closeSubpath()
                 }
                 
             case .rectangle:
-                let start = path.points[0]
-                let end = path.points.last ?? start
+                let start = offsetPoints[0]
+                let end = offsetPoints.last ?? start
                 let rect = CGRect(
                     x: min(start.x, end.x),
                     y: min(start.y, end.y),
@@ -186,8 +340,8 @@ struct DrawingCanvas: View {
                 p.addRect(rect)
                 
             case .circle:
-                let start = path.points[0]
-                let end = path.points.last ?? start
+                let start = offsetPoints[0]
+                let end = offsetPoints.last ?? start
                 let center = CGPoint(
                     x: (start.x + end.x) / 2,
                     y: (start.y + end.y) / 2
@@ -202,16 +356,100 @@ struct DrawingCanvas: View {
                     width: radius * 2,
                     height: radius * 2
                 ))
+                
+            case .mouth:
+                let start = offsetPoints[0]
+                let end = offsetPoints.last ?? start
+                let width = abs(end.x - start.x)
+                let height = abs(end.y - start.y)
+                let rect = CGRect(
+                    x: min(start.x, end.x),
+                    y: min(start.y, end.y),
+                    width: width,
+                    height: height
+                )
+                
+                // 绘制嘴巴轮廓（M形状的上唇和弧形的下唇）
+                let mouthPath = Path { p in
+                    // 起点（左边）
+                    p.move(to: CGPoint(x: rect.minX, y: rect.midY))
+                    
+                    // 上唇左半部分
+                    p.addCurve(
+                        to: CGPoint(x: rect.minX + width * 0.5, y: rect.midY - height * 0.1),
+                        control1: CGPoint(x: rect.minX + width * 0.15, y: rect.midY),
+                        control2: CGPoint(x: rect.minX + width * 0.35, y: rect.minY + height * 0.3)
+                    )
+                    
+                    // 上唇右半部分
+                    p.addCurve(
+                        to: CGPoint(x: rect.maxX, y: rect.midY),
+                        control1: CGPoint(x: rect.minX + width * 0.65, y: rect.minY + height * 0.3),
+                        control2: CGPoint(x: rect.minX + width * 0.85, y: rect.midY)
+                    )
+                    
+                    // 下唇
+                    p.addCurve(
+                        to: CGPoint(x: rect.minX, y: rect.midY),
+                        control1: CGPoint(x: rect.maxX - width * 0.25, y: rect.maxY - height * 0.2),
+                        control2: CGPoint(x: rect.minX + width * 0.25, y: rect.maxY - height * 0.2)
+                    )
+                }
+                p.addPath(mouthPath)
+                
+            case .eyebrow:
+                let start = offsetPoints[0]
+                let end = offsetPoints.last ?? start
+                let width = abs(end.x - start.x)
+                let height = abs(end.y - start.y)
+                let rect = CGRect(
+                    x: min(start.x, end.x),
+                    y: min(start.y, end.y),
+                    width: width,
+                    height: height
+                )
+                
+                // 绘制眉毛轮廓（弧形）
+                let eyebrowPath = Path { p in
+                    p.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+                    p.addQuadCurve(
+                        to: CGPoint(x: rect.maxX, y: rect.maxY),
+                        control: CGPoint(x: rect.midX, y: rect.minY)
+                    )
+                    // 添加一点厚度
+                    p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY + height * 0.2))
+                    p.addQuadCurve(
+                        to: CGPoint(x: rect.minX, y: rect.maxY + height * 0.2),
+                        control: CGPoint(x: rect.midX, y: rect.minY + height * 0.2)
+                    )
+                    p.closeSubpath()
+                }
+                p.addPath(eyebrowPath)
             }
         }
         
-        // 如果路径闭合，先填充
-        if isPathComplete {
-            context.fill(drawPath, with: .color(drawingColor.opacity(0.2)))
+        // 根据工具类型决定绘制方式
+        if path.tool == .smudge {
+            context.fill(drawPath, with: .color(drawingColor))
+        } else {
+            if isPathComplete(path) {
+                context.fill(drawPath, with: .color(drawingColor.opacity(0.2)))
+                context.stroke(drawPath, with: .color(drawingColor), lineWidth: 2)
+            } else {
+                context.stroke(drawPath, with: .color(.red), lineWidth: 2)
+            }
         }
-        
-        // 绘制边框
-        context.stroke(drawPath, with: .color(drawingColor), lineWidth: 2)
+    }
+    
+    private func isPathComplete(_ path: DrawingPath) -> Bool {
+        switch path.tool {
+        case .brush:
+            return path.points.isPathClosed()
+        case .smudge:
+            return currentPath == nil
+        case .rectangle, .circle, .mouth, .eyebrow:
+            return path.points.count >= 2
+        }
     }
 }
 
@@ -225,6 +463,8 @@ struct ImageEditView: View {
     @Binding var editedImage: UIImage?
     let editingKey: String
     @Binding var isPresented: Bool
+    @StateObject private var restartManager = ContentRestartManager.shared  // 添加 RestartManager 引用
+    let cameraManager: CameraManager  // 添加 CameraManager 引用
     
     // 当前编辑状态
     @State private var paths: [DrawingPath] = []
@@ -237,11 +477,12 @@ struct ImageEditView: View {
     @State private var initialPaths: [DrawingPath] = []
     
     // 初始化时加载编辑状态
-    init(sourceImage: UIImage, editedImage: Binding<UIImage?>, editingKey: String, isPresented: Binding<Bool>) {
+    init(sourceImage: UIImage, editedImage: Binding<UIImage?>, editingKey: String, isPresented: Binding<Bool>, cameraManager: CameraManager) {
         self.sourceImage = sourceImage
         self._editedImage = editedImage
         self.editingKey = editingKey
         self._isPresented = isPresented
+        self.cameraManager = cameraManager
         
         // 如果editedImage不为nil，说明之前保存过，需要加载上次的状态
         if editedImage.wrappedValue != nil,
@@ -286,6 +527,11 @@ struct ImageEditView: View {
                             .foregroundColor(selectedTool == .brush ? .blue : .gray)
                     }
                     
+                    Button(action: { selectedTool = .smudge }) {
+                        Image(systemName: "paintbrush.pointed.fill")
+                            .foregroundColor(selectedTool == .smudge ? .blue : .gray)
+                    }
+                    
                     Button(action: { selectedTool = .rectangle }) {
                         Image(systemName: "rectangle")
                             .foregroundColor(selectedTool == .rectangle ? .blue : .gray)
@@ -294,6 +540,16 @@ struct ImageEditView: View {
                     Button(action: { selectedTool = .circle }) {
                         Image(systemName: "circle")
                             .foregroundColor(selectedTool == .circle ? .blue : .gray)
+                    }
+                    
+                    Button(action: { selectedTool = .mouth }) {
+                        Image(systemName: "mouth")
+                            .foregroundColor(selectedTool == .mouth ? .blue : .gray)
+                    }
+                    
+                    Button(action: { selectedTool = .eyebrow }) {
+                        Image(systemName: "eyebrow")
+                            .foregroundColor(selectedTool == .eyebrow ? .blue : .gray)
                     }
                     
                     Spacer()
@@ -346,6 +602,9 @@ struct ImageEditView: View {
         paths = initialPaths
         currentPath = nil
         isPresented = false
+        
+        // 重启摄像头
+        restartManager.handleRestartViewAppear(cameraManager: cameraManager)
     }
     
     // 保存状态
@@ -407,6 +666,16 @@ struct ImageEditView: View {
         print("[保存] X轴缩放比例: \(scaleX)")
         print("[保存] Y轴缩放比例: \(scaleY)")
         
+        // 转换坐标的辅助函数
+        func convertPoint(_ point: CGPoint) -> CGPoint {
+            let relativeX = point.x - imageFrame.minX
+            let relativeY = point.y - imageFrame.minY
+            return CGPoint(
+                x: relativeX * scaleX,
+                y: relativeY * scaleY
+            )
+        }
+        
         // 创建图像上下文
         let renderer = UIGraphicsImageRenderer(size: sourceImage.size)
         let maskedImage = renderer.image { context in
@@ -421,31 +690,125 @@ struct ImageEditView: View {
             for drawingPath in paths {
                 guard !drawingPath.points.isEmpty else { continue }
                 
-                // 转换坐标的辅助函数
-                func convertPoint(_ point: CGPoint) -> CGPoint {
-                    let relativeX = point.x - imageFrame.minX
-                    let relativeY = point.y - imageFrame.minY
-                    return CGPoint(
-                        x: relativeX * scaleX,
-                        y: relativeY * scaleY
-                    )
-                }
-                
                 let subPath = UIBezierPath()
                 
                 switch drawingPath.tool {
                 case .brush:
                     let firstPoint = convertPoint(drawingPath.points[0])
-                    subPath.move(to: firstPoint)
+                    let firstPointWithOffset = CGPoint(
+                        x: firstPoint.x + drawingPath.offset.x * scaleX,
+                        y: firstPoint.y + drawingPath.offset.y * scaleY
+                    )
+                    subPath.move(to: firstPointWithOffset)
                     
                     for point in drawingPath.points.dropFirst() {
                         let convertedPoint = convertPoint(point)
-                        subPath.addLine(to: convertedPoint)
+                        let pointWithOffset = CGPoint(
+                            x: convertedPoint.x + drawingPath.offset.x * scaleX,
+                            y: convertedPoint.y + drawingPath.offset.y * scaleY
+                        )
+                        subPath.addLine(to: pointWithOffset)
                     }
                     
                     if drawingPath.points.isPathClosed() {
                         subPath.close()
                     }
+                    
+                case .smudge:
+                    guard drawingPath.points.count >= 2 else { break }
+                    
+                    // 使用较粗的笔触连接点
+                    let strokeWidth: CGFloat = 20.0 * scaleX  // 根据缩放比例调整涂抹笔的宽度
+                    let points = drawingPath.points.map { convertPoint($0) }
+                    
+                    if points.count == 2 {
+                        // 只有两个点时，直接连接并加宽
+                        let start = points[0]
+                        let end = points[1]
+                        
+                        // 计算垂直偏移
+                        let dx = end.x - start.x
+                        let dy = end.y - start.y
+                        let angle = atan2(dy, dx)
+                        let perpendicular = angle + .pi/2
+                        
+                        // 计算四个角点
+                        let offsetX = strokeWidth/2 * cos(perpendicular)
+                        let offsetY = strokeWidth/2 * sin(perpendicular)
+                        
+                        // 绘制加宽的路径
+                        subPath.move(to: CGPoint(x: start.x + offsetX, y: start.y + offsetY))
+                        subPath.addLine(to: CGPoint(x: end.x + offsetX, y: end.y + offsetY))
+                        subPath.addLine(to: CGPoint(x: end.x - offsetX, y: end.y - offsetY))
+                        subPath.addLine(to: CGPoint(x: start.x - offsetX, y: start.y - offsetY))
+                    } else {
+                        // 三个或更多点时，使用平滑曲线
+                        var path = [CGPoint]()
+                        
+                        // 为每个点创建扩展的轮廓点
+                        for i in 0..<points.count {
+                            let current = points[i]
+                            let prev = i > 0 ? points[i-1] : current
+                            let next = i < points.count - 1 ? points[i+1] : current
+                            
+                            // 计算方向向量
+                            let dx1 = current.x - prev.x
+                            let dy1 = current.y - prev.y
+                            let dx2 = next.x - current.x
+                            let dy2 = next.y - current.y
+                            
+                            // 计算平均方向
+                            let angle = atan2((dy1 + dy2)/2, (dx1 + dx2)/2)
+                            let perpendicular = angle + .pi/2
+                            
+                            // 添加扩展点
+                            let offsetX = strokeWidth/2 * cos(perpendicular)
+                            let offsetY = strokeWidth/2 * sin(perpendicular)
+                            
+                            path.append(CGPoint(x: current.x + offsetX, y: current.y + offsetY))
+                        }
+                        
+                        // 添加返回路径的点（反向）
+                        for i in (0..<points.count).reversed() {
+                            let current = points[i]
+                            let prev = i > 0 ? points[i-1] : current
+                            let next = i < points.count - 1 ? points[i+1] : current
+                            
+                            let dx1 = current.x - prev.x
+                            let dy1 = current.y - prev.y
+                            let dx2 = next.x - current.x
+                            let dy2 = next.y - current.y
+                            
+                            let angle = atan2((dy1 + dy2)/2, (dx1 + dx2)/2)
+                            let perpendicular = angle + .pi/2
+                            
+                            let offsetX = strokeWidth/2 * cos(perpendicular)
+                            let offsetY = strokeWidth/2 * sin(perpendicular)
+                            
+                            path.append(CGPoint(x: current.x - offsetX, y: current.y - offsetY))
+                        }
+                        
+                        // 绘制平滑路径
+                        subPath.move(to: path[0])
+                        
+                        // 使用贝塞尔曲线连接点
+                        for i in 0..<path.count {
+                            let current = path[i]
+                            let next = path[(i + 1) % path.count]
+                            
+                            if i == 0 {
+                                subPath.move(to: current)
+                            } else {
+                                let control1 = CGPoint(
+                                    x: current.x + (next.x - current.x) * 0.5,
+                                    y: current.y + (next.y - current.y) * 0.5
+                                )
+                                subPath.addQuadCurve(to: next, controlPoint: control1)
+                            }
+                        }
+                    }
+                    
+                    subPath.close()
                     
                 case .rectangle:
                     let start = drawingPath.points[0]
@@ -453,28 +816,47 @@ struct ImageEditView: View {
                     let convertedStart = convertPoint(start)
                     let convertedEnd = convertPoint(end)
                     
+                    // 应用偏移量
+                    let startWithOffset = CGPoint(
+                        x: convertedStart.x + drawingPath.offset.x * scaleX,
+                        y: convertedStart.y + drawingPath.offset.y * scaleY
+                    )
+                    let endWithOffset = CGPoint(
+                        x: convertedEnd.x + drawingPath.offset.x * scaleX,
+                        y: convertedEnd.y + drawingPath.offset.y * scaleY
+                    )
+                    
                     let rect = CGRect(
-                        x: min(convertedStart.x, convertedEnd.x),
-                        y: min(convertedStart.y, convertedEnd.y),
-                        width: abs(convertedEnd.x - convertedStart.x),
-                        height: abs(convertedEnd.y - convertedStart.y)
+                        x: min(startWithOffset.x, endWithOffset.x),
+                        y: min(startWithOffset.y, endWithOffset.y),
+                        width: abs(endWithOffset.x - startWithOffset.x),
+                        height: abs(endWithOffset.y - startWithOffset.y)
                     )
                     subPath.append(UIBezierPath(rect: rect))
                     
                 case .circle:
                     let start = drawingPath.points[0]
                     let end = drawingPath.points.last ?? start
-                    
                     let convertedStart = convertPoint(start)
                     let convertedEnd = convertPoint(end)
                     
+                    // 应用偏移量
+                    let startWithOffset = CGPoint(
+                        x: convertedStart.x + drawingPath.offset.x * scaleX,
+                        y: convertedStart.y + drawingPath.offset.y * scaleY
+                    )
+                    let endWithOffset = CGPoint(
+                        x: convertedEnd.x + drawingPath.offset.x * scaleX,
+                        y: convertedEnd.y + drawingPath.offset.y * scaleY
+                    )
+                    
                     let center = CGPoint(
-                        x: (convertedStart.x + convertedEnd.x) / 2,
-                        y: (convertedStart.y + convertedEnd.y) / 2
+                        x: (startWithOffset.x + endWithOffset.x) / 2,
+                        y: (startWithOffset.y + endWithOffset.y) / 2
                     )
                     let radius = sqrt(
-                        pow(convertedEnd.x - convertedStart.x, 2) +
-                        pow(convertedEnd.y - convertedStart.y, 2)
+                        pow(endWithOffset.x - startWithOffset.x, 2) +
+                        pow(endWithOffset.y - startWithOffset.y, 2)
                     ) / 2
                     
                     subPath.addArc(
@@ -484,9 +866,99 @@ struct ImageEditView: View {
                         endAngle: .pi * 2,
                         clockwise: true
                     )
+                    
+                case .mouth:
+                    let start = drawingPath.points[0]
+                    let end = drawingPath.points.last ?? start
+                    let convertedStart = convertPoint(start)
+                    let convertedEnd = convertPoint(end)
+                    
+                    // 应用偏移量
+                    let startWithOffset = CGPoint(
+                        x: convertedStart.x + drawingPath.offset.x * scaleX,
+                        y: convertedStart.y + drawingPath.offset.y * scaleY
+                    )
+                    let endWithOffset = CGPoint(
+                        x: convertedEnd.x + drawingPath.offset.x * scaleX,
+                        y: convertedEnd.y + drawingPath.offset.y * scaleY
+                    )
+                    
+                    let width = abs(endWithOffset.x - startWithOffset.x)
+                    let height = abs(endWithOffset.y - startWithOffset.y)
+                    let rect = CGRect(
+                        x: min(startWithOffset.x, endWithOffset.x),
+                        y: min(startWithOffset.y, endWithOffset.y),
+                        width: width,
+                        height: height
+                    )
+                    
+                    // 绘制嘴巴轮廓（M形状的上唇和弧形的下唇）
+                    // 起点（左边）
+                    subPath.move(to: CGPoint(x: rect.minX, y: rect.midY))
+                    
+                    // 上唇左半部分
+                    subPath.addCurve(
+                        to: CGPoint(x: rect.minX + width * 0.5, y: rect.midY - height * 0.1),
+                        controlPoint1: CGPoint(x: rect.minX + width * 0.15, y: rect.midY),
+                        controlPoint2: CGPoint(x: rect.minX + width * 0.35, y: rect.minY + height * 0.3)
+                    )
+                    
+                    // 上唇右半部分
+                    subPath.addCurve(
+                        to: CGPoint(x: rect.maxX, y: rect.midY),
+                        controlPoint1: CGPoint(x: rect.minX + width * 0.65, y: rect.minY + height * 0.3),
+                        controlPoint2: CGPoint(x: rect.minX + width * 0.85, y: rect.midY)
+                    )
+                    
+                    // 下唇
+                    subPath.addCurve(
+                        to: CGPoint(x: rect.minX, y: rect.midY),
+                        controlPoint1: CGPoint(x: rect.maxX - width * 0.25, y: rect.maxY - height * 0.2),
+                        controlPoint2: CGPoint(x: rect.minX + width * 0.25, y: rect.maxY - height * 0.2)
+                    )
+                    
+                    subPath.close()
+                    
+                case .eyebrow:
+                    let start = drawingPath.points[0]
+                    let end = drawingPath.points.last ?? start
+                    let convertedStart = convertPoint(start)
+                    let convertedEnd = convertPoint(end)
+                    
+                    // 应用偏移量
+                    let startWithOffset = CGPoint(
+                        x: convertedStart.x + drawingPath.offset.x * scaleX,
+                        y: convertedStart.y + drawingPath.offset.y * scaleY
+                    )
+                    let endWithOffset = CGPoint(
+                        x: convertedEnd.x + drawingPath.offset.x * scaleX,
+                        y: convertedEnd.y + drawingPath.offset.y * scaleY
+                    )
+                    
+                    let width = abs(endWithOffset.x - startWithOffset.x)
+                    let height = abs(endWithOffset.y - startWithOffset.y)
+                    let rect = CGRect(
+                        x: min(startWithOffset.x, endWithOffset.x),
+                        y: min(startWithOffset.y, endWithOffset.y),
+                        width: width,
+                        height: height
+                    )
+                    
+                    // 绘制眉毛轮廓（弧形）
+                    subPath.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+                    subPath.addQuadCurve(
+                        to: CGPoint(x: rect.maxX, y: rect.maxY),
+                        controlPoint: CGPoint(x: rect.midX, y: rect.minY)
+                    )
+                    // 添加一点厚度
+                    subPath.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY + height * 0.2))
+                    subPath.addQuadCurve(
+                        to: CGPoint(x: rect.minX, y: rect.maxY + height * 0.2),
+                        controlPoint: CGPoint(x: rect.midX, y: rect.minY + height * 0.2)
+                    )
+                    subPath.close()
                 }
                 
-                // 将子路径添加到主路径
                 path.append(subPath)
             }
             
@@ -512,6 +984,9 @@ struct ImageEditView: View {
             print("[保存] 成功保存编辑状态")
         }
         isPresented = false
+        
+        // 重启摄像头
+        restartManager.handleRestartViewAppear(cameraManager: cameraManager)
     }
     
     // 恢复原始图片
@@ -540,6 +1015,9 @@ struct ImageEditView: View {
         print("[恢复原始图片] 结束")
         
         isPresented = false  // 恢复后关闭弹窗
+        
+        // 重启摄像头
+        restartManager.handleRestartViewAppear(cameraManager: cameraManager)
     }
     
     // 重置
@@ -563,6 +1041,7 @@ struct ImageEditView: View {
         sourceImage: UIImage(systemName: "photo")!,
         editedImage: .constant(nil),
         editingKey: "preview",
-        isPresented: .constant(true)
+        isPresented: .constant(true),
+        cameraManager: CameraManager()
     )
 } 

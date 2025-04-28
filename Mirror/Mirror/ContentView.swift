@@ -93,6 +93,10 @@ struct ContentView: View {
     
     // 添加参考格纹图显示状态
     @State private var showReferenceGrid = false
+    // 添加网格参数状态
+    @State private var gridSpacing: CGFloat = UserSettingsManager.shared.loadGridSettings().spacing
+    @State private var gridLineColor: Color = UserSettingsManager.shared.loadGridSettings().color
+    @State private var gridLineOpacity: Double = UserSettingsManager.shared.loadGridSettings().opacity
 
     var body: some View {
         GeometryReader { geometry in
@@ -320,10 +324,14 @@ struct ContentView: View {
                             .zIndex(5)  // 提高边框视图的层级
                     }
                     
-                    // 添加参考格纹图视图
+                    // 修改参考格纹图视图的调用和层级
                     if showReferenceGrid {
-                        ReferenceGridView()
-                            .zIndex(4)  // 确保在相机视图之上，但在工具栏之下
+                        ReferenceGridView(
+                            gridSpacing: gridSpacing,
+                            lineColor: gridLineColor,
+                            lineOpacity: gridLineOpacity
+                        )
+                        .zIndex(3)  // 调整层级到工具栏下方
                     }
                 } else {
                     CameraPermissionView()
@@ -341,9 +349,9 @@ struct ContentView: View {
                         currentScale: $currentScale,
                         baseScale: $baseScale,
                         cameraManager: cameraManager,
-                        showReferenceGrid: $showReferenceGrid  // 添加参考格纹图状态绑定
+                        showReferenceGrid: $showReferenceGrid
                     )
-                    .zIndex(6)
+                    .zIndex(6)  // 保持工具栏在较高层级
                 }
                 
                 // 添加截图操作视图
@@ -399,7 +407,7 @@ struct ContentView: View {
                 
                 // 将化妆视图移到弹窗之前
                 if showMakeupView {
-                    DraggableMakeupView(isVisible: $showMakeupView)
+                    DraggableMakeupView(isVisible: $showMakeupView, cameraManager: cameraManager)
                         .zIndex(6)  // 降低层级
                 }
                 
@@ -455,43 +463,22 @@ struct ContentView: View {
                         }
                     }
                 
-                // // 设置允许的设备方向
-                // let allowedOrientations: [UIDeviceOrientation] = [
-                //     .portrait,
-                //     .portraitUpsideDown,
-                //     .landscapeLeft,
-                //     .landscapeRight
-                // ]
-                
-                // // 记录最后一个有效方向
-                // var lastValidOrientation: UIDeviceOrientation = .portrait
-                
-                // // 添加设备方向变化通知监听
-                // NotificationCenter.default.addObserver(
-                //     forName: UIDevice.orientationDidChangeNotification,
-                //     object: nil,
-                //     queue: .main) { _ in
-                //         let newOrientation = UIDevice.current.orientation
-                        
-                //         // 只处理允许的方向，否则保持最后一个有效方向
-                //         if allowedOrientations.contains(newOrientation) {
-                //             lastValidOrientation = newOrientation
-                //             deviceOrientation = newOrientation
-                //             print("设备方向变化：\(newOrientation.rawValue)")
-                            
-                //             // 在模式B且使用Live模式下处理横屏旋转
-                //             if !cameraManager.isMirrored && cameraManager.isUsingSystemCamera {
-                //                 if newOrientation == .landscapeLeft {
-                //                     print("正常模式下向左横屏，旋转摄像头画面180度")
-                //                 } else if newOrientation == .landscapeRight {
-                //                     print("正常模式下向右横屏，旋转摄像头画面180度")
-                //                 }
-                //             }
-                //         } else {
-                //             // 保持最后一个有效方向
-                //             deviceOrientation = lastValidOrientation
-                //         }
-                //     }
+                // 添加网格设置更新通知监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("UpdateGridSettings"),
+                    object: nil,
+                    queue: .main) { _ in
+                        let settings = UserSettingsManager.shared.loadGridSettings()
+                        gridSpacing = settings.spacing
+                        gridLineColor = settings.color
+                        gridLineOpacity = settings.opacity
+                        print("------------------------")
+                        print("[网格设置] 更新参数")
+                        print("- 网格间距：\(gridSpacing)")
+                        print("- 线条颜色：\(gridLineColor)")
+                        print("- 线条透明度：\(gridLineOpacity)")
+                        print("------------------------")
+                    }
                 
                 UIDevice.current.beginGeneratingDeviceOrientationNotifications()
                 

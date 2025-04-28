@@ -800,6 +800,7 @@ struct DraggableToolbar: View {
                                         .frame(width: buttonType.size, height: buttonType.size)
                                 }
                             }
+                            .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))  // 增加触控区域到 44x44
                             .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                             .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                             .onTapGesture {
@@ -856,6 +857,7 @@ struct DraggableToolbar: View {
                                     .frame(width: buttonType.size, height: buttonType.size)
                             }
                         }
+                        .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))  // 增加触控区域到 44x44
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                         .disabled(!restartManager.isCameraActive || (buttonType == .add && !isAddButtonEnabled))

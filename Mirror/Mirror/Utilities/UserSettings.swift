@@ -27,6 +27,9 @@ private enum UserSettingsKeys {
     static let flashIntensity = "FlashIntensity"
     static let splitScreenIconImage = "splitScreenIconImage"
     static let autoEnterTwoOfMe = "autoEnterTwoOfMe"
+    static let gridSpacing = "gridSpacing"
+    static let gridLineColor = "gridLineColor"
+    static let gridLineOpacity = "gridLineOpacity"
 }
 
 // 用户设置管理器
@@ -201,6 +204,64 @@ class UserSettingsManager {
         print("------------------------")
         
         return (isEnabled: isEnabled, intensity: intensity)
+    }
+    
+    // MARK: - 网格设置
+    
+    // 保存网格设置
+    func saveGridSettings(spacing: CGFloat, color: Color, opacity: Double) {
+        print("------------------------")
+        print("[网格设置] 保存设置")
+        defaults.set(spacing, forKey: UserSettingsKeys.gridSpacing)
+        
+        // 保存颜色
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        if uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+            let colorString = "\(red),\(green),\(blue)"
+            defaults.set(colorString, forKey: UserSettingsKeys.gridLineColor)
+        }
+        
+        defaults.set(opacity, forKey: UserSettingsKeys.gridLineOpacity)
+        defaults.synchronize()
+        
+        print("- 网格间距：\(spacing)")
+        print("- 线条颜色：\(color)")
+        print("- 线条透明度：\(opacity)")
+        print("------------------------")
+    }
+    
+    // 加载网格设置
+    func loadGridSettings() -> (spacing: CGFloat, color: Color, opacity: Double) {
+        print("------------------------")
+        print("[网格设置] 加载设置")
+        
+        let spacing = CGFloat(defaults.double(forKey: UserSettingsKeys.gridSpacing))
+        let opacity = defaults.double(forKey: UserSettingsKeys.gridLineOpacity)
+        
+        // 加载颜色
+        var color: Color = .white
+        if let colorString = defaults.string(forKey: UserSettingsKeys.gridLineColor) {
+            let components = colorString.split(separator: ",").compactMap { Double($0) }
+            if components.count == 3 {
+                color = Color(red: components[0], green: components[1], blue: components[2])
+            }
+        }
+        
+        print("- 网格间距：\(spacing == 0 ? 50 : spacing)")
+        print("- 线条颜色：\(color)")
+        print("- 线条透明度：\(opacity == 0 ? 0.3 : opacity)")
+        print("------------------------")
+        
+        return (
+            spacing: spacing == 0 ? 50 : spacing,
+            color: color,
+            opacity: opacity == 0 ? 0.3 : opacity
+        )
     }
     
     // MARK: - 加载设置

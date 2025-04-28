@@ -154,6 +154,21 @@ public struct SettingsPanel: View {
     @State private var flashIntensity = AppConfig.AnimationConfig.Flash.intensity
     @State private var autoEnterTwoOfMe: Bool = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
     
+    // 添加网格设置状态
+    @State private var gridSpacing: CGFloat = UserSettingsManager.shared.loadGridSettings().spacing
+    @State private var gridLineColor: Color = UserSettingsManager.shared.loadGridSettings().color
+    @State private var gridLineOpacity: Double = UserSettingsManager.shared.loadGridSettings().opacity
+    
+    // 修改预设颜色数组，将黄色替换为指定的橙色
+    private let gridColors: [Color] = [
+        .white,
+        .red,
+        Color(red: 255/255, green: 185/255, blue: 42/255),  // 替换原来的 .yellow
+        .green,
+        .blue,
+        .black
+    ]
+    
     private var isLandscape: Bool {
         orientationManager.currentOrientation == .landscapeLeft || orientationManager.currentOrientation == .landscapeRight
     }
@@ -219,6 +234,7 @@ public struct SettingsPanel: View {
     
     // 检查是否有未保存的更改
     private func checkForChanges() -> Bool {
+        let gridSettings = UserSettingsManager.shared.loadGridSettings()
         return initialState.borderLightColor != styleManager.selectedColor ||
                initialState.borderLightWidth != styleManager.selectedWidth ||
                initialState.isDefaultGesture != styleManager.isDefaultGesture ||
@@ -227,7 +243,10 @@ public struct SettingsPanel: View {
                initialState.splitScreenIconImage != styleManager.splitScreenIconImage ||
                initialState.isFlashEnabled != isFlashEnabled ||
                initialState.flashIntensity != flashIntensity ||
-               initialState.autoEnterTwoOfMe != autoEnterTwoOfMe
+               initialState.autoEnterTwoOfMe != autoEnterTwoOfMe ||
+               gridSettings.spacing != gridSpacing ||
+               gridSettings.color != gridLineColor ||
+               gridSettings.opacity != gridLineOpacity
     }
     
     // 保存设置
@@ -239,6 +258,13 @@ public struct SettingsPanel: View {
         UserSettingsManager.shared.saveFlashSettings(
             isEnabled: isFlashEnabled,
             intensity: flashIntensity
+        )
+        
+        // 保存网格设置
+        UserSettingsManager.shared.saveGridSettings(
+            spacing: gridSpacing,
+            color: gridLineColor,
+            opacity: gridLineOpacity
         )
         
         // 同步 TwoOfMe 相关设置
@@ -496,6 +522,115 @@ public struct SettingsPanel: View {
                         .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
                         .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         .overlay(proManager.proFeatureOverlay(.flash))
+                        
+                        // 参数设置
+                        VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                            HStack {
+                                Spacer()
+                                Text("参数设置")
+                                    .font(.headline)
+                                    .foregroundColor(SettingsTheme.titleColor)
+                                Spacer()
+                            }
+                            
+                            // 网格设置
+                            VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                                HStack {
+                                    Text("网格参数")
+                                        .font(.subheadline)
+                                        .foregroundColor(SettingsTheme.titleColor)
+                                    Spacer()
+                                }
+                                .padding(.bottom, 4)
+                                
+                                // 网格间距
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("网格间距")
+                                            .font(.system(size: 15))
+                                            .foregroundColor(SettingsTheme.subtitleColor)
+                                        Spacer()
+                                        Text("\(Int(gridSpacing))")
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundColor(.blue)
+                                            .frame(width: 35, alignment: .trailing)
+                                    }
+                                    
+                                    Slider(value: $gridSpacing, in: 30...100, step: 10)
+                                        .accentColor(.blue)
+                                        .onChange(of: gridSpacing) { newValue in
+                                            UserSettingsManager.shared.saveGridSettings(
+                                                spacing: newValue,
+                                                color: gridLineColor,
+                                                opacity: gridLineOpacity
+                                            )
+                                            NotificationCenter.default.post(name: NSNotification.Name("UpdateGridSettings"), object: nil)
+                                        }
+                                }
+                                
+                                // 线条颜色
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("线条颜色")
+                                        .font(.system(size: 15))
+                                        .foregroundColor(SettingsTheme.subtitleColor)
+                                    
+                                    HStack(spacing: SettingsTheme.buttonSpacing) {
+                                        ForEach(gridColors, id: \.self) { color in
+                                            Button(action: {
+                                                gridLineColor = color
+                                                UserSettingsManager.shared.saveGridSettings(
+                                                    spacing: gridSpacing,
+                                                    color: color,
+                                                    opacity: gridLineOpacity
+                                                )
+                                                NotificationCenter.default.post(name: NSNotification.Name("UpdateGridSettings"), object: nil)
+                                            }) {
+                                                Circle()
+                                                    .fill(color)
+                                                    .frame(width: 28, height: 28)
+                                                    .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                                                    .overlay(
+                                                        Circle()
+                                                            .stroke(Color.blue, lineWidth: gridLineColor == color ? 2 : 0)
+                                                    )
+                                                    .shadow(color: Color.black.opacity(0.1), radius: 1, x: 0, y: 1)
+                                            }
+                                        }
+                                        Spacer()
+                                    }
+                                }
+                                
+                                // 线条透明度
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("线条透明度")
+                                            .font(.system(size: 15))
+                                            .foregroundColor(SettingsTheme.subtitleColor)
+                                        Spacer()
+                                        Text(String(format: "%.1f", gridLineOpacity))
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundColor(.blue)
+                                            .frame(width: 35, alignment: .trailing)
+                                    }
+                                    
+                                    Slider(value: $gridLineOpacity, in: 0.1...1.0, step: 0.1)
+                                        .accentColor(.blue)
+                                        .onChange(of: gridLineOpacity) { newValue in
+                                            UserSettingsManager.shared.saveGridSettings(
+                                                spacing: gridSpacing,
+                                                color: gridLineColor,
+                                                opacity: newValue
+                                            )
+                                            NotificationCenter.default.post(name: NSNotification.Name("UpdateGridSettings"), object: nil)
+                                        }
+                                }
+                            }
+                        }
+                        .padding(SettingsTheme.padding)
+                        .background(SettingsTheme.backgroundColor)
+                        .cornerRadius(12)
+                        .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                        .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
                         
                         // 手势设置
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {

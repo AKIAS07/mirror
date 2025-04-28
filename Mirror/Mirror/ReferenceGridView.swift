@@ -1,10 +1,10 @@
 import SwiftUI
 
 public struct ReferenceGridView: View {
-    let gridSpacing: CGFloat = 50 // 网格间距
+    let gridSpacing: CGFloat // 网格间距
     let lineWidth: CGFloat = 0.5  // 线条宽度
-    let lineColor: Color = .white // 线条颜色
-    let lineOpacity: Double = 0.3 // 线条透明度
+    let lineColor: Color // 线条颜色
+    let lineOpacity: Double // 线条透明度
     
     public var body: some View {
         GeometryReader { geometry in
@@ -47,7 +47,11 @@ public struct ReferenceGridView: View {
         .edgesIgnoringSafeArea(.all)
     }
     
-    public init() {}
+    public init(gridSpacing: CGFloat = 50, lineColor: Color = .white, lineOpacity: Double = 0.3) {
+        self.gridSpacing = gridSpacing
+        self.lineColor = lineColor
+        self.lineOpacity = lineOpacity
+    }
 }
 
 #Preview {
