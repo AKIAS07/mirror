@@ -224,7 +224,7 @@ struct ImageEditView: View {
     let sourceImage: UIImage
     @Binding var editedImage: UIImage?
     let editingKey: String
-    @Environment(\.dismiss) private var dismiss
+    @Binding var isPresented: Bool
     
     // 当前编辑状态
     @State private var paths: [DrawingPath] = []
@@ -234,124 +234,63 @@ struct ImageEditView: View {
     @State private var alertMessage = ""
     @State private var showResetAlert = false
     @State private var showCancelAlert = false
-    @State private var initialPaths: [DrawingPath] = []  // 添加初始路径状态
+    @State private var initialPaths: [DrawingPath] = []
     
     // 初始化时加载编辑状态
-    init(sourceImage: UIImage, editedImage: Binding<UIImage?>, editingKey: String) {
+    init(sourceImage: UIImage, editedImage: Binding<UIImage?>, editingKey: String, isPresented: Binding<Bool>) {
         self.sourceImage = sourceImage
         self._editedImage = editedImage
         self.editingKey = editingKey
+        self._isPresented = isPresented
         
         // 如果editedImage不为nil，说明之前保存过，需要加载上次的状态
         if editedImage.wrappedValue != nil,
            let data = UserDefaults.standard.data(forKey: editingKey),
            let state = try? JSONDecoder().decode(EditState.self, from: data) {
             self._paths = State(initialValue: state.paths)
-            self._initialPaths = State(initialValue: state.paths)  // 保存初始状态
+            self._initialPaths = State(initialValue: state.paths)
         } else {
-            // 如果editedImage为nil，说明是首次编辑，不加载任何状态
             self._paths = State(initialValue: [])
-            self._initialPaths = State(initialValue: [])  // 初始状态为空
+            self._initialPaths = State(initialValue: [])
         }
-    }
-    
-    // 取消编辑，恢复到初始状态
-    private func cancelEditing() {
-        print("------------------------")
-        print("[取消编辑] 开始")
-        print("当前路径数量: \(paths.count)")
-        print("初始路径数量: \(initialPaths.count)")
-        
-        // 恢复到初始状态
-        paths = initialPaths
-        currentPath = nil
-        
-        print("[取消编辑] 已恢复到初始状态")
-        print("恢复后路径数量: \(paths.count)")
-        print("[取消编辑] 结束")
-        
-        dismiss()
-    }
-    
-    // 保存状态
-    func saveState() {
-        print("------------------------")
-        print("[保存状态] 开始")
-        print("当前路径数量: \(paths.count)")
-        
-        // 保存到UserDefaults
-        if let data = try? JSONEncoder().encode(EditState(paths: paths)) {
-            UserDefaults.standard.set(data, forKey: editingKey)
-            print("[保存状态] 成功保存到UserDefaults")
-        } else {
-            print("[保存状态] 编码失败")
-        }
-        
-        print("[保存状态] 结束")
-        print("当前路径数量: \(paths.count)")
-    }
-    
-    // 重置
-    func reset() {
-        print("------------------------")
-        print("[重置] 开始")
-        print("当前路径数量: \(paths.count)")
-        
-        // 清空当前路径
-        paths.removeAll()
-        currentPath = nil
-        print("[重置] 已清空当前路径")
-        
-        print("[重置] 结束")
-        print("当前路径数量: \(paths.count)")
-    }
-    
-    // 恢复原始图片
-    private func restoreOriginalImage() {
-        print("------------------------")
-        print("[恢复原始图片] 开始")
-        print("当前路径数量: \(paths.count)")
-        print("初始路径数量: \(initialPaths.count)")
-        
-        // 清空所有路径
-        paths.removeAll()
-        initialPaths.removeAll()
-        currentPath = nil
-        
-        // 清除UserDefaults中保存的状态
-        UserDefaults.standard.removeObject(forKey: editingKey)
-        
-        // 恢复原始图片
-        editedImage = sourceImage
-        
-        print("[恢复原始图片] 已清空所有路径")
-        print("[恢复原始图片] 已清除保存的状态")
-        print("[恢复原始图片] 已设置为原始图片")
-        print("清空后路径数量: \(paths.count)")
-        print("清空后初始路径数量: \(initialPaths.count)")
-        print("[恢复原始图片] 结束")
-        
-        dismiss()
     }
     
     var body: some View {
-        NavigationView {
-            VStack {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // 顶部工具栏
+                HStack {
+                    Button("取消") {
+                        showCancelAlert = true
+                    }
+                    .padding(.horizontal)
+                    
+                    Spacer()
+                    
+                    Button(paths.isEmpty ? "恢复图片" : "保存") {
+                        if paths.isEmpty {
+                            restoreOriginalImage()
+                        } else {
+                            saveImage()
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .frame(height: 44)
+                .background(Color.white)
+                
                 // 工具栏
                 HStack(spacing: 20) {
-                    // 画笔工具
                     Button(action: { selectedTool = .brush }) {
                         Image(systemName: "pencil")
                             .foregroundColor(selectedTool == .brush ? .blue : .gray)
                     }
                     
-                    // 矩形工具
                     Button(action: { selectedTool = .rectangle }) {
                         Image(systemName: "rectangle")
                             .foregroundColor(selectedTool == .rectangle ? .blue : .gray)
                     }
                     
-                    // 圆形工具
                     Button(action: { selectedTool = .circle }) {
                         Image(systemName: "circle")
                             .foregroundColor(selectedTool == .circle ? .blue : .gray)
@@ -359,13 +298,13 @@ struct ImageEditView: View {
                     
                     Spacer()
                     
-                    // 重置按钮
                     Button(action: { showResetAlert = true }) {
                         Image(systemName: "trash")
                             .foregroundColor(.red)
                     }
                 }
                 .padding()
+                .background(Color.white)
                 
                 // 绘制区域
                 DrawingCanvas(
@@ -376,50 +315,40 @@ struct ImageEditView: View {
                     showAlert: $showAlert,
                     alertMessage: $alertMessage
                 )
-                .padding()
-                .onChange(of: paths) { _ in
-                    // 每当paths发生变化时打印日志
-                    print("------------------------")
-                    print("[路径变化] 当前路径数量: \(paths.count)")
-                    print("[路径变化] 初始路径数量: \(initialPaths.count)")
-                }
+                .background(Color.gray.opacity(0.2))
             }
-            .navigationBarItems(
-                leading: Button("取消") {
-                    showCancelAlert = true
-                },
-                trailing: Button(paths.isEmpty ? "恢复图片" : "保存") {
-                    if paths.isEmpty {
-                        restoreOriginalImage()
-                    } else {
-                        saveImage()
-                    }
-                }
-            )
-            .alert("提示", isPresented: $showAlert) {
-                Button("确定") {}
-            } message: {
-                Text(alertMessage)
+        }
+        .alert("提示", isPresented: $showAlert) {
+            Button("确定") {}
+        } message: {
+            Text(alertMessage)
+        }
+        .alert("重置确认", isPresented: $showResetAlert) {
+            Button("取消", role: .cancel) {}
+            Button("确定", role: .destructive) {
+                reset()
             }
-            .alert("重置确认", isPresented: $showResetAlert) {
-                Button("取消", role: .cancel) {}
-                Button("确定", role: .destructive) {
-                    reset()
-                }
-            } message: {
-                Text("确定要清除所有编辑内容吗？")
+        } message: {
+            Text("确定要清除所有编辑内容吗？")
+        }
+        .alert("取消确认", isPresented: $showCancelAlert) {
+            Button("继续编辑", role: .cancel) {}
+            Button("确认取消", role: .destructive) {
+                cancelEditing()
             }
-            .alert("取消确认", isPresented: $showCancelAlert) {
-                Button("继续编辑", role: .cancel) {}
-                Button("确认取消", role: .destructive) {
-                    cancelEditing()
-                }
-            } message: {
-                Text("点击取消，本次绘图操作不会保存")
-            }
+        } message: {
+            Text("点击取消，本次绘图操作不会保存")
         }
     }
     
+    // 取消编辑，恢复到初始状态
+    private func cancelEditing() {
+        paths = initialPaths
+        currentPath = nil
+        isPresented = false
+    }
+    
+    // 保存状态
     private func saveImage() {
         guard !paths.isEmpty else {
             showAlert = true
@@ -431,12 +360,12 @@ struct ImageEditView: View {
         print("[保存] 原始图片尺寸: \(sourceImage.size)")
         
         // 使用固定的4:3显示区域
-        let displayWidth: CGFloat = 329.0  // 固定与绘制时相同的宽度
+        let displayWidth: CGFloat = 321.7  // 与绘制时保持一致
         let displayHeight = displayWidth * 4 / 3
         
         let displayFrame = CGRect(
             x: 16,
-            y: 80.33333333333334,  // 固定与绘制时相同的Y坐标
+            y: 39.4666666666667,  // 与绘制时保持一致
             width: displayWidth,
             height: displayHeight
         )
@@ -510,10 +439,10 @@ struct ImageEditView: View {
                     subPath.move(to: firstPoint)
                     
                     for point in drawingPath.points.dropFirst() {
-                        subPath.addLine(to: convertPoint(point))
+                        let convertedPoint = convertPoint(point)
+                        subPath.addLine(to: convertedPoint)
                     }
                     
-                    // 检查路径是否闭合
                     if drawingPath.points.isPathClosed() {
                         subPath.close()
                     }
@@ -536,25 +465,17 @@ struct ImageEditView: View {
                     let start = drawingPath.points[0]
                     let end = drawingPath.points.last ?? start
                     
-                    // 先计算相对坐标
-                    let relativeStart = CGPoint(
-                        x: start.x - imageFrame.minX,
-                        y: start.y - imageFrame.minY
-                    )
-                    let relativeEnd = CGPoint(
-                        x: end.x - imageFrame.minX,
-                        y: end.y - imageFrame.minY
-                    )
+                    let convertedStart = convertPoint(start)
+                    let convertedEnd = convertPoint(end)
                     
-                    // 计算圆心和半径（使用相对坐标）
                     let center = CGPoint(
-                        x: (relativeStart.x + relativeEnd.x) / 2 * scaleX,
-                        y: (relativeStart.y + relativeEnd.y) / 2 * scaleY
+                        x: (convertedStart.x + convertedEnd.x) / 2,
+                        y: (convertedStart.y + convertedEnd.y) / 2
                     )
                     let radius = sqrt(
-                        pow(relativeEnd.x - relativeStart.x, 2) +
-                        pow(relativeEnd.y - relativeStart.y, 2)
-                    ) / 2 * scaleX
+                        pow(convertedEnd.x - convertedStart.x, 2) +
+                        pow(convertedEnd.y - convertedStart.y, 2)
+                    ) / 2
                     
                     subPath.addArc(
                         withCenter: center,
@@ -590,7 +511,50 @@ struct ImageEditView: View {
             UserDefaults.standard.set(data, forKey: editingKey)
             print("[保存] 成功保存编辑状态")
         }
-        dismiss()
+        isPresented = false
+    }
+    
+    // 恢复原始图片
+    private func restoreOriginalImage() {
+        print("------------------------")
+        print("[恢复原始图片] 开始")
+        print("当前路径数量: \(paths.count)")
+        print("初始路径数量: \(initialPaths.count)")
+        
+        // 清空所有路径
+        paths.removeAll()
+        initialPaths.removeAll()
+        currentPath = nil
+        
+        // 清除UserDefaults中保存的状态
+        UserDefaults.standard.removeObject(forKey: editingKey)
+        
+        // 恢复原始图片
+        editedImage = sourceImage
+        
+        print("[恢复原始图片] 已清空所有路径")
+        print("[恢复原始图片] 已清除保存的状态")
+        print("[恢复原始图片] 已设置为原始图片")
+        print("清空后路径数量: \(paths.count)")
+        print("清空后初始路径数量: \(initialPaths.count)")
+        print("[恢复原始图片] 结束")
+        
+        isPresented = false  // 恢复后关闭弹窗
+    }
+    
+    // 重置
+    func reset() {
+        print("------------------------")
+        print("[重置] 开始")
+        print("当前路径数量: \(paths.count)")
+        
+        // 清空当前路径
+        paths.removeAll()
+        currentPath = nil
+        print("[重置] 已清空当前路径")
+        
+        print("[重置] 结束")
+        print("当前路径数量: \(paths.count)")
     }
 }
 
@@ -598,6 +562,7 @@ struct ImageEditView: View {
     ImageEditView(
         sourceImage: UIImage(systemName: "photo")!,
         editedImage: .constant(nil),
-        editingKey: "preview"
+        editingKey: "preview",
+        isPresented: .constant(true)
     )
 } 

@@ -38,6 +38,7 @@ struct DraggableMakeupView: View {
     @State private var showImageEditor = false
     @StateObject private var permissionManager = PermissionManager.shared
     @StateObject private var proManager = ProManager.shared  // 添加 ProManager 引用
+    @State private var isSimplifiedMode: Bool = false  // 添加简化模式状态
     
     // 使用DeviceOrientationManager替代原有的设备方向控制
     @StateObject private var orientationManager = DeviceOrientationManager.shared
@@ -130,40 +131,46 @@ struct DraggableMakeupView: View {
                     }
                 
                 VStack(spacing: 0) {
-                    // 上区 - 关闭按钮和编辑按钮
+                    // 上区 - 保持结构但在简化模式下透明且不可交互
                     HStack {
                         Spacer()
                         if selectedImage != nil {
                             Button(action: {
-                                showImageEditor = true
-                                print("------------------------")
-                                print("[化妆视图] 编辑按钮点击")
-                                print("显示图片编辑器")
-                                print("------------------------")
+                                if !isSimplifiedMode {
+                                    showImageEditor = true
+                                    print("------------------------")
+                                    print("[化妆视图] 编辑按钮点击")
+                                    print("显示图片编辑器")
+                                    print("------------------------")
+                                }
                             }) {
                                 Image(systemName: "slider.horizontal.3")
                                     .font(.system(size: 20))
-                                    .foregroundColor(styleManager.iconColor)
+                                    .foregroundColor(isSimplifiedMode ? .clear : styleManager.iconColor)
                             }
                             .frame(width: 40, height: topAreaHeight)
                             .contentShape(Rectangle())
+                            .allowsHitTesting(!isSimplifiedMode)
                         }
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isVisible = false
+                            if !isSimplifiedMode {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isVisible = false
+                                }
                             }
                         }) {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 20))
-                                .foregroundColor(styleManager.iconColor)
+                                .foregroundColor(isSimplifiedMode ? .clear : styleManager.iconColor)
                         }
                         .frame(width: 40, height: topAreaHeight)
                         .contentShape(Rectangle())
+                        .allowsHitTesting(!isSimplifiedMode)
                         Spacer()
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: topAreaHeight)
-                    .background(Color.black.opacity(0.15))
+                    .background(isSimplifiedMode ? Color.clear : Color.black.opacity(0.15))
                     .zIndex(2)
                     
                     // 中央区 - 显示选择的图片或上传按钮
@@ -276,7 +283,7 @@ struct DraggableMakeupView: View {
                                 .position(x: totalWidth/2, y: centerAreaHeight/2)
                             }
                             .frame(width: totalWidth, height: centerAreaHeight)
-                            .clipped() // 确保内容被裁剪在边界内
+                            .clipped()
                         } else {
                             Button(action: {
                                 if proManager.isPro {
@@ -292,7 +299,6 @@ struct DraggableMakeupView: View {
                             }) {
                                 VStack(spacing: 10) {
                                     if !proManager.isPro {
-                                        // 非会员显示锁定图标
                                         Image(systemName: "lock.fill")
                                             .font(.system(size: 30))
                                             .foregroundColor(styleManager.iconColor)
@@ -301,20 +307,22 @@ struct DraggableMakeupView: View {
                                     Image(systemName: "photo.badge.plus")
                                         .font(.system(size: 30))
                                         .foregroundColor(styleManager.iconColor.opacity(proManager.isPro ? 1 : 0.5))
-                                    Text(proManager.isPro ? "上传图片" : "上传图片")
-                                        .foregroundColor(styleManager.iconColor.opacity(proManager.isPro ? 1 : 0.5))
-                                        .font(.system(size: 16))
+                                    if !isSimplifiedMode {
+                                        Text(proManager.isPro ? "上传图片" : "上传图片")
+                                            .foregroundColor(styleManager.iconColor.opacity(proManager.isPro ? 1 : 0.5))
+                                            .font(.system(size: 16))
+                                    }
                                 }
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.black.opacity(0.4))
+                            .background(isSimplifiedMode ? Color.clear : Color.black.opacity(0.4))
                         }
                     }
                     .frame(width: totalWidth, height: centerAreaHeight)
-                    .background(Color.black.opacity(0.4))
+                    .background(isSimplifiedMode ? Color.clear : Color.black.opacity(0.4))
                     .clipped()
                     
-                    // 下区 - 拖拽区域
+                    // 下区 - 拖拽区域，始终显示但根据模式调整样式
                     HStack {
                         Image("icon-star")
                             .resizable()
@@ -322,10 +330,19 @@ struct DraggableMakeupView: View {
                             .scaledToFit()
                             .frame(width: 20, height: 20)
                             .foregroundColor(styleManager.iconColor.opacity(0.9))
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isSimplifiedMode.toggle()
+                                    print("------------------------")
+                                    print("[化妆视图] 切换显示模式")
+                                    print("当前模式：\(isSimplifiedMode ? "简化" : "完整")")
+                                    print("------------------------")
+                                }
+                            }
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: bottomAreaHeight)
-                    .background(Color.black.opacity(0.15))
+                    .background(isSimplifiedMode ? Color.clear : Color.black.opacity(0.15))
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .global)
@@ -346,7 +363,6 @@ struct DraggableMakeupView: View {
                                 
                                 dragOffset = translation
                                 
-                                // 打印当前位置
                                 print("------------------------")
                                 print("[化妆视图] 拖动中")
                                 print("当前位置：x=\(position.x), y=\(position.y)")
@@ -355,7 +371,6 @@ struct DraggableMakeupView: View {
                             .onEnded { _ in
                                 dragOffset = .zero
                                 
-                                // 打印拖动结束后的位置
                                 print("------------------------")
                                 print("[化妆视图] 拖动结束")
                                 print("最终位置：x=\(position.x), y=\(position.y)")
@@ -366,15 +381,17 @@ struct DraggableMakeupView: View {
                 }
                 .frame(width: totalWidth, height: totalHeight)
                 .cornerRadius(12)
-                .shadow(radius: 10)
+                .shadow(radius: isSimplifiedMode ? 0 : 10)  // 简化模式下移除阴影
+                .background(isSimplifiedMode ? Color.clear : Color.black.opacity(0.15))  // 简化模式下移除背景
                 .rotationEffect(orientationManager.getRotationAngle(orientationManager.validOrientation))
                 .position(x: position.x, y: position.y)
-                .sheet(isPresented: $showImageEditor) {
-                    if let original = originalImage {  // 使用原始图片
+                .customPopup(isPresented: $showImageEditor) {
+                    if let original = originalImage {
                         ImageEditView(
                             sourceImage: original,
                             editedImage: $selectedImage,
-                            editingKey: "makeup_edit_\(original.hashValue)"  // 添加唯一的编辑状态键
+                            editingKey: "makeup_edit_\(original.hashValue)",
+                            isPresented: $showImageEditor
                         )
                     }
                 }
