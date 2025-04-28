@@ -467,17 +467,23 @@ struct ContentView: View {
                 NotificationCenter.default.addObserver(
                     forName: NSNotification.Name("UpdateGridSettings"),
                     object: nil,
-                    queue: .main) { _ in
-                        let settings = UserSettingsManager.shared.loadGridSettings()
-                        gridSpacing = settings.spacing
-                        gridLineColor = settings.color
-                        gridLineOpacity = settings.opacity
-                        print("------------------------")
-                        print("[网格设置] 更新参数")
-                        print("- 网格间距：\(gridSpacing)")
-                        print("- 线条颜色：\(gridLineColor)")
-                        print("- 线条透明度：\(gridLineOpacity)")
-                        print("------------------------")
+                    queue: .main) { notification in
+                        if let userInfo = notification.userInfo,
+                           let spacing = userInfo["spacing"] as? CGFloat,
+                           let color = userInfo["color"] as? Color,
+                           let opacity = userInfo["opacity"] as? Double {
+                            // 直接更新预览，不保存设置
+                            gridSpacing = spacing
+                            gridLineColor = color
+                            gridLineOpacity = opacity
+                            
+                            print("------------------------")
+                            print("[网格设置] 更新预览")
+                            print("- 网格间距：\(spacing)")
+                            print("- 线条颜色：\(color)")
+                            print("- 线条透明度：\(opacity)")
+                            print("------------------------")
+                        }
                     }
                 
                 UIDevice.current.beginGeneratingDeviceOrientationNotifications()

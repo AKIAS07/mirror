@@ -217,24 +217,14 @@ public struct SettingsPanel: View {
         var isFlashEnabled: Bool = AppConfig.AnimationConfig.Flash.isEnabled
         var flashIntensity: AppConfig.AnimationConfig.Flash.Intensity = AppConfig.AnimationConfig.Flash.intensity
         var autoEnterTwoOfMe: Bool = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
-        
-        // 修改构造函数
-        init() {
-            self.borderLightColor = BorderLightStyleManager.shared.selectedColor
-            self.borderLightWidth = BorderLightStyleManager.shared.selectedWidth
-            self.isDefaultGesture = BorderLightStyleManager.shared.isDefaultGesture
-            self.iconColor = BorderLightStyleManager.shared.iconColor
-            self.splitScreenIconColor = BorderLightStyleManager.shared.splitScreenIconColor
-            self.splitScreenIconImage = BorderLightStyleManager.shared.splitScreenIconImage
-            self.isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
-            self.flashIntensity = AppConfig.AnimationConfig.Flash.intensity
-            self.autoEnterTwoOfMe = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
-        }
+        // 添加网格设置的初始状态
+        var gridSpacing: CGFloat = UserSettingsManager.shared.loadGridSettings().spacing
+        var gridLineColor: Color = UserSettingsManager.shared.loadGridSettings().color
+        var gridLineOpacity: Double = UserSettingsManager.shared.loadGridSettings().opacity
     }
     
     // 检查是否有未保存的更改
     private func checkForChanges() -> Bool {
-        let gridSettings = UserSettingsManager.shared.loadGridSettings()
         return initialState.borderLightColor != styleManager.selectedColor ||
                initialState.borderLightWidth != styleManager.selectedWidth ||
                initialState.isDefaultGesture != styleManager.isDefaultGesture ||
@@ -244,9 +234,9 @@ public struct SettingsPanel: View {
                initialState.isFlashEnabled != isFlashEnabled ||
                initialState.flashIntensity != flashIntensity ||
                initialState.autoEnterTwoOfMe != autoEnterTwoOfMe ||
-               gridSettings.spacing != gridSpacing ||
-               gridSettings.color != gridLineColor ||
-               gridSettings.opacity != gridLineOpacity
+               initialState.gridSpacing != gridSpacing ||
+               initialState.gridLineColor != gridLineColor ||
+               initialState.gridLineOpacity != gridLineOpacity
     }
     
     // 保存设置
@@ -312,6 +302,22 @@ public struct SettingsPanel: View {
         // 恢复自动进入双屏设置
         autoEnterTwoOfMe = initialState.autoEnterTwoOfMe
         UserSettingsManager.shared.saveAutoEnterTwoOfMe(initialState.autoEnterTwoOfMe)
+        
+        // 恢复网格设置
+        gridSpacing = initialState.gridSpacing
+        gridLineColor = initialState.gridLineColor
+        gridLineOpacity = initialState.gridLineOpacity
+        
+        // 发送通知更新预览
+        NotificationCenter.default.post(
+            name: NSNotification.Name("UpdateGridSettings"),
+            object: nil,
+            userInfo: [
+                "spacing": initialState.gridSpacing,
+                "color": initialState.gridLineColor,
+                "opacity": initialState.gridLineOpacity
+            ]
+        )
         
         // 发送通知更新 UI
         NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
@@ -559,12 +565,16 @@ public struct SettingsPanel: View {
                                     Slider(value: $gridSpacing, in: 30...100, step: 10)
                                         .accentColor(.blue)
                                         .onChange(of: gridSpacing) { newValue in
-                                            UserSettingsManager.shared.saveGridSettings(
-                                                spacing: newValue,
-                                                color: gridLineColor,
-                                                opacity: gridLineOpacity
+                                            // 只发送通知更新预览，不保存设置
+                                            NotificationCenter.default.post(
+                                                name: NSNotification.Name("UpdateGridSettings"),
+                                                object: nil,
+                                                userInfo: [
+                                                    "spacing": newValue,
+                                                    "color": gridLineColor,
+                                                    "opacity": gridLineOpacity
+                                                ]
                                             )
-                                            NotificationCenter.default.post(name: NSNotification.Name("UpdateGridSettings"), object: nil)
                                         }
                                 }
                                 
@@ -578,12 +588,16 @@ public struct SettingsPanel: View {
                                         ForEach(gridColors, id: \.self) { color in
                                             Button(action: {
                                                 gridLineColor = color
-                                                UserSettingsManager.shared.saveGridSettings(
-                                                    spacing: gridSpacing,
-                                                    color: color,
-                                                    opacity: gridLineOpacity
+                                                // 只发送通知更新预览，不保存设置
+                                                NotificationCenter.default.post(
+                                                    name: NSNotification.Name("UpdateGridSettings"),
+                                                    object: nil,
+                                                    userInfo: [
+                                                        "spacing": gridSpacing,
+                                                        "color": color,
+                                                        "opacity": gridLineOpacity
+                                                    ]
                                                 )
-                                                NotificationCenter.default.post(name: NSNotification.Name("UpdateGridSettings"), object: nil)
                                             }) {
                                                 Circle()
                                                     .fill(color)
@@ -616,12 +630,16 @@ public struct SettingsPanel: View {
                                     Slider(value: $gridLineOpacity, in: 0.1...1.0, step: 0.1)
                                         .accentColor(.blue)
                                         .onChange(of: gridLineOpacity) { newValue in
-                                            UserSettingsManager.shared.saveGridSettings(
-                                                spacing: gridSpacing,
-                                                color: gridLineColor,
-                                                opacity: newValue
+                                            // 只发送通知更新预览，不保存设置
+                                            NotificationCenter.default.post(
+                                                name: NSNotification.Name("UpdateGridSettings"),
+                                                object: nil,
+                                                userInfo: [
+                                                    "spacing": gridSpacing,
+                                                    "color": gridLineColor,
+                                                    "opacity": newValue
+                                                ]
                                             )
-                                            NotificationCenter.default.post(name: NSNotification.Name("UpdateGridSettings"), object: nil)
                                         }
                                 }
                             }
