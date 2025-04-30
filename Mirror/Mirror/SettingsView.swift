@@ -984,6 +984,9 @@ public struct SettingsPanel: View {
                 }
                 // 发送设置页面关闭通知
                 NotificationCenter.default.post(name: NSNotification.Name("SettingsDismissed"), object: nil)
+                
+                // 恢复工具条显示
+                NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
             }
         }
         .transition(.opacity)

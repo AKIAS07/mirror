@@ -150,7 +150,7 @@ struct DraggableMakeupView: View {
                                     restartManager.showRestartHint = true
                                 }
                             }) {
-                                Image(systemName: "slider.horizontal.3")
+                                Image(systemName: "pencil.and.outline")
                                     .font(.system(size: 20))
                                     .foregroundColor(isSimplifiedMode ? .clear : styleManager.iconColor)
                             }

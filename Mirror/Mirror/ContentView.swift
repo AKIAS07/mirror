@@ -938,6 +938,8 @@ struct ContentView: View {
                 
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showSettings = true
+                    // 隐藏工具条但不影响其他视图
+                    NotificationCenter.default.post(name: NSNotification.Name("HideToolbars"), object: nil)
                 }
             },
             deviceOrientation: orientationManager.currentOrientation,
@@ -960,6 +962,8 @@ struct ContentView: View {
                 
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showHelp = true
+                    // 隐藏工具条但不影响其他视图
+                    NotificationCenter.default.post(name: NSNotification.Name("HideToolbars"), object: nil)
                 }
             },
             deviceOrientation: orientationManager.currentOrientation,

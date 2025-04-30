@@ -234,6 +234,9 @@ struct DrawingCanvasView: View {
     @State private var showStraightLine = false
     @State private var straightLinePreview: Line?
     
+    // 添加新的状态变量
+    @State private var shouldHideToolbar: Bool = false  // 仅控制工具栏的显示/隐藏
+    
     // 初始化时设置画笔状态
     init(isVisible: Binding<Bool>, isPinned: Binding<Bool>) {
         self._isVisible = isVisible
@@ -485,7 +488,7 @@ struct DrawingCanvasView: View {
                 }
                 
                 // UI层
-                if isVisible && showToolbar {
+                if isVisible && showToolbar && !shouldHideToolbar {
                     VStack {
                         if !isPinned {
                             VStack(spacing: 15) {
@@ -736,10 +739,31 @@ struct DrawingCanvasView: View {
         .onAppear {
             // 当绘画视图出现时，隐藏工具条
             NotificationCenter.default.post(name: NSNotification.Name("HideToolbars"), object: nil)
+            
+            // 添加通知监听器
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("HideToolbars"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                withAnimation {
+                    shouldHideToolbar = true  // 只隐藏工具栏，不影响整个视图
+                }
+            }
+            
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ShowToolbars"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                withAnimation {
+                    shouldHideToolbar = false  // 只显示工具栏，不影响整个视图
+                }
+            }
+            
             showToolbar = true
         }
         .onChange(of: isPinned) { newValue in
-            // 当固定状态改变时，发送相应的通知
             if newValue {
                 NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
             } else {
