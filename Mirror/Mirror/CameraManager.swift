@@ -266,17 +266,16 @@ class CameraManager: ObservableObject {
             session.commitConfiguration()
             print("[相机设置] 配置提交完成")
             
-            // 在单独的队列中启动会话
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // 在主队列中启动会话
+            DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
-                
-                // 确保会话没有在运行
                 if !self.session.isRunning {
                     print("------------------------")
                     print("[相机设置] 启动会话")
                     print("------------------------")
                     self.session.startRunning()
                 }
+                self.isSettingUpCamera = false
             }
             
         } catch {
@@ -284,9 +283,8 @@ class CameraManager: ObservableObject {
             print("[相机设置] 错误：\(error.localizedDescription)")
             print("------------------------")
             session.commitConfiguration()
+            isSettingUpCamera = false
         }
-        
-        isSettingUpCamera = false
     }
     
     // 修改 configureSystemCamera 方法

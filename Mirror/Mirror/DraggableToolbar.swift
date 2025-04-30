@@ -248,23 +248,14 @@ struct DraggableToolbar: View {
                 .onAppear {
                     // 添加通知监听器
                     NotificationCenter.default.addObserver(
-                        forName: NSNotification.Name("HideToolbars"),
+                        forName: NSNotification.Name("UpdateButtonColors"),
                         object: nil,
                         queue: .main
                     ) { _ in
-                        withAnimation {
-                            shouldHideToolbar = true
-                        }
-                    }
-                    
-                    NotificationCenter.default.addObserver(
-                        forName: NSNotification.Name("ShowToolbars"),
-                        object: nil,
-                        queue: .main
-                    ) { _ in
-                        withAnimation {
-                            shouldHideToolbar = false
-                        }
+                        print("------------------------")
+                        print("[工具栏] 接收到主题颜色变化通知")
+                        print("当前主题颜色：\(styleManager.iconColor)")
+                        print("------------------------")
                     }
                 }
             }

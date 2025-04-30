@@ -29,7 +29,7 @@ let mainScreenColors: [ColorOption] = [
     ColorOption(color: .white, image: "icon-bf-white", background: Color.gray.opacity(0.5), useOriginalColor: false),
     ColorOption(color: Color(red: 240/255, green: 234/255, blue: 218/255), image: "icon-bf-white", background: Color.gray.opacity(0.5), useOriginalColor: false),
     ColorOption(color: Color(red: 190/255, green: 152/255, blue: 170/255), image: "icon-bf-white", background: nil, useOriginalColor: false),
-    //ColorOption(color: Color(red: 200/255, green: 183/255, blue: 166/255), image: "icon-bf-white", background: nil, useOriginalColor: false)
+    ColorOption(color: Color(red: 43/255, green: 49/255, blue: 63/255), image: "icon-bf-white", background: nil, useOriginalColor: false)
     
 ]
 

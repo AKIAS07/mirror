@@ -9,7 +9,13 @@ struct ColorPickerView: View {
     
     // 预设颜色数组
     private let colors: [Color] = [
-        .red, .yellow, .blue, .green, .purple, .black, .white
+        Color(red: 255/255, green: 255/255, blue: 255/255),  //颜色1
+        Color(red: 104/255, green: 109/255, blue: 203/255),  //颜色2
+        Color(red: 58/255, green: 187/255, blue: 201/255),   //颜色3
+        Color(red: 155/255, green: 202/255, blue: 62/255),   //颜色4
+        Color(red: 254/255, green: 235/255, blue: 81/255),   //颜色5
+        Color(red: 237/255, green: 83/255, blue: 20/255),   //颜色6
+        Color(red: 207/255, green: 3/255, blue: 92/255),    //颜色7
     ]
     
     var body: some View {
@@ -49,12 +55,21 @@ struct ColorPickerView: View {
                         }
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedColor)
                     }
+                    
+                    // 添加自定义颜色选择器
+                    ColorPicker("", selection: $selectedColor)
+                        .labelsHidden()
+                        .frame(width: 24, height: 24)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white, lineWidth: 1)
+                        )
                 }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 8)
                 .frame(maxWidth: .infinity)
             }
-            .frame(width: 250)
+            .frame(width: 300)
             .background(Color.black.opacity(0.7))
             .cornerRadius(8)
             .position(x: geometry.size.width/2, y: geometry.size.height/2 - 300)
@@ -69,6 +84,7 @@ enum ShapeType {
     case circle
     case heart
     case cross
+    case star
 }
 
 // 形状绘制模式
@@ -88,7 +104,8 @@ struct ShapePickerView: View {
         (.rectangle, "rectangle"),
         (.circle, "circle"),
         (.heart, "heart"),
-        (.cross, "plus")
+        (.cross, "plus"),
+        (.star, "star")
     ]
     
     var body: some View {
@@ -167,7 +184,7 @@ struct ShapePickerView: View {
                 .padding(.bottom, 8)
                 .frame(maxWidth: .infinity)
             }
-            .frame(width: 180)
+            .frame(width: 280)
             .background(Color.black.opacity(0.7))
             .cornerRadius(8)
             .position(x: geometry.size.width/2, y: geometry.size.height/2 - 300)
@@ -261,6 +278,8 @@ struct DrawingCanvasView: View {
             return "heart"
         case .cross:
             return "plus"
+        case .star:
+            return "star"
         }
     }
     
@@ -319,7 +338,7 @@ struct DrawingCanvasView: View {
                                     ))
                                 }
                             } else if let rect = line.boundingRect {
-                                renderShape(line.shape, in: rect, context: context, settings: line.settings)
+                                DrawingShapeRenderer.renderShape(line.shape, in: rect, context: context, settings: line.settings)
                             }
                         }
                         
@@ -383,7 +402,7 @@ struct DrawingCanvasView: View {
                                     context.stroke(path, with: .color(currentLine.settings.color.opacity(currentLine.settings.opacity)), style: strokeStyle)
                                 }
                             } else if let rect = currentLine.boundingRect {
-                                renderShape(currentLine.shape, in: rect, context: context, settings: currentLine.settings)
+                                DrawingShapeRenderer.renderShape(currentLine.shape, in: rect, context: context, settings: currentLine.settings)
                             }
                         }
                     }
@@ -589,7 +608,7 @@ struct DrawingCanvasView: View {
                                     
                                     // Pin按钮
                                     Button(action: {
-                                        if let image = renderDrawingToImage(size: geometry.size) {
+                                        if let image = DrawingShapeRenderer.renderDrawingToImage(lines: lines, size: geometry.size) {
                                             withAnimation {
                                                 pinnedImage = image
                                                 isPinned = true
@@ -628,7 +647,7 @@ struct DrawingCanvasView: View {
                                     HStack(spacing: 20) {
                                         // 线条粗细滑块
                                         HStack {
-                                            Image(systemName: "line.horizontal")
+                                            Image(systemName: "line.horizontal.3")
                                                 .foregroundColor(.white)
                                             Slider(value: $brushSettings.lineWidth, in: 1...20)
                                                 .frame(width: 100)
@@ -785,264 +804,6 @@ struct DrawingCanvasView: View {
             currentTool = .eraser
             brushSettings.isEraser = true
             brushSettings.shapeType = .none  // 切换到橡皮擦时清除形状
-        }
-    }
-    
-    // 修改renderShape函数
-    private func renderShape(_ shape: ShapeType, in rect: CGRect, context: GraphicsContext, settings: BrushSettings) {
-        let color = settings.color.opacity(settings.opacity)
-        let lineWidth = settings.lineWidth
-        
-        switch shape {
-        case .rectangle:
-            let path = Path(rect)
-            if settings.shapeDrawingMode == .fill {
-                context.fill(path, with: .color(color))
-            } else {
-                context.stroke(path, with: .color(color), lineWidth: lineWidth)
-            }
-            
-        case .circle:
-            let diameter = min(rect.width, rect.height)
-            let circleRect = CGRect(x: rect.midX - diameter/2, y: rect.midY - diameter/2, width: diameter, height: diameter)
-            let path = Path(ellipseIn: circleRect)
-            if settings.shapeDrawingMode == .fill {
-                context.fill(path, with: .color(color))
-            } else {
-                context.stroke(path, with: .color(color), lineWidth: lineWidth)
-            }
-            
-        case .heart:
-            var path = Path()
-            let width = rect.width
-            let height = rect.height
-            
-            // 计算缩放比例，使心形大小适应矩形区域
-            let scale = min(width, height) / 32 // 因为x的范围是[-16,16]
-            let centerX = rect.midX
-            let centerY = rect.midY
-            
-            // 使用参数方程绘制心形
-            var first = true
-            for i in stride(from: 0, through: Double.pi * 2, by: 0.01) {
-                // 参数方程
-                let x = 16 * pow(sin(i), 3)
-                let y = 13 * cos(i) - 5 * cos(2 * i) - 2 * cos(3 * i) - cos(4 * i)
-                
-                // 转换到实际坐标
-                let point = CGPoint(
-                    x: centerX + x * scale,
-                    y: centerY - y * scale // 翻转y轴方向
-                )
-                
-                if first {
-                    path.move(to: point)
-                    first = false
-                } else {
-                    path.addLine(to: point)
-                }
-            }
-            path.closeSubpath() // 确保路径闭合
-            
-            if settings.shapeDrawingMode == .fill {
-                context.fill(path, with: .color(color))
-            } else {
-                context.stroke(path, with: .color(color), lineWidth: lineWidth)
-            }
-            
-        case .cross:
-            var path = Path()
-            let centerX = rect.midX
-            let centerY = rect.midY
-            let armLength = min(rect.width, rect.height) * 0.4
-            
-            // 垂直线
-            path.move(to: CGPoint(x: centerX, y: centerY - armLength))
-            path.addLine(to: CGPoint(x: centerX, y: centerY + armLength))
-            
-            // 水平线
-            path.move(to: CGPoint(x: centerX - armLength, y: centerY))
-            path.addLine(to: CGPoint(x: centerX + armLength, y: centerY))
-            
-            context.stroke(path, with: .color(color), lineWidth: lineWidth)
-            
-        case .none:
-            break
-        }
-    }
-    
-    // 修改renderDrawingToImage函数，正确处理橡皮擦效果
-    private func renderDrawingToImage(size: CGSize) -> UIImage? {
-        let renderer = UIGraphicsImageRenderer(size: size)
-        
-        return renderer.image { context in
-            // 创建一个临时的图像上下文来绘制所有内容
-            let tempRenderer = UIGraphicsImageRenderer(size: size)
-            let baseImage = tempRenderer.image { tempContext in
-                UIColor.clear.setFill()
-                tempContext.fill(CGRect(origin: .zero, size: size))
-                
-                // 首先绘制所有非橡皮擦的线条和形状
-                for line in lines where !line.settings.isEraser {
-                    if line.shape == ShapeType.none {
-                        let path = UIBezierPath()
-                        guard let firstPoint = line.points.first else { continue }
-                        path.move(to: firstPoint)
-                        
-                        // 添加贝塞尔曲线平滑处理
-                        if line.points.count > 2 {
-                            for i in 0..<line.points.count - 1 {
-                                let current = line.points[i]
-                                let next = line.points[i + 1]
-                                let mid = CGPoint(
-                                    x: (current.x + next.x) / 2,
-                                    y: (current.y + next.y) / 2
-                                )
-                                
-                                if i == 0 {
-                                    path.move(to: current)
-                                }
-                                
-                                path.addQuadCurve(to: mid, controlPoint: current)
-                                
-                                if i == line.points.count - 2 {
-                                    path.addLine(to: next)
-                                }
-                            }
-                        } else {
-                            for point in line.points.dropFirst() {
-                                path.addLine(to: point)
-                            }
-                        }
-                        
-                        let uiColor = UIColor(line.settings.color)
-                        uiColor.withAlphaComponent(line.settings.opacity).setStroke()
-                        path.lineWidth = line.settings.lineWidth
-                        path.lineCapStyle = .round
-                        path.lineJoinStyle = .round
-                        path.stroke()
-                    } else if let rect = line.boundingRect {
-                        drawShape(line.shape, in: rect, with: line.settings, in: tempContext.cgContext)
-                    }
-                }
-            }
-            
-            // 将基础图像绘制到最终上下文
-            baseImage.draw(at: .zero)
-            
-            // 应用橡皮擦效果，同样使用贝塞尔曲线平滑处理
-            context.cgContext.setBlendMode(.clear)
-            for line in lines where line.settings.isEraser {
-                let path = UIBezierPath()
-                guard let firstPoint = line.points.first else { continue }
-                path.move(to: firstPoint)
-                
-                if line.points.count > 2 {
-                    for i in 0..<line.points.count - 1 {
-                        let current = line.points[i]
-                        let next = line.points[i + 1]
-                        let mid = CGPoint(
-                            x: (current.x + next.x) / 2,
-                            y: (current.y + next.y) / 2
-                        )
-                        
-                        if i == 0 {
-                            path.move(to: current)
-                        }
-                        
-                        path.addQuadCurve(to: mid, controlPoint: current)
-                        
-                        if i == line.points.count - 2 {
-                            path.addLine(to: next)
-                        }
-                    }
-                } else {
-                    for point in line.points.dropFirst() {
-                        path.addLine(to: point)
-                    }
-                }
-                
-                UIColor.white.setStroke()
-                path.lineWidth = line.settings.lineWidth
-                path.lineCapStyle = .round
-                path.lineJoinStyle = .round
-                path.stroke()
-            }
-            context.cgContext.setBlendMode(.normal)
-        }
-    }
-    
-    // 修改drawShape函数
-    private func drawShape(_ shape: ShapeType, in rect: CGRect, with settings: BrushSettings, in context: CGContext) {
-        let path = UIBezierPath()
-        let uiColor = UIColor(settings.color)
-        uiColor.withAlphaComponent(settings.opacity).setStroke()
-        uiColor.withAlphaComponent(settings.opacity).setFill()
-        
-        switch shape {
-        case .rectangle:
-            path.append(UIBezierPath(rect: rect))
-            
-        case .circle:
-            let diameter = min(rect.width, rect.height)
-            let circleRect = CGRect(
-                x: rect.midX - diameter/2,
-                y: rect.midY - diameter/2,
-                width: diameter,
-                height: diameter
-            )
-            path.append(UIBezierPath(ovalIn: circleRect))
-            
-        case .heart:
-            let width = rect.width
-            let height = rect.height
-            
-            // 计算缩放比例
-            let scale = min(width, height) / 32
-            let centerX = rect.midX
-            let centerY = rect.midY
-            
-            // 使用参数方程绘制心形
-            var first = true
-            for i in stride(from: 0, through: Double.pi * 2, by: 0.01) {
-                let x = 16 * pow(sin(i), 3)
-                let y = 13 * cos(i) - 5 * cos(2 * i) - 2 * cos(3 * i) - cos(4 * i)
-                
-                let point = CGPoint(
-                    x: centerX + x * scale,
-                    y: centerY - y * scale
-                )
-                
-                if first {
-                    path.move(to: point)
-                    first = false
-                } else {
-                    path.addLine(to: point)
-                }
-            }
-            path.close() // 确保路径闭合
-            
-        case .cross:
-            let centerX = rect.midX
-            let centerY = rect.midY
-            let armLength = min(rect.width, rect.height) * 0.4
-            
-            path.move(to: CGPoint(x: centerX, y: centerY - armLength))
-            path.addLine(to: CGPoint(x: centerX, y: centerY + armLength))
-            path.move(to: CGPoint(x: centerX - armLength, y: centerY))
-            path.addLine(to: CGPoint(x: centerX + armLength, y: centerY))
-            
-        case .none:
-            break
-        }
-        
-        path.lineWidth = settings.lineWidth
-        
-        if settings.shapeDrawingMode == .fill && shape != .cross {
-            path.fill()
-        }
-        if settings.shapeDrawingMode == .stroke || shape == .cross {
-            path.stroke()
         }
     }
 }

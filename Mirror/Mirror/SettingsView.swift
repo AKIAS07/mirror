@@ -963,8 +963,6 @@ public struct SettingsPanel: View {
                 // 进入预览模式，显示边框灯
                 borderLightManager.showOriginalHighlight = true
                 borderLightManager.showMirroredHighlight = true
-                // 发送设置页面显示通知
-                NotificationCenter.default.post(name: NSNotification.Name("SettingsPresented"), object: nil)
             }
             .onDisappear {
                 // 恢复原始亮度
@@ -984,9 +982,6 @@ public struct SettingsPanel: View {
                 }
                 // 发送设置页面关闭通知
                 NotificationCenter.default.post(name: NSNotification.Name("SettingsDismissed"), object: nil)
-                
-                // 恢复工具条显示
-                NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
             }
         }
         .transition(.opacity)
