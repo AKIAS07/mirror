@@ -101,4 +101,87 @@ struct DrawingPath: Identifiable, Equatable, Codable {
         let boundingBox = getBoundingBox()
         return boundingBox.contains(point)
     }
+}
+
+// 添加拉伸边缘枚举
+public enum ResizeEdge {
+    case top
+    case bottom
+    case left
+    case right
+}
+
+// 手势状态
+public enum DrawingGestureState {
+    case none
+    case dragging(translation: CGPoint)
+    case scaling(scale: CGFloat)
+    case tapping(location: CGPoint)
+    case invalidSize(String)  // 添加新的状态类型，用于尺寸无效的情况
+    case resizing(edge: ResizeEdge, translation: CGPoint)  // 添加新的状态类型，用于形状拉伸
+    case prepareResizing(edge: ResizeEdge)  // 添加长按准备状态
+}
+
+// 绿勾按钮相关常量和函数
+struct ConfirmButtonHelper {
+    static let buttonSize: CGFloat = 30
+    
+    static func getButtonRect(for shapeRect: CGRect) -> CGRect {
+        CGRect(
+            x: shapeRect.midX - buttonSize/2,
+            y: shapeRect.midY - buttonSize/2,
+            width: buttonSize,
+            height: buttonSize
+        )
+    }
+    
+    static func isPointInButton(point: CGPoint, shapeRect: CGRect) -> Bool {
+        let buttonRect = getButtonRect(for: shapeRect)
+        return buttonRect.contains(point)
+    }
+}
+
+// 形状尺寸验证错误类型
+enum ShapeSizeError: String, Error {
+    case tooSmall = "尺寸过小"
+    case tooLarge = "尺寸过大"
+}
+
+// 形状尺寸验证工具类
+struct ShapeSizeValidator {
+    // 尺寸限制常量
+    static let minSize: CGFloat = 30
+    static let maxSize: CGFloat = 3000
+    
+    // 验证矩形尺寸
+    static func validateRect(_ rect: CGRect, scale: CGFloat = 1.0) -> Result<Bool, ShapeSizeError> {
+        let width = rect.width * scale
+        let height = rect.height * scale
+        
+        if width < minSize || height < minSize {
+            return .failure(.tooSmall)
+        }
+        
+        if width > maxSize || height > maxSize {
+            return .failure(.tooLarge)
+        }
+        
+        return .success(true)
+    }
+    
+    // 验证Line对象的尺寸
+    static func validateLine(_ line: Line) -> Result<Bool, ShapeSizeError> {
+        guard let rect = line.boundingRect else {
+            return .failure(.tooSmall)
+        }
+        
+        return validateRect(rect, scale: line.scale)
+    }
+    
+    // 打印调试信息
+    static func logShapeSize(_ rect: CGRect, scale: CGFloat = 1.0) {
+        let width = rect.width * scale
+        let height = rect.height * scale
+        print("形状尺寸 - 宽: \(width)px, 高: \(height)px")
+    }
 } 

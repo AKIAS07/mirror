@@ -79,7 +79,6 @@ struct ColorPickerView: View {
 
 // 形状类型枚举
 enum ShapeType {
-    case none
     case rectangle
     case circle
     case heart
@@ -99,13 +98,14 @@ struct ShapePickerView: View {
     @Binding var selectedMode: ShapeDrawingMode
     @Binding var isExpanded: Bool
     let position: CGPoint
+    let canSelectShape: Bool
     
     private let shapes: [(ShapeType, String)] = [
-        (.rectangle, "rectangle"),
-        (.circle, "circle"),
-        (.heart, "heart"),
+        (.rectangle, "rectangle.fill"),
+        (.circle, "circle.fill"),
+        (.heart, "heart.fill"),
         (.cross, "plus"),
-        (.star, "star")
+        (.star, "icon-star")
     ]
     
     var body: some View {
@@ -130,19 +130,34 @@ struct ShapePickerView: View {
                 HStack(spacing: 16) {
                     ForEach(shapes, id: \.0) { shape in
                         Button(action: {
-                            selectedShape = shape.0
-                            withAnimation {
-                                isExpanded = false
+                            if canSelectShape {
+                                selectedShape = shape.0
+                                withAnimation {
+                                    isExpanded = false
+                                }
                             }
                         }) {
-                            Image(systemName: shape.1)
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .frame(width: 32, height: 32)
-                                .background(selectedShape == shape.0 ? Color.white.opacity(0.3) : Color.clear)
-                                .cornerRadius(8)
-                                .scaleEffect(selectedShape == shape.0 ? 1.2 : 1.0)
+                            if shape.0 == .star {
+                                Image("icon-star")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 20, height: 20)
+                                    .foregroundColor(.white)  // 始终保持白色
+                                    .frame(width: 32, height: 32)
+                                    .background(selectedShape == shape.0 ? Color.white.opacity(0.3) : Color.clear)
+                                    .cornerRadius(8)
+                                    .scaleEffect(selectedShape == shape.0 ? 1.2 : 1.0)
+                            } else {
+                                Image(systemName: shape.1)
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.white)  // 始终保持白色
+                                    .frame(width: 32, height: 32)
+                                    .background(selectedShape == shape.0 ? Color.white.opacity(0.3) : Color.clear)
+                                    .cornerRadius(8)
+                                    .scaleEffect(selectedShape == shape.0 ? 1.2 : 1.0)
+                            }
                         }
+                        .disabled(!canSelectShape)
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedShape)
                     }
                 }
@@ -153,32 +168,32 @@ struct ShapePickerView: View {
                 // 绘制模式选择
                 HStack(spacing: 16) {
                     Button(action: {
-                        selectedMode = .stroke
-                        withAnimation {
-                            isExpanded = false
+                        if canSelectShape {
+                            selectedMode = .stroke
                         }
                     }) {
-                        Image(systemName: "rectangle.on.rectangle")
+                        Image(systemName: "rectangle")
                             .font(.system(size: 20))
                             .foregroundColor(selectedMode == .stroke ? .blue : .white)
                             .frame(width: 32, height: 32)
                             .background(selectedMode == .stroke ? Color.white.opacity(0.3) : Color.clear)
                             .cornerRadius(8)
                     }
+                    .disabled(!canSelectShape)
                     
                     Button(action: {
-                        selectedMode = .fill
-                        withAnimation {
-                            isExpanded = false
+                        if canSelectShape {
+                            selectedMode = .fill
                         }
                     }) {
-                        Image(systemName: "rectangle.fill.on.rectangle.fill")
+                        Image(systemName: "rectangle.fill")
                             .font(.system(size: 20))
                             .foregroundColor(selectedMode == .fill ? .blue : .white)
                             .frame(width: 32, height: 32)
                             .background(selectedMode == .fill ? Color.white.opacity(0.3) : Color.clear)
                             .cornerRadius(8)
                     }
+                    .disabled(!canSelectShape)
                 }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 8)
@@ -198,16 +213,20 @@ struct BrushSettings {
     var lineWidth: CGFloat = 10
     var opacity: Double = 0.5
     var isEraser: Bool = false
-    var shapeType: ShapeType = .heart  // 修改默认形状为爱心
-    var shapeDrawingMode: ShapeDrawingMode = .fill  // 修改默认模式为填充
+    var shapeType: ShapeType = .rectangle  // 修改默认形状为矩形
+    var shapeDrawingMode: ShapeDrawingMode = .fill
 }
 
 // 绘画线条结构体
 struct Line {
     var points: [CGPoint]
     var settings: BrushSettings
-    var shape: ShapeType = .none  // 添加形状类型
-    var boundingRect: CGRect?  // 添加形状边界框
+    var isShape: Bool = false  // 修改为使用布尔值来区分是否为形状
+    var boundingRect: CGRect?  // 形状的边界框
+    var isEditable: Bool = false  // 是否处于可编辑状态
+    var isConfirmed: Bool = false  // 是否已确认（点击勾）
+    var position: CGPoint = .zero  // 形状的位置
+    var scale: CGFloat = 1.0  // 形状的缩放比例
 }
 
 // 添加工具类型枚举
@@ -220,6 +239,10 @@ enum DrawingTool {
 // 绘画画布视图
 @available(iOS 15.0, *)
 struct DrawingCanvasView: View {
+    // 修改提示信息状态
+    @State private var showSizeAlert = false
+    @State private var sizeAlertMessage = ""
+    
     @Binding var isVisible: Bool
     @Binding var isPinned: Bool
     @State private var lines: [Line] = []
@@ -232,6 +255,10 @@ struct DrawingCanvasView: View {
     @State private var pinnedImage: UIImage? = nil
     @State private var showClearAlert = false
     
+    // 添加新的状态变量
+    @State private var showExitAlert = false
+    @State private var showDeleteAlert = false
+    
     // 工具栏位置
     @State private var toolbarOffset: CGFloat = 0
     
@@ -242,268 +269,169 @@ struct DrawingCanvasView: View {
     // 添加工具条显示状态
     @State private var showToolbar: Bool = true
     
-    // 添加缩放状态
-    @State private var isScaling = false
-    
-    // 添加长按直线相关状态
-    @State private var isLongPressing = false
-    @State private var longPressStartPoint: CGPoint?
-    @State private var showStraightLine = false
-    @State private var straightLinePreview: Line?
-    
     // 添加新的状态变量
-    @State private var shouldHideToolbar: Bool = false  // 仅控制工具栏的显示/隐藏
+    @State private var shouldHideToolbar: Bool = false
+    @State private var currentGestureState: DrawingGestureState = .none
     
-    // 初始化时设置画笔状态
-    init(isVisible: Binding<Bool>, isPinned: Binding<Bool>) {
-        self._isVisible = isVisible
-        self._isPinned = isPinned
-        
-        // 初始化画笔设置
-        var initialSettings = BrushSettings()
-        initialSettings.shapeType = .none  // 确保初始状态为画笔模式
-        self._brushSettings = State(initialValue: initialSettings)
+    // 修改提示信息状态管理
+    @State private var alertTimer: Timer?
+    
+    // 检查是否有未确认的形状
+    private var hasUnconfirmedShape: Bool {
+        if let lastLine = lines.last {
+            return lastLine.isShape && !lastLine.isConfirmed
+        }
+        return false
     }
     
-    // 获取形状按钮的图标
-    private func getShapeButtonIcon() -> String {
-        switch brushSettings.shapeType {
-        case .none:
-            return "square.on.circle"
-        case .rectangle:
-            return "rectangle"
-        case .circle:
-            return "circle"
-        case .heart:
-            return "heart"
-        case .cross:
-            return "plus"
-        case .star:
-            return "star"
+    private var canSelectNewShape: Bool {
+        // 检查是否存在未确认的形状
+        if let lastLine = lines.last, lastLine.isShape && !lastLine.isConfirmed {
+            return false
+        }
+        return true
+    }
+    
+    private func showAlert(_ message: String) {
+        // 取消之前的定时器
+        alertTimer?.invalidate()
+        
+        // 显示新的提示
+        sizeAlertMessage = message
+        withAnimation {
+            showSizeAlert = true
+        }
+        
+        // 设置新的定时器
+        alertTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+            withAnimation {
+                showSizeAlert = false
+            }
         }
     }
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // 绘画层
-                if !isPinned {
-                    Canvas { context, size in
-                        // 绘制已完成的线条
-                        for line in lines {
-                            if line.shape == ShapeType.none {
-                                var path = Path()
-                                guard let firstPoint = line.points.first else { continue }
-                                path.move(to: firstPoint)
-                                
-                                // 使用贝塞尔曲线平滑线条
-                                if line.points.count > 2 {
-                                    for i in 0..<line.points.count - 1 {
-                                        let current = line.points[i]
-                                        let next = line.points[i + 1]
-                                        let mid = CGPoint(
-                                            x: (current.x + next.x) / 2,
-                                            y: (current.y + next.y) / 2
-                                        )
-                                        
-                                        if i == 0 {
-                                            path.move(to: current)
-                                        }
-                                        
-                                        path.addQuadCurve(to: mid, control: current)
-                                        
-                                        if i == line.points.count - 2 {
-                                            path.addLine(to: next)
-                                        }
-                                    }
-                                } else {
-                                    for point in line.points.dropFirst() {
-                                        path.addLine(to: point)
-                                    }
-                                }
-                                
-                                if line.settings.isEraser {
-                                    context.blendMode = .clear
-                                    context.stroke(path, with: .color(.white), style: StrokeStyle(
-                                        lineWidth: line.settings.lineWidth,
-                                        lineCap: .round,
-                                        lineJoin: .round
-                                    ))
-                                    context.blendMode = .normal
-                                } else {
-                                    context.stroke(path, with: .color(line.settings.color.opacity(line.settings.opacity)), style: StrokeStyle(
-                                        lineWidth: line.settings.lineWidth,
-                                        lineCap: .round,
-                                        lineJoin: .round
-                                    ))
-                                }
-                            } else if let rect = line.boundingRect {
-                                DrawingShapeRenderer.renderShape(line.shape, in: rect, context: context, settings: line.settings)
-                            }
-                        }
-                        
-                        // 绘制当前线条或预览直线
-                        if let currentLine = straightLinePreview ?? currentLine {
-                            if currentLine.shape == ShapeType.none {
-                                var path = Path()
-                                guard let firstPoint = currentLine.points.first else { return }
-                                
-                                if isLongPressing {
-                                    // 绘制直线预览
-                                    guard let lastPoint = currentLine.points.last else { return }
-                                    path.move(to: firstPoint)
-                                    path.addLine(to: lastPoint)
-                                } else {
-                                    // 正常绘制当前线条
-                                    path.move(to: firstPoint)
-                                    
-                                    if currentLine.points.count > 2 {
-                                        for i in 0..<currentLine.points.count - 1 {
-                                            let current = currentLine.points[i]
-                                            let next = currentLine.points[i + 1]
-                                            let mid = CGPoint(
-                                                x: (current.x + next.x) / 2,
-                                                y: (current.y + next.y) / 2
-                                            )
-                                            
-                                            if i == 0 {
-                                                path.move(to: current)
-                                            }
-                                            
-                                            path.addQuadCurve(to: mid, control: current)
-                                            
-                                            if i == currentLine.points.count - 2 {
-                                                path.addLine(to: next)
-                                            }
-                                        }
-                                    } else {
-                                        for point in currentLine.points.dropFirst() {
-                                            path.addLine(to: point)
-                                        }
-                                    }
-                                }
-                                
-                                if currentLine.settings.isEraser {
-                                    context.blendMode = .clear
-                                    context.stroke(path, with: .color(.white), style: StrokeStyle(
-                                        lineWidth: currentLine.settings.lineWidth,
-                                        lineCap: .round,
-                                        lineJoin: .round
-                                    ))
-                                    context.blendMode = .normal
-                                } else {
-                                    // 为预览直线添加虚线效果
-                                    let strokeStyle = StrokeStyle(
-                                        lineWidth: currentLine.settings.lineWidth,
-                                        lineCap: .round,
-                                        lineJoin: .round,
-                                        dash: isLongPressing ? [5, 5] : []
-                                    )
-                                    context.stroke(path, with: .color(currentLine.settings.color.opacity(currentLine.settings.opacity)), style: strokeStyle)
-                                }
-                            } else if let rect = currentLine.boundingRect {
-                                DrawingShapeRenderer.renderShape(currentLine.shape, in: rect, context: context, settings: currentLine.settings)
-                            }
-                        }
-                    }
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                // 如果正在进行缩放，则不进行绘画
-                                if isScaling {
-                                    return
-                                }
-                                
-                                let point = value.location
-                                
-                                // 处理长按直线绘制
-                                if isLongPressing {
-                                    // 更新预览直线
-                                    if let startPoint = longPressStartPoint {
-                                        straightLinePreview = Line(
-                                            points: [startPoint, point],
-                                            settings: brushSettings
-                                        )
-                                    }
-                                    return
-                                }
-                                
-                                // 正常绘画逻辑
-                                if currentLine == nil {
-                                    var line = Line(points: [point], settings: brushSettings)
-                                    line.shape = brushSettings.shapeType
-                                    if brushSettings.shapeType == ShapeType.none {
-                                        currentLine = line
-                                        // 保存起始点，用于检测长按
-                                        longPressStartPoint = point
-                                    } else {
-                                        line.boundingRect = CGRect(origin: point, size: .zero)
-                                        currentLine = line
-                                    }
-                                } else {
-                                    currentLine?.points.append(point)
-                                    if currentLine?.shape != ShapeType.none {
-                                        // 更新形状的边界框
-                                        let startPoint = currentLine?.points.first ?? point
-                                        let rect = CGRect(
-                                            x: min(startPoint.x, point.x),
-                                            y: min(startPoint.y, point.y),
-                                            width: abs(point.x - startPoint.x),
-                                            height: abs(point.y - startPoint.y)
-                                        )
-                                        currentLine?.boundingRect = rect
-                                    }
-                                }
-                            }
-                            .onEnded { _ in
-                                // 处理长按直线绘制结束
-                                if isLongPressing {
-                                    if let line = straightLinePreview {
-                                        lines.append(line)
-                                        undoManager.removeAll()
-                                    }
-                                    isLongPressing = false
-                                    straightLinePreview = nil
-                                    longPressStartPoint = nil
-                                    return
-                                }
-                                
-                                // 正常绘画结束逻辑
-                                if let line = currentLine {
-                                    lines.append(line)
-                                    undoManager.removeAll()
-                                    currentLine = nil
-                                    longPressStartPoint = nil
-                                }
-                            }
-                    )
-                    .simultaneousGesture(
-                        MagnificationGesture()
-                            .onChanged { _ in
-                                isScaling = true
-                            }
-                            .onEnded { _ in
-                                isScaling = false
-                            }
-                    )
-                    .simultaneousGesture(
-                        LongPressGesture(minimumDuration: 0.5)
-                            .onEnded { _ in
-                                if let _ = longPressStartPoint {
-                                    isLongPressing = true
-                                    // 清除当前的自由绘制线条
-                                    currentLine = nil
-                                }
-                            }
-                    )
-                }
+                // 绘画显示层
+                DrawingDisplayView(
+                    lines: $lines,
+                    currentLine: currentLine,
+                    isPinned: isPinned,
+                    pinnedImage: pinnedImage,
+                    gestureState: currentGestureState
+                )
                 
-                // 固定的图片层
-                if isPinned, let image = pinnedImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .allowsHitTesting(false)
+                // 手势控制层
+                if !isPinned {
+                    DrawingGestureView(
+                        lines: $lines,
+                        currentLine: $currentLine,
+                        undoManager: $undoManager,
+                        currentTool: currentTool,
+                        brushSettings: brushSettings,
+                        onGestureStateChanged: { state in
+                            currentGestureState = state
+                            
+                            switch state {
+                            case .dragging(let translation):
+                                if let lastIndex = lines.indices.last,
+                                   lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
+                                    var updatedLine = lines[lastIndex]
+                                    updatedLine.position.x += translation.x
+                                    updatedLine.position.y += translation.y
+                                    lines[lastIndex] = updatedLine
+                                }
+                                
+                            case .scaling(let scale):
+                                if let lastIndex = lines.indices.last,
+                                   lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
+                                    var updatedLine = lines[lastIndex]
+                                    if let rect = updatedLine.boundingRect {
+                                        let newScale = updatedLine.scale * scale
+                                        switch ShapeSizeValidator.validateRect(rect, scale: newScale) {
+                                        case .success:
+                                            let worldCenterX = rect.midX * updatedLine.scale + updatedLine.position.x
+                                            let worldCenterY = rect.midY * updatedLine.scale + updatedLine.position.y
+                                            
+                                            updatedLine.scale = newScale
+                                            updatedLine.position.x = worldCenterX - (rect.midX * newScale)
+                                            updatedLine.position.y = worldCenterY - (rect.midY * newScale)
+                                            
+                                            lines[lastIndex] = updatedLine
+                                        case .failure(let error):
+                                            showAlert(error.rawValue)
+                                        }
+                                    }
+                                }
+                                
+                            case .resizing(let edge, let translation):
+                                if let lastIndex = lines.indices.last,
+                                   lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
+                                    var updatedLine = lines[lastIndex]
+                                    if var rect = updatedLine.boundingRect {
+                                        // 保存原始中心点
+                                        let originalCenterX = rect.midX * updatedLine.scale + updatedLine.position.x
+                                        let originalCenterY = rect.midY * updatedLine.scale + updatedLine.position.y
+                                        
+                                        // 根据拉伸边缘调整矩形
+                                        switch edge {
+                                        case .top:
+                                            let heightChange = -translation.y / updatedLine.scale
+                                            rect = CGRect(x: rect.minX, y: rect.minY - heightChange,
+                                                        width: rect.width, height: rect.height + heightChange)
+                                        case .bottom:
+                                            let heightChange = translation.y / updatedLine.scale
+                                            rect = CGRect(x: rect.minX, y: rect.minY,
+                                                        width: rect.width, height: rect.height + heightChange)
+                                        case .left:
+                                            let widthChange = -translation.x / updatedLine.scale
+                                            rect = CGRect(x: rect.minX - widthChange, y: rect.minY,
+                                                        width: rect.width + widthChange, height: rect.height)
+                                        case .right:
+                                            let widthChange = translation.x / updatedLine.scale
+                                            rect = CGRect(x: rect.minX, y: rect.minY,
+                                                        width: rect.width + widthChange, height: rect.height)
+                                        }
+                                        
+                                        // 验证新的尺寸
+                                        switch ShapeSizeValidator.validateRect(rect) {
+                                        case .success:
+                                            // 计算新的中心点
+                                            let newCenterX = rect.midX * updatedLine.scale
+                                            let newCenterY = rect.midY * updatedLine.scale
+                                            
+                                            // 调整位置以保持中心点不变
+                                            updatedLine.position.x = originalCenterX - newCenterX
+                                            updatedLine.position.y = originalCenterY - newCenterY
+                                            updatedLine.boundingRect = rect
+                                            
+                                            lines[lastIndex] = updatedLine
+                                        case .failure(let error):
+                                            showAlert(error.rawValue)
+                                        }
+                                    }
+                                }
+                                
+                            case .tapping:
+                                if let lastIndex = lines.indices.last,
+                                   lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
+                                    var updatedLine = lines[lastIndex]
+                                    updatedLine.isConfirmed = true
+                                    lines[lastIndex] = updatedLine
+                                }
+                                
+                            case .none:
+                                break
+                            
+                            case .invalidSize(let message):
+                                showAlert(message)
+                                
+                            case .prepareResizing:
+                                break  // 准备拉伸状态不需要额外处理，只需要更新视觉反馈
+                            }
+                        }
+                    )
                 }
                 
                 // UI层
@@ -533,10 +461,19 @@ struct DrawingCanvasView: View {
                                             }
                                         }
                                     }) {
-                                        Image(systemName: getShapeButtonIcon())
-                                            .font(.system(size: 24))
-                                            .foregroundColor(currentTool == .shape ? brushSettings.color : .white)
-                                            .opacity(currentTool == .shape ? 1 : 0.5)
+                                        if brushSettings.shapeType == .star {
+                                            Image("icon-star")
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fit)
+                                                .frame(width: 24, height: 24)
+                                                .foregroundColor(currentTool == .shape ? brushSettings.color : .white)
+                                                .opacity(currentTool == .shape ? 1 : 0.5)
+                                        } else {
+                                            Image(systemName: getShapeButtonIcon())
+                                                .font(.system(size: 24))
+                                                .foregroundColor(currentTool == .shape ? brushSettings.color : .white)
+                                                .opacity(currentTool == .shape ? 1 : 0.5)
+                                        }
                                     }
                                     .background(
                                         GeometryReader { geo -> Color in
@@ -584,7 +521,7 @@ struct DrawingCanvasView: View {
                                     .disabled(undoManager.isEmpty)
                                     .opacity(undoManager.isEmpty ? 0.5 : 1)
                                     
-                                    // 修改清空按钮，添加确认弹窗
+                                    // 清空按钮
                                     Button(action: {
                                         showClearAlert = true
                                     }) {
@@ -619,27 +556,19 @@ struct DrawingCanvasView: View {
                                             .font(.system(size: 24))
                                             .foregroundColor(.white)
                                     }
-                                    .disabled(lines.isEmpty)
-                                    .opacity(lines.isEmpty ? 0.5 : 1)
+                                    .disabled(lines.isEmpty || hasUnconfirmedShape)  // 添加禁用条件
+                                    .opacity((lines.isEmpty || hasUnconfirmedShape) ? 0.5 : 1)
                                     
                                     // 关闭按钮
                                     Button(action: {
-                                        withAnimation {
-                                            isVisible = false
-                                            lines.removeAll()
-                                            currentLine = nil
-                                            pinnedImage = nil
-                                            isPinned = false
-                                            // 添加显示工具条的通知
-                                            NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
-                                        }
+                                        showExitAlert = true  // 显示退出确认弹窗
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
                                             .font(.system(size: 24))
                                             .foregroundColor(.white)
                                     }
                                 }
-                                .frame(maxWidth: .infinity) // 让HStack占满宽度
+                                .frame(maxWidth: .infinity)
                                 
                                 // 第二行：工具属性设置
                                 if currentTool != .eraser {
@@ -687,7 +616,7 @@ struct DrawingCanvasView: View {
                                             }
                                         )
                                     }
-                                    .frame(maxWidth: .infinity) // 让HStack占满宽度
+                                    .frame(maxWidth: .infinity)
                                 } else {
                                     // 橡皮擦粗细设置
                                     HStack {
@@ -696,14 +625,14 @@ struct DrawingCanvasView: View {
                                         Slider(value: $brushSettings.lineWidth, in: 1...40)
                                             .frame(width: 200)
                                     }
-                                    .frame(maxWidth: .infinity) // 让HStack占满宽度
+                                    .frame(maxWidth: .infinity)
                                 }
                             }
                             .padding()
                             .background(Color.black.opacity(0.5))
                             .cornerRadius(15)
                             .padding(.top, 40)
-                            .frame(maxWidth: geometry.size.width - 80) // 减小宽度，从40改为80
+                            .frame(maxWidth: geometry.size.width - 80)
                             .frame(width: geometry.size.width, alignment: .center)
                             
                             // 颜色选择器和形状选择器
@@ -712,7 +641,7 @@ struct DrawingCanvasView: View {
                                     ColorPickerView(
                                         selectedColor: $brushSettings.color,
                                         isExpanded: $showColorPicker,
-                                        position: .zero // 位置由GeometryReader处理
+                                        position: .zero
                                     )
                                     .transition(.opacity)
                                 }
@@ -722,7 +651,8 @@ struct DrawingCanvasView: View {
                                         selectedShape: $brushSettings.shapeType,
                                         selectedMode: $brushSettings.shapeDrawingMode,
                                         isExpanded: $showShapePicker,
-                                        position: .zero // 位置由GeometryReader处理
+                                        position: .zero,
+                                        canSelectShape: canSelectNewShape
                                     )
                                     .transition(.opacity)
                                 }
@@ -732,13 +662,7 @@ struct DrawingCanvasView: View {
                             HStack {
                                 Spacer()
                                 Button(action: {
-                                    withAnimation {
-                                        isVisible = false
-                                        isPinned = false
-                                        pinnedImage = nil
-                                        // 恢复工具条显示
-                                        NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
-                                    }
+                                    showDeleteAlert = true  // 显示删除确认弹窗
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.system(size: 24))
@@ -752,21 +676,59 @@ struct DrawingCanvasView: View {
                         Spacer()
                     }
                 }
+                
+                // 修改提示视图
+                if showSizeAlert {
+                    Text(sizeAlertMessage)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(8)
+                        .transition(.opacity)
+                }
             }
         }
         .ignoresSafeArea()
+        // 添加确认弹窗
+        .alert("确认退出", isPresented: $showExitAlert) {
+            Button("取消", role: .cancel) { }
+            Button("确定", role: .destructive) {
+                withAnimation {
+                    isVisible = false
+                    lines.removeAll()
+                    currentLine = nil
+                    pinnedImage = nil
+                    isPinned = false
+                    NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
+                }
+            }
+        } message: {
+            Text("确定退出绘画模式吗？")
+        }
+        // 添加删除确认弹窗
+        .alert("确认删除", isPresented: $showDeleteAlert) {
+            Button("取消", role: .cancel) { }
+            Button("确定", role: .destructive) {
+                withAnimation {
+                    isVisible = false
+                    isPinned = false
+                    pinnedImage = nil
+                    NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
+                }
+            }
+        } message: {
+            Text("此操作将删除绘画作品")
+        }
         .onAppear {
-            // 当绘画视图出现时，隐藏工具条
             NotificationCenter.default.post(name: NSNotification.Name("HideToolbars"), object: nil)
             
-            // 添加通知监听器
             NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("HideToolbars"),
                 object: nil,
                 queue: .main
             ) { _ in
                 withAnimation {
-                    shouldHideToolbar = true  // 只隐藏工具栏，不影响整个视图
+                    shouldHideToolbar = true
                 }
             }
             
@@ -776,7 +738,7 @@ struct DrawingCanvasView: View {
                 queue: .main
             ) { _ in
                 withAnimation {
-                    shouldHideToolbar = false  // 只显示工具栏，不影响整个视图
+                    shouldHideToolbar = false
                 }
             }
             
@@ -789,21 +751,99 @@ struct DrawingCanvasView: View {
                 NotificationCenter.default.post(name: NSNotification.Name("HideToolbars"), object: nil)
             }
         }
+        .onDisappear {
+            // 清理定时器
+            alertTimer?.invalidate()
+            alertTimer = nil
+        }
+    }
+    
+    // 获取形状按钮的图标
+    private func getShapeButtonIcon() -> String {
+        switch brushSettings.shapeType {
+        case .rectangle:
+            return "rectangle.fill"
+        case .circle:
+            return "circle.fill"
+        case .heart:
+            return "heart.fill"
+        case .cross:
+            return "plus"
+        case .star:
+            return "icon-star"
+        }
     }
     
     private func handleButtonTap(_ buttonType: DrawingTool) {
+        print("工具切换 - 当前选择: \(buttonType)")
+        
+        // 检查是否有未确认的形状
+        if let lastLine = lines.last, lastLine.isShape && !lastLine.isConfirmed {
+            print("有未确认的形状，禁止切换到其他工具")
+            return  // 如果有未确认的形状，禁止切换工具
+        }
+        
         switch buttonType {
         case .pencil:
             currentTool = .pencil
             brushSettings.isEraser = false
-            brushSettings.shapeType = .none  // 切换到画笔时清除形状
+            brushSettings.shapeType = .rectangle
+            print("切换到画笔模式")
         case .shape:
             currentTool = .shape
             brushSettings.isEraser = false
+            print("切换到形状模式")
         case .eraser:
             currentTool = .eraser
             brushSettings.isEraser = true
-            brushSettings.shapeType = .none  // 切换到橡皮擦时清除形状
+            brushSettings.shapeType = .rectangle
+            print("切换到橡皮擦模式 - isEraser: \(brushSettings.isEraser)")
+        }
+    }
+    
+    private func handleShapeDrawing(at location: CGPoint) {
+        if currentLine == nil {
+            var line = Line(points: [location], settings: brushSettings)
+            line.isShape = true
+            line.isEditable = true
+            currentLine = line
+            print("开始创建新形状 - 起始点: \(location)")
+        } else {
+            let startPoint = currentLine?.points.first ?? location
+            let rect = CGRect(
+                x: min(startPoint.x, location.x),
+                y: min(startPoint.y, location.y),
+                width: abs(location.x - startPoint.x),
+                height: abs(location.y - startPoint.y)
+            )
+            
+            ShapeSizeValidator.logShapeSize(rect)
+            
+            switch ShapeSizeValidator.validateRect(rect) {
+            case .success:
+                currentLine?.boundingRect = rect
+            case .failure(let error):
+                sizeAlertMessage = error.rawValue
+                withAnimation {
+                    showSizeAlert = true
+                }
+                currentLine = nil
+            }
+        }
+    }
+    
+    private func validateAndAddShape(_ line: Line) -> Bool {
+        switch ShapeSizeValidator.validateLine(line) {
+        case .success:
+            print("形状尺寸有效")
+            return true
+        case .failure(let error):
+            sizeAlertMessage = error.rawValue
+            withAnimation {
+                showSizeAlert = true
+            }
+            print("形状尺寸无效：\(error.rawValue)")
+            return false
         }
     }
 }

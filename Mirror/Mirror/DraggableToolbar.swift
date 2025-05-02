@@ -901,6 +901,8 @@ struct DraggableToolbar: View {
                 print("------------------------")
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showDrawingCanvas = true
+                    // 检查并移动工具条位置
+                    moveToRightBottomForDrawing()
                 }
             } else {
                 print("------------------------")
@@ -917,6 +919,24 @@ struct DraggableToolbar: View {
             // 调用 handleRestartViewAppear 方法
             restartManager.handleRestartViewAppear(cameraManager: cameraManager)
         }
+    }
+    
+    private func moveToRightBottomForDrawing() {
+        print("------------------------")
+        print("绘画工具栏出现，检查是否需要移动工具条")
+        print("当前位置：\(position)")
+        
+        // 如果当前不在左下角，则移动到右下角
+        if position != .leftBottom {
+            print("自动移动工具条到右下角")
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                position = .rightBottom
+                dragOffset = .zero
+            }
+        } else {
+            print("工具条在左下角，保持位置不变")
+        }
+        print("------------------------")
     }
     
     // 获取设备方向的旋转角度
