@@ -18,9 +18,9 @@ class ImageProcessor {
     }
     
     // 优化的图像合成方法
-    func createMixImage(baseImage: UIImage, drawingImage: UIImage?, scale: CGFloat = 1.0) -> UIImage {
-        // 如果没有绘画图片，直接返回原图
-        guard let drawingImage = drawingImage else {
+    func createMixImage(baseImage: UIImage, drawingImage: UIImage?, makeupImage: UIImage? = nil, scale: CGFloat = 1.0) -> UIImage {
+        // 如果没有绘画图片和化妆图片，直接返回原图
+        guard drawingImage != nil || makeupImage != nil else {
             return baseImage
         }
         
@@ -41,37 +41,55 @@ class ImageProcessor {
                 // 绘制基础图片
                 baseImage.draw(in: CGRect(origin: .zero, size: size))
                 
-                // 计算绘画图片的绘制区域，保持原始比例并考虑缩放
-                let drawingSize = drawingImage.size
-                let aspectRatio = drawingSize.width / drawingSize.height
-                
-                // 根据缩放比例调整绘画图片的尺寸
-                let scaledWidth = size.width / scale
-                let scaledHeight = size.height / scale
-                
-                var drawingRect: CGRect
-                if aspectRatio > scaledWidth / scaledHeight {
-                    // 绘画图片更宽，以宽度为基准
-                    let height = scaledWidth / aspectRatio
-                    drawingRect = CGRect(
-                        x: (size.width - scaledWidth) / 2,
-                        y: (size.height - height) / 2,
-                        width: scaledWidth,
-                        height: height
-                    )
-                } else {
-                    // 绘画图片更高，以高度为基准
-                    let width = scaledHeight * aspectRatio
-                    drawingRect = CGRect(
-                        x: (size.width - width) / 2,
-                        y: (size.height - scaledHeight) / 2,
-                        width: width,
-                        height: scaledHeight
-                    )
+                // 如果有绘画图片，绘制绘画图片
+                if let drawingImage = drawingImage {
+                    // 计算绘画图片的绘制区域，保持原始比例并考虑缩放
+                    let drawingSize = drawingImage.size
+                    let aspectRatio = drawingSize.width / drawingSize.height
+                    
+                    // 根据缩放比例调整绘画图片的尺寸
+                    let scaledWidth = size.width / scale
+                    let scaledHeight = size.height / scale
+                    
+                    var drawingRect: CGRect
+                    if aspectRatio > scaledWidth / scaledHeight {
+                        // 绘画图片更宽，以宽度为基准
+                        let height = scaledWidth / aspectRatio
+                        drawingRect = CGRect(
+                            x: (size.width - scaledWidth) / 2,
+                            y: (size.height - height) / 2,
+                            width: scaledWidth,
+                            height: height
+                        )
+                    } else {
+                        // 绘画图片更高，以高度为基准
+                        let width = scaledHeight * aspectRatio
+                        drawingRect = CGRect(
+                            x: (size.width - width) / 2,
+                            y: (size.height - scaledHeight) / 2,
+                            width: width,
+                            height: scaledHeight
+                        )
+                    }
+                    
+                    // 绘制绘画图片，保持原始比例
+                    drawingImage.draw(in: drawingRect)
                 }
                 
-                // 绘制绘画图片，保持原始比例
-                drawingImage.draw(in: drawingRect)
+                // 如果有化妆图片，绘制化妆图片
+                if let makeupImage = makeupImage {
+                    // 计算化妆图片的绘制区域，以高度为基准进行缩放
+                    let makeupSize = makeupImage.size
+                    let scale = size.height / makeupSize.height
+                    let scaledWidth = makeupSize.width * scale
+                    
+                    // 计算居中位置
+                    let x = (size.width - scaledWidth) / 2
+                    let y = 0.0
+                    
+                    // 绘制化妆图片
+                    makeupImage.draw(in: CGRect(x: x, y: y, width: scaledWidth, height: size.height))
+                }
             }
             
             return mixImage
@@ -107,9 +125,9 @@ class ImageProcessor {
     }
     
     // 预览图片处理方法
-    func createPreviewImage(baseImage: UIImage, drawingImage: UIImage?, scale: CGFloat = 1.0) -> UIImage {
-        // 如果没有绘画图片，直接返回原图
-        guard let drawingImage = drawingImage else {
+    func createPreviewImage(baseImage: UIImage, drawingImage: UIImage?, makeupImage: UIImage? = nil, scale: CGFloat = 1.0) -> UIImage {
+        // 如果没有绘画图片和化妆图片，直接返回原图
+        guard drawingImage != nil || makeupImage != nil else {
             return baseImage
         }
         
@@ -130,37 +148,55 @@ class ImageProcessor {
                 // 绘制基础图片
                 baseImage.draw(in: CGRect(origin: .zero, size: size))
                 
-                // 计算绘画图片的绘制区域，保持原始比例并考虑缩放
-                let drawingSize = drawingImage.size
-                let aspectRatio = drawingSize.width / drawingSize.height
-                
-                // 根据缩放比例调整绘画图片的尺寸
-                let scaledWidth = size.width / scale
-                let scaledHeight = size.height / scale
-                
-                var drawingRect: CGRect
-                if aspectRatio > scaledWidth / scaledHeight {
-                    // 绘画图片更宽，以宽度为基准
-                    let height = scaledWidth / aspectRatio
-                    drawingRect = CGRect(
-                        x: (size.width - scaledWidth) / 2,
-                        y: (size.height - height) / 2,
-                        width: scaledWidth,
-                        height: height
-                    )
-                } else {
-                    // 绘画图片更高，以高度为基准
-                    let width = scaledHeight * aspectRatio
-                    drawingRect = CGRect(
-                        x: (size.width - width) / 2,
-                        y: (size.height - scaledHeight) / 2,
-                        width: width,
-                        height: scaledHeight
-                    )
+                // 如果有绘画图片，绘制绘画图片
+                if let drawingImage = drawingImage {
+                    // 计算绘画图片的绘制区域，保持原始比例并考虑缩放
+                    let drawingSize = drawingImage.size
+                    let aspectRatio = drawingSize.width / drawingSize.height
+                    
+                    // 根据缩放比例调整绘画图片的尺寸
+                    let scaledWidth = size.width / scale
+                    let scaledHeight = size.height / scale
+                    
+                    var drawingRect: CGRect
+                    if aspectRatio > scaledWidth / scaledHeight {
+                        // 绘画图片更宽，以宽度为基准
+                        let height = scaledWidth / aspectRatio
+                        drawingRect = CGRect(
+                            x: (size.width - scaledWidth) / 2,
+                            y: (size.height - height) / 2,
+                            width: scaledWidth,
+                            height: height
+                        )
+                    } else {
+                        // 绘画图片更高，以高度为基准
+                        let width = scaledHeight * aspectRatio
+                        drawingRect = CGRect(
+                            x: (size.width - width) / 2,
+                            y: (size.height - scaledHeight) / 2,
+                            width: width,
+                            height: scaledHeight
+                        )
+                    }
+                    
+                    // 绘制绘画图片，保持原始比例
+                    drawingImage.draw(in: drawingRect)
                 }
                 
-                // 绘制绘画图片，保持原始比例
-                drawingImage.draw(in: drawingRect)
+                // 如果有化妆图片，绘制化妆图片
+                if let makeupImage = makeupImage {
+                    // 计算化妆图片的绘制区域，以高度为基准进行缩放
+                    let makeupSize = makeupImage.size
+                    let scale = size.height / makeupSize.height
+                    let scaledWidth = makeupSize.width * scale
+                    
+                    // 计算居中位置
+                    let x = (size.width - scaledWidth) / 2
+                    let y = 0.0
+                    
+                    // 绘制化妆图片
+                    makeupImage.draw(in: CGRect(x: x, y: y, width: scaledWidth, height: size.height))
+                }
             }
             
             return previewImage

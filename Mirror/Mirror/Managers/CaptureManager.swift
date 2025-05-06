@@ -26,10 +26,11 @@ class CaptureManager: ObservableObject {
     @Published var pinnedDrawingImage: UIImage? = nil  // 添加固定绘画图片
     @Published var isMakeupViewActive: Bool = false  // 添加化妆视图状态
     @Published var previewMixImage: UIImage? = nil  // 添加预览混合图片缓存
+    @Published var makeupImage: UIImage? = nil  // 添加化妆图片状态
     
     // 添加计算属性来判断是否应该显示勾选按钮
     var shouldShowCheckmark: Bool {
-        return !isLivePhoto && isPinnedDrawingActive
+        return !isLivePhoto && (isPinnedDrawingActive || isMakeupViewActive)
     }
     
     private let restartManager = ContentRestartManager.shared
@@ -370,6 +371,7 @@ class CaptureManager: ObservableObject {
                     imageToSave = ImageProcessor.shared.createMixImage(
                         baseImage: capturedImage!,
                         drawingImage: pinnedDrawingImage,
+                        makeupImage: isMakeupViewActive ? makeupImage : nil,
                         scale: currentScale
                     )
                 }
@@ -549,11 +551,12 @@ class CaptureManager: ObservableObject {
     
     // 获取预览图片的方法
     public func getPreviewImage(baseImage: UIImage) -> UIImage {
-        if isCheckmarkEnabled && pinnedDrawingImage != nil {
+        if isCheckmarkEnabled && (pinnedDrawingImage != nil || isMakeupViewActive) {
             if previewMixImage == nil {
                 previewMixImage = ImageProcessor.shared.createPreviewImage(
                     baseImage: baseImage,
                     drawingImage: pinnedDrawingImage,
+                    makeupImage: isMakeupViewActive ? makeupImage : nil,
                     scale: currentScale
                 )
             }

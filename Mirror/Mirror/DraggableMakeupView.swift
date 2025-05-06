@@ -57,6 +57,9 @@ struct DraggableMakeupView: View {
     // 处理主题变化的通知观察者
     private let themeObserver = ThemeObserver()
     
+    // 添加CaptureManager引用
+    @ObservedObject private var captureManager = CaptureManager.shared
+    
     // 定义视图尺寸
     private let totalWidth: CGFloat = 240
     private let totalHeight: CGFloat = 240
@@ -96,6 +99,54 @@ struct DraggableMakeupView: View {
     // 计算设备方向对应的旋转角度
     private func calculateRotationAngle(_ orientation: UIDeviceOrientation) -> Angle {
         return orientationManager.getRotationAngle(orientation)
+    }
+    
+    // 添加生成模拟图片的方法
+    private func generateSimulatedMakeupImage() -> UIImage? {
+        let screenSize = UIScreen.main.bounds.size
+        let safeAreaInsets = UIApplication.shared.windows.first?.safeAreaInsets ?? .zero
+        
+        // 创建绘图上下文
+        let renderer = UIGraphicsImageRenderer(size: screenSize)
+        let image = renderer.image { ctx in
+            // 绘制半透明白色背景
+            UIColor.white.withAlphaComponent(0.5).setFill()
+            ctx.fill(CGRect(origin: .zero, size: screenSize))
+            
+            // 计算黑色矩形的位置（使用当前视图位置）
+            let rectWidth: CGFloat = 240
+            let rectHeight: CGFloat = 180
+            
+            // 计算矩形中心点相对于屏幕的偏移比例
+            let centerX = position.x
+            let centerY = position.y
+            let screenCenterX = screenSize.width / 2
+            let screenCenterY = screenSize.height / 2
+            
+            // 计算偏移量（考虑安全区域）
+            let offsetX = centerX - screenCenterX
+            let offsetY = centerY - screenCenterY + safeAreaInsets.top
+            
+            // 计算矩形位置（考虑偏移）
+            let rectX = (screenSize.width - rectWidth) / 2 + offsetX
+            let rectY = (screenSize.height - rectHeight) / 2 + offsetY
+            
+            // 绘制黑色矩形
+            UIColor.black.setFill()
+            ctx.fill(CGRect(x: rectX, y: rectY, width: rectWidth, height: rectHeight))
+            
+            print("------------------------")
+            print("[化妆视图] 生成模拟图片")
+            print("屏幕尺寸：\(screenSize.width) x \(screenSize.height)")
+            print("安全区域：top=\(safeAreaInsets.top), bottom=\(safeAreaInsets.bottom)")
+            print("视图位置：x=\(centerX), y=\(centerY)")
+            print("屏幕中心：x=\(screenCenterX), y=\(screenCenterY)")
+            print("偏移量：x=\(offsetX), y=\(offsetY)")
+            print("矩形位置：x=\(rectX), y=\(rectY)")
+            print("------------------------")
+        }
+        
+        return image
     }
     
     var body: some View {
@@ -419,12 +470,29 @@ struct DraggableMakeupView: View {
             lastImageScale = 1.0
             imageOffset = .zero
             lastImageOffset = .zero
+            
+            // 更新CaptureManager中的化妆图片
+            if let _ = selectedImage {
+                // 使用模拟图片替代实际选择的图片
+                captureManager.makeupImage = generateSimulatedMakeupImage()
+                captureManager.isMakeupViewActive = true
+            } else {
+                captureManager.makeupImage = nil
+                captureManager.isMakeupViewActive = false
+            }
+        }
+        .onChange(of: position) { newPosition in
+            // 当视图位置改变时，更新模拟图片
+            if captureManager.isMakeupViewActive {
+                captureManager.makeupImage = generateSimulatedMakeupImage()
+            }
         }
         .onChange(of: isVisible) { newValue in
             if !newValue {
                 // 当视图关闭时清理图片缓存
                 cleanupImageCache()
                 CaptureManager.shared.isMakeupViewActive = false
+                CaptureManager.shared.makeupImage = nil
             } else {
                 CaptureManager.shared.isMakeupViewActive = true
             }
@@ -440,6 +508,7 @@ struct DraggableMakeupView: View {
             )
             cleanupImageCache()
             CaptureManager.shared.isMakeupViewActive = false
+            CaptureManager.shared.makeupImage = nil
         }
     }
     
