@@ -44,16 +44,12 @@ class CaptureManager: ObservableObject {
     
     // 旋转横屏图片
     private func rotateImage(_ image: UIImage, orientation: UIDeviceOrientation) -> UIImage {
-        // 只处理横屏图片（宽大于高）
-        guard image.size.width > image.size.height else {
-            return image
-        }
-        
-        print("[图片旋转] 开始旋转横屏图片")
+        print("[图片旋转] 开始旋转图片")
         print("原始尺寸：\(image.size.width) x \(image.size.height)")
         print("设备方向：\(orientation.rawValue)")
         
         let rotationAngle: CGFloat
+        let isLandscape = image.size.width > image.size.height
         
         // 根据设备方向决定旋转角度
         switch orientation {
@@ -61,12 +57,22 @@ class CaptureManager: ObservableObject {
             rotationAngle = .pi / 2 // 顺时针90度
         case .landscapeRight:
             rotationAngle = -.pi / 2 // 逆时针90度
+        case .portraitUpsideDown:
+            rotationAngle = .pi // 180度
         default:
             return image
         }
         
         // 创建绘图上下文
-        let size = CGSize(width: image.size.height, height: image.size.width)
+        let size: CGSize
+        if orientation == .portraitUpsideDown {
+            // 倒置竖屏时保持原始尺寸
+            size = image.size
+        } else {
+            // 横屏时交换宽高
+            size = CGSize(width: image.size.height, height: image.size.width)
+        }
+        
         UIGraphicsBeginImageContextWithOptions(size, false, image.scale)
         let context = UIGraphicsGetCurrentContext()!
         
@@ -75,10 +81,21 @@ class CaptureManager: ObservableObject {
         context.rotate(by: rotationAngle)
         
         // 绘制图片
-        let rect = CGRect(x: -image.size.width / 2,
+        let rect: CGRect
+        if orientation == .portraitUpsideDown {
+            // 倒置竖屏时使用原始尺寸
+            rect = CGRect(x: -image.size.width / 2,
                          y: -image.size.height / 2,
                          width: image.size.width,
                          height: image.size.height)
+        } else {
+            // 横屏时使用交换后的尺寸
+            rect = CGRect(x: -image.size.width / 2,
+                         y: -image.size.height / 2,
+                         width: image.size.width,
+                         height: image.size.height)
+        }
+        
         image.draw(in: rect)
         
         // 获取旋转后的图片
@@ -93,8 +110,9 @@ class CaptureManager: ObservableObject {
     
     // 显示预览
     func showPreview(image: UIImage, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
-        // 处理横屏图片旋转
-        let processedImage = orientation.isLandscape ? rotateImage(image, orientation: orientation) : image
+        // 处理图片旋转（包括横屏和倒置竖屏）
+        let processedImage = (orientation.isLandscape || orientation == .portraitUpsideDown) ? 
+            rotateImage(image, orientation: orientation) : image
         
         // 清除之前的预览图片缓存
         previewMixImage = nil
@@ -135,8 +153,9 @@ class CaptureManager: ObservableObject {
         print("设备方向：\(orientation.rawValue)")
         print("缩放比例：\(scale)")
         
-        // 处理横屏图片旋转
-        let processedImage = orientation.isLandscape ? rotateImage(image, orientation: orientation) : image
+        // 处理图片旋转（包括横屏和倒置竖屏）
+        let processedImage = (orientation.isLandscape || orientation == .portraitUpsideDown) ? 
+            rotateImage(image, orientation: orientation) : image
         
         // 首先将文件复制到持久化目录
         let persistentImageURL = persistentDirectory.appendingPathComponent("\(identifier).heic")
@@ -275,10 +294,68 @@ class CaptureManager: ObservableObject {
             let maxDimension: CGFloat = 4096
             let compressedImage = ImageProcessor.shared.compressImageIfNeeded(image, maxDimension: maxDimension)
             
-            // 如果需要勾选，使用压缩后的图片创建mix图片
+            // 处理图片方向
+            let processedImage: UIImage
+            if captureOrientation.isLandscape || captureOrientation == .portraitUpsideDown {
+                // 根据设备方向旋转图片
+                let rotationAngle: CGFloat
+                switch captureOrientation {
+                case .landscapeLeft:
+                    rotationAngle = -.pi / 2 // 逆时针90度
+                case .landscapeRight:
+                    rotationAngle = .pi / 2 // 顺时针90度
+                case .portraitUpsideDown:
+                    rotationAngle = .pi // 180度
+                default:
+                    rotationAngle = 0
+                }
+                
+                // 创建绘图上下文
+                let size: CGSize
+                if captureOrientation == .portraitUpsideDown {
+                    // 倒置竖屏时保持原始尺寸
+                    size = compressedImage.size
+                } else {
+                    // 横屏时交换宽高
+                    size = CGSize(width: compressedImage.size.height, height: compressedImage.size.width)
+                }
+                
+                UIGraphicsBeginImageContextWithOptions(size, false, compressedImage.scale)
+                let context = UIGraphicsGetCurrentContext()!
+                
+                // 移动原点到中心并旋转
+                context.translateBy(x: size.width / 2, y: size.height / 2)
+                context.rotate(by: rotationAngle)
+                
+                // 绘制图片
+                let rect: CGRect
+                if captureOrientation == .portraitUpsideDown {
+                    // 倒置竖屏时使用原始尺寸
+                    rect = CGRect(x: -compressedImage.size.width / 2,
+                                y: -compressedImage.size.height / 2,
+                                width: compressedImage.size.width,
+                                height: compressedImage.size.height)
+                } else {
+                    // 横屏时使用交换后的尺寸
+                    rect = CGRect(x: -compressedImage.size.width / 2,
+                                y: -compressedImage.size.height / 2,
+                                width: compressedImage.size.width,
+                                height: compressedImage.size.height)
+                }
+                
+                compressedImage.draw(in: rect)
+                
+                // 获取旋转后的图片
+                processedImage = UIGraphicsGetImageFromCurrentImageContext() ?? compressedImage
+                UIGraphicsEndImageContext()
+            } else {
+                processedImage = compressedImage
+            }
+            
+            // 如果需要勾选，使用处理后的图片创建mix图片
             let imageToSave = isCheckmarkEnabled ?
-                ImageProcessor.shared.createMixImage(baseImage: compressedImage, drawingImage: pinnedDrawingImage) :
-                compressedImage
+                ImageProcessor.shared.createMixImage(baseImage: processedImage, drawingImage: pinnedDrawingImage) :
+                processedImage
             
             // 再次检查并压缩最终图片
             let finalImage = ImageProcessor.shared.compressImageIfNeeded(imageToSave, maxDimension: maxDimension)
