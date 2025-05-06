@@ -18,7 +18,7 @@ class ImageProcessor {
     }
     
     // 优化的图像合成方法
-    func createMixImage(baseImage: UIImage, drawingImage: UIImage?) -> UIImage {
+    func createMixImage(baseImage: UIImage, drawingImage: UIImage?, scale: CGFloat = 1.0) -> UIImage {
         // 如果没有绘画图片，直接返回原图
         guard let drawingImage = drawingImage else {
             return baseImage
@@ -41,28 +41,32 @@ class ImageProcessor {
                 // 绘制基础图片
                 baseImage.draw(in: CGRect(origin: .zero, size: size))
                 
-                // 计算绘画图片的绘制区域，保持原始比例
+                // 计算绘画图片的绘制区域，保持原始比例并考虑缩放
                 let drawingSize = drawingImage.size
                 let aspectRatio = drawingSize.width / drawingSize.height
                 
+                // 根据缩放比例调整绘画图片的尺寸
+                let scaledWidth = size.width / scale
+                let scaledHeight = size.height / scale
+                
                 var drawingRect: CGRect
-                if aspectRatio > size.width / size.height {
+                if aspectRatio > scaledWidth / scaledHeight {
                     // 绘画图片更宽，以宽度为基准
-                    let height = size.width / aspectRatio
+                    let height = scaledWidth / aspectRatio
                     drawingRect = CGRect(
-                        x: 0,
+                        x: (size.width - scaledWidth) / 2,
                         y: (size.height - height) / 2,
-                        width: size.width,
+                        width: scaledWidth,
                         height: height
                     )
                 } else {
                     // 绘画图片更高，以高度为基准
-                    let width = size.height * aspectRatio
+                    let width = scaledHeight * aspectRatio
                     drawingRect = CGRect(
                         x: (size.width - width) / 2,
-                        y: 0,
+                        y: (size.height - scaledHeight) / 2,
                         width: width,
-                        height: size.height
+                        height: scaledHeight
                     )
                 }
                 
@@ -103,59 +107,55 @@ class ImageProcessor {
     }
     
     // 预览图片处理方法
-    func createPreviewImage(baseImage: UIImage, drawingImage: UIImage?) -> UIImage {
+    func createPreviewImage(baseImage: UIImage, drawingImage: UIImage?, scale: CGFloat = 1.0) -> UIImage {
         // 如果没有绘画图片，直接返回原图
         guard let drawingImage = drawingImage else {
             return baseImage
         }
         
-        // 计算预览尺寸（使用较小的尺寸以提高性能）
-        let previewMaxDimension: CGFloat = 1024 // 降低预览图片尺寸以提高性能
+        // 使用原始图片尺寸，不再缩小预览尺寸
         let size = baseImage.size
-        var renderSize = size
-        
-        // 如果图片尺寸超过限制，按比例缩小
-        if size.width > previewMaxDimension || size.height > previewMaxDimension {
-            let ratio = min(previewMaxDimension / size.width, previewMaxDimension / size.height)
-            renderSize = CGSize(width: size.width * ratio, height: size.height * ratio)
-        }
         
         // 使用autoreleasepool来管理临时对象的内存
         return autoreleasepool { () -> UIImage in
             let format = UIGraphicsImageRendererFormat()
-            format.scale = 1.0 // 降低预览图片的scale以提高性能
+            format.scale = UIScreen.main.scale // 使用屏幕的scale以保持清晰度
             format.opaque = false
             
-            let renderer = UIGraphicsImageRenderer(size: renderSize, format: format)
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
             let previewImage = renderer.image { ctx in
                 // 确保绘制区域被裁剪
                 ctx.cgContext.setBlendMode(.normal)
                 
                 // 绘制基础图片
-                baseImage.draw(in: CGRect(origin: .zero, size: renderSize))
+                baseImage.draw(in: CGRect(origin: .zero, size: size))
                 
-                // 计算绘画图片的绘制区域，保持原始比例
+                // 计算绘画图片的绘制区域，保持原始比例并考虑缩放
                 let drawingSize = drawingImage.size
                 let aspectRatio = drawingSize.width / drawingSize.height
                 
+                // 根据缩放比例调整绘画图片的尺寸
+                let scaledWidth = size.width / scale
+                let scaledHeight = size.height / scale
+                
                 var drawingRect: CGRect
-                if aspectRatio > renderSize.width / renderSize.height {
+                if aspectRatio > scaledWidth / scaledHeight {
                     // 绘画图片更宽，以宽度为基准
-                    let height = renderSize.width / aspectRatio
+                    let height = scaledWidth / aspectRatio
                     drawingRect = CGRect(
-                        x: 0,
-                        y: (renderSize.height - height) / 2,
-                        width: renderSize.width,
+                        x: (size.width - scaledWidth) / 2,
+                        y: (size.height - height) / 2,
+                        width: scaledWidth,
                         height: height
                     )
                 } else {
                     // 绘画图片更高，以高度为基准
-                    let width = renderSize.height * aspectRatio
+                    let width = scaledHeight * aspectRatio
                     drawingRect = CGRect(
-                        x: (renderSize.width - width) / 2,
-                        y: 0,
+                        x: (size.width - width) / 2,
+                        y: (size.height - scaledHeight) / 2,
                         width: width,
-                        height: renderSize.height
+                        height: scaledHeight
                     )
                 }
                 
