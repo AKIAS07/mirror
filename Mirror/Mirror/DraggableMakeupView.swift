@@ -424,10 +424,14 @@ struct DraggableMakeupView: View {
             if !newValue {
                 // 当视图关闭时清理图片缓存
                 cleanupImageCache()
+                CaptureManager.shared.isMakeupViewActive = false
+            } else {
+                CaptureManager.shared.isMakeupViewActive = true
             }
         }
         .onAppear {
             // 注意：setupOrientationNotification 已在初始化时调用
+            CaptureManager.shared.isMakeupViewActive = true
         }
         .onDisappear {
             // 清理旋转通知和图片缓存
@@ -435,6 +439,7 @@ struct DraggableMakeupView: View {
                 UIDevice.orientationDidChangeNotification
             )
             cleanupImageCache()
+            CaptureManager.shared.isMakeupViewActive = false
         }
     }
     

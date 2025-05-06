@@ -21,6 +21,16 @@ class CaptureManager: ObservableObject {
     @Published var currentIndicatorScale: CGFloat = 1.0
     @Published var dragOffset: CGSize = .zero  // 拖动偏移量
     @Published var lastDragOffset: CGSize = .zero  // 上次拖动的偏移量
+    @Published var isCheckmarkEnabled: Bool = false  // 添加勾选状态
+    @Published var isPinnedDrawingActive: Bool = false  // 添加固定绘画视图状态
+    @Published var pinnedDrawingImage: UIImage? = nil  // 添加固定绘画图片
+    @Published var isMakeupViewActive: Bool = false  // 添加化妆视图状态
+    @Published var previewMixImage: UIImage? = nil  // 添加预览混合图片缓存
+    
+    // 添加计算属性来判断是否应该显示勾选按钮
+    var shouldShowCheckmark: Bool {
+        return !isLivePhoto && isPinnedDrawingActive
+    }
     
     private let restartManager = ContentRestartManager.shared
     private let orientationManager = DeviceOrientationManager.shared
@@ -85,6 +95,9 @@ class CaptureManager: ObservableObject {
     func showPreview(image: UIImage, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
         // 处理横屏图片旋转
         let processedImage = orientation.isLandscape ? rotateImage(image, orientation: orientation) : image
+        
+        // 清除之前的预览图片缓存
+        previewMixImage = nil
         
         self.capturedImage = processedImage
         self.currentScale = scale
@@ -208,6 +221,8 @@ class CaptureManager: ObservableObject {
             // 重置拖动状态
             self.dragOffset = .zero
             self.lastDragOffset = .zero
+            self.isCheckmarkEnabled = false  // 重置勾选状态
+            self.previewMixImage = nil  // 清除预览图片缓存
         }
         
         // 解锁设备方向
@@ -249,14 +264,26 @@ class CaptureManager: ObservableObject {
         }
     }
     
-    // 保存图片到相册
-    func saveToPhotos(completion: ((Bool) -> Void)? = nil) {
+    // 修改保存方法
+    public func saveToPhotos(completion: ((Bool) -> Void)? = nil) {
         if isLivePhoto {
             saveLivePhotoToPhotoLibrary { success in
                 completion?(success)
             }
         } else if let image = capturedImage {
-            saveImageToPhotoLibrary(image) { success in
+            // 先压缩图片尺寸
+            let maxDimension: CGFloat = 4096
+            let compressedImage = ImageProcessor.shared.compressImageIfNeeded(image, maxDimension: maxDimension)
+            
+            // 如果需要勾选，使用压缩后的图片创建mix图片
+            let imageToSave = isCheckmarkEnabled ?
+                ImageProcessor.shared.createMixImage(baseImage: compressedImage, drawingImage: pinnedDrawingImage) :
+                compressedImage
+            
+            // 再次检查并压缩最终图片
+            let finalImage = ImageProcessor.shared.compressImageIfNeeded(imageToSave, maxDimension: maxDimension)
+            
+            saveImageToPhotoLibrary(finalImage) { success in
                 completion?(success)
             }
         }
@@ -413,5 +440,26 @@ class CaptureManager: ObservableObject {
         livePhotoIdentifier = ""
         tempImageURL = nil
         tempVideoURL = nil
+    }
+    
+    // 更新绘画图片的方法
+    public func updatePinnedDrawingImage(_ image: UIImage?) {
+        pinnedDrawingImage = image
+        // 清除预览图片缓存
+        previewMixImage = nil
+    }
+    
+    // 获取预览图片的方法
+    public func getPreviewImage(baseImage: UIImage) -> UIImage {
+        if isCheckmarkEnabled && pinnedDrawingImage != nil {
+            if previewMixImage == nil {
+                previewMixImage = ImageProcessor.shared.createPreviewImage(
+                    baseImage: baseImage,
+                    drawingImage: pinnedDrawingImage
+                )
+            }
+            return previewMixImage!
+        }
+        return baseImage
     }
 } 

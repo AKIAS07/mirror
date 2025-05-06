@@ -545,10 +545,12 @@ struct DrawingCanvasView: View {
                                     
                                     // Pin按钮
                                     Button(action: {
-                                        if let image = DrawingShapeRenderer.renderDrawingToImage(lines: lines, size: geometry.size) {
+                                        if let image = DrawingRenderer.renderDrawingToImage(lines: lines, size: geometry.size) {
                                             withAnimation {
                                                 pinnedImage = image
                                                 isPinned = true
+                                                // 更新CaptureManager中的绘画图片
+                                                CaptureManager.shared.updatePinnedDrawingImage(image)
                                             }
                                         }
                                     }) {
@@ -747,8 +749,10 @@ struct DrawingCanvasView: View {
         .onChange(of: isPinned) { newValue in
             if newValue {
                 NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
+                CaptureManager.shared.isPinnedDrawingActive = true
             } else {
                 NotificationCenter.default.post(name: NSNotification.Name("HideToolbars"), object: nil)
+                CaptureManager.shared.isPinnedDrawingActive = false
             }
         }
         .onDisappear {
@@ -851,4 +855,72 @@ struct DrawingCanvasView: View {
 @available(iOS 15.0, *)
 #Preview {
     DrawingCanvasView(isVisible: .constant(true), isPinned: .constant(false))
+} 
+
+// 添加绘画渲染器
+class DrawingRenderer {
+    static func renderDrawingToImage(lines: [Line], size: CGSize, scale: CGFloat = UIScreen.main.scale) -> UIImage? {
+        // 使用autoreleasepool来管理临时对象的内存
+        return autoreleasepool { () -> UIImage? in
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = scale
+            format.opaque = false
+            
+            // 限制最大渲染尺寸
+            let maxDimension: CGFloat = 4096
+            var renderSize = size
+            if size.width > maxDimension || size.height > maxDimension {
+                let ratio = min(maxDimension / size.width, maxDimension / size.height)
+                renderSize = CGSize(width: size.width * ratio, height: size.height * ratio)
+            }
+            
+            let renderer = UIGraphicsImageRenderer(size: renderSize, format: format)
+            
+            let image = renderer.image { context in
+                context.cgContext.setAllowsAntialiasing(true)
+                context.cgContext.setShouldAntialias(true)
+                
+                for line in lines {
+                    if line.isShape {
+                        // 渲染形状
+                        if let rect = line.boundingRect {
+                            // 使用 DrawingShapeRenderer 的 UIKit 渲染方法
+                            DrawingShapeRenderer.drawShape(
+                                line.settings.shapeType,
+                                in: rect.applying(CGAffineTransform.identity
+                                    .translatedBy(x: line.position.x, y: line.position.y)
+                                    .scaledBy(x: line.scale, y: line.scale)),
+                                with: line.settings,
+                                in: context.cgContext
+                            )
+                        }
+                    } else {
+                        // 渲染自由绘画线条
+                        guard let start = line.points.first else { continue }
+                        
+                        let path = UIBezierPath()
+                        path.lineWidth = line.settings.lineWidth
+                        path.lineCapStyle = .round
+                        path.lineJoinStyle = .round
+                        
+                        path.move(to: start)
+                        for point in line.points.dropFirst() {
+                            path.addLine(to: point)
+                        }
+                        
+                        if line.settings.isEraser {
+                            UIColor.clear.setStroke()
+                            path.stroke(with: .clear, alpha: 1.0)
+                        } else {
+                            let color = UIColor(line.settings.color)
+                            color.withAlphaComponent(line.settings.opacity).setStroke()
+                            path.stroke()
+                        }
+                    }
+                }
+            }
+            
+            return image
+        }
+    }
 } 

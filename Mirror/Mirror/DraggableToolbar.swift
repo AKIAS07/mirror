@@ -587,11 +587,6 @@ struct DraggableToolbar: View {
             print("工具栏：点击拍照按钮")
             print("------------------------")
             
-            // 隐藏所有控制界面
-            withAnimation {
-                isVisible = false
-            }
-            
             // 设置捕捉状态
             self.captureState.isCapturing = true
             

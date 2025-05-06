@@ -28,6 +28,7 @@ public class CaptureState: ObservableObject {
     @Published public var captureOrientation: UIDeviceOrientation = .portrait
     @Published var showScaleIndicator = false
     @Published var currentIndicatorScale: CGFloat = 1.0
+    @Published public var isCheckmarkEnabled: Bool = false
     
     private var isProcessingAlert = false
     private let fileManager = FileManager.default
@@ -274,14 +275,18 @@ public class CaptureState: ObservableObject {
     
     // 添加私有保存方法
     private func saveImageToPhotoLibrary(_ image: UIImage, completion: @escaping (Bool) -> Void) {
-        // 检查权限状态
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        
+        // 根据勾选状态决定保存哪个图片
+        let imageToSave = isCheckmarkEnabled ?
+            ImageProcessor.shared.createMixImage(baseImage: image, drawingImage: nil) :
+            image
         
         switch status {
         case .authorized, .limited:
             // 已有权限，直接保存
             PHPhotoLibrary.shared().performChanges({
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
+                PHAssetChangeRequest.creationRequestForAsset(from: imageToSave)
             }) { success, error in
                 DispatchQueue.main.async {
                     if success {
@@ -299,7 +304,7 @@ public class CaptureState: ObservableObject {
             PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] newStatus in
                 if newStatus == .authorized || newStatus == .limited {
                     DispatchQueue.main.async {
-                        self?.saveImageToPhotoLibrary(image, completion: completion)
+                        self?.saveImageToPhotoLibrary(imageToSave, completion: completion)
                     }
                 } else {
                     DispatchQueue.main.async {
@@ -472,14 +477,17 @@ public struct CaptureActionsView: View {
                                 let displayWidth = screenBounds.width
                                 let displayHeight = screenBounds.height
                                 
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(width: displayWidth, height: displayHeight)
-                                    .scaleEffect(captureManager.currentScale)
-                                    //.rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
-                                    .offset(captureManager.dragOffset)
-                                    .clipped()
+                                Group {
+                                    // 根据勾选状态显示不同的图片
+                                    let displayImage = Image(uiImage: captureManager.getPreviewImage(baseImage: image))
+                                    displayImage
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: displayWidth, height: displayHeight)
+                                        .scaleEffect(captureManager.currentScale)
+                                        .offset(captureManager.dragOffset)
+                                        .clipped()
+                                }
                             }
                         }
                         
@@ -822,6 +830,30 @@ public struct CaptureActionsView: View {
                     VStack {
                         HStack {
                             Spacer()
+                            // 添加勾选按钮
+                            if captureManager.shouldShowCheckmark {
+                                Button(action: {
+                                    // 触发震动反馈
+                                    let generator = UIImpactFeedbackGenerator(style: .light)
+                                    generator.prepare()
+                                    generator.impactOccurred()
+                                    
+                                    withAnimation {
+                                        captureManager.isCheckmarkEnabled.toggle()
+                                    }
+                                }) {
+                                    Image(systemName: captureManager.isCheckmarkEnabled ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 20, weight: .medium))
+                                        .foregroundColor(.white)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.black.opacity(0.35))
+                                        .clipShape(Circle())
+                                }
+                                .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
+                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                .padding(.top, 80)
+                            }
+                            
                             Button(action: {
                                 print("关闭按钮被点击")
                                 // 触发震动反馈
