@@ -4,8 +4,8 @@ import AVFoundation
 struct CameraView: UIViewRepresentable {
     var session: AVCaptureSession
     var isMirrored: Bool
-    var isSystemCamera: Bool = false  // 新增参数
-    var isBackCamera: Bool = false    // 新增参数
+    var isSystemCamera: Bool = false
+    var isBackCamera: Bool = false
     
     class PreviewView: UIView {
         override class var layerClass: AnyClass {
@@ -14,6 +14,11 @@ struct CameraView: UIViewRepresentable {
         
         var videoPreviewLayer: AVCaptureVideoPreviewLayer {
             return layer as! AVCaptureVideoPreviewLayer
+        }
+        
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            videoPreviewLayer.frame = bounds
         }
     }
     
@@ -25,6 +30,7 @@ struct CameraView: UIViewRepresentable {
         let view = PreviewView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        view.videoPreviewLayer.frame = view.bounds
         
         // 配置预览层
         if let connection = view.videoPreviewLayer.connection {
@@ -59,6 +65,7 @@ struct CameraView: UIViewRepresentable {
         print("------------------------")
         
         uiView.videoPreviewLayer.session = session
+        uiView.videoPreviewLayer.frame = uiView.bounds
         
         if let connection = uiView.videoPreviewLayer.connection {
             connection.automaticallyAdjustsVideoMirroring = false

@@ -49,7 +49,7 @@ struct ArrowLayoutConfig {
 }
 
 struct CameraLayoutConfig {
-    static let horizontalPadding: CGFloat = -150  // 修改为负值来增大宽度
+    static let horizontalPadding: CGFloat = 0  // 修改为负值来增大宽度
     static let verticalPadding: CGFloat = 0   // 上下边距
     
     // 动态计算圆角半径

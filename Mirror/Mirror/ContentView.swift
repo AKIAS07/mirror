@@ -105,54 +105,54 @@ struct ContentView: View {
                 if permissionManager.cameraPermissionGranted {
                     if cameraManager.isMirrored {
                         // 模式A视图
-                        GeometryReader { geometry in
-                            CameraContainer(
-                                session: cameraManager.session,
-                                isMirrored: cameraManager.isMirrored,
-                                isActive: restartManager.isCameraActive,
-                                deviceOrientation: orientationManager.currentOrientation,
-                                restartAction: { restartManager.restartCamera(cameraManager: cameraManager) },
-                                cameraManager: cameraManager,
-                                previousBrightness: previousBrightness,
-                                isSelected: $ModeASelected,
-                                isLighted: $isLighted,
-                                isControlAreaVisible: $isControlAreaVisible,
-                                currentScale: $currentScale,
-                                showScaleIndicator: $showScaleIndicator,
-                                currentIndicatorScale: $currentIndicatorScale,
-                                onPinchChanged: handlePinchGesture,
-                                onPinchEnded: handlePinchEnd,
-                                minScale: minScale,
-                                captureState: captureState
-                            )
-                        }
+                        CameraContainer(
+                            session: cameraManager.session,
+                            isMirrored: cameraManager.isMirrored,
+                            isActive: restartManager.isCameraActive,
+                            deviceOrientation: orientationManager.currentOrientation,
+                            restartAction: { restartManager.restartCamera(cameraManager: cameraManager) },
+                            cameraManager: cameraManager,
+                            previousBrightness: previousBrightness,
+                            isSelected: $ModeASelected,
+                            isLighted: $isLighted,
+                            isControlAreaVisible: $isControlAreaVisible,
+                            currentScale: $currentScale,
+                            showScaleIndicator: $showScaleIndicator,
+                            currentIndicatorScale: $currentIndicatorScale,
+                            onPinchChanged: handlePinchGesture,
+                            onPinchEnded: handlePinchEnd,
+                            minScale: minScale,
+                            captureState: captureState
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .edgesIgnoringSafeArea(.all)
                         
                         // 添加独立的边框视图
                         CameraBorderView(isSelected: ModeASelected, isLighted: isLighted)
                             .zIndex(3)
                     } else {
                         // 模式B视图
-                        GeometryReader { geometry in
-                            CameraContainer(
-                                session: cameraManager.session,
-                                isMirrored: cameraManager.isMirrored,
-                                isActive: restartManager.isCameraActive,
-                                deviceOrientation: orientationManager.currentOrientation,
-                                restartAction: { restartManager.restartCamera(cameraManager: cameraManager) },
-                                cameraManager: cameraManager,
-                                previousBrightness: previousBrightness,
-                                isSelected: $ModeBSelected,
-                                isLighted: $isLighted,
-                                isControlAreaVisible: $isControlAreaVisible,
-                                currentScale: $currentScale,
-                                showScaleIndicator: $showScaleIndicator,
-                                currentIndicatorScale: $currentIndicatorScale,
-                                onPinchChanged: handlePinchGesture,
-                                onPinchEnded: handlePinchEnd,
-                                minScale: minScale,
-                                captureState: captureState
-                            )
-                        }
+                        CameraContainer(
+                            session: cameraManager.session,
+                            isMirrored: cameraManager.isMirrored,
+                            isActive: restartManager.isCameraActive,
+                            deviceOrientation: orientationManager.currentOrientation,
+                            restartAction: { restartManager.restartCamera(cameraManager: cameraManager) },
+                            cameraManager: cameraManager,
+                            previousBrightness: previousBrightness,
+                            isSelected: $ModeBSelected,
+                            isLighted: $isLighted,
+                            isControlAreaVisible: $isControlAreaVisible,
+                            currentScale: $currentScale,
+                            showScaleIndicator: $showScaleIndicator,
+                            currentIndicatorScale: $currentIndicatorScale,
+                            onPinchChanged: handlePinchGesture,
+                            onPinchEnded: handlePinchEnd,
+                            minScale: minScale,
+                            captureState: captureState
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .edgesIgnoringSafeArea(.all)
                         
                         // 添加独立的边框视图
                         CameraBorderView(isSelected: ModeBSelected, isLighted: isLighted)

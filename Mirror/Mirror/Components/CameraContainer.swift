@@ -95,10 +95,10 @@ struct CameraContainer: View {
         GeometryReader { geometry in
             let availableHeight = geometry.size.height
             let containerFrame = CGRect(
-                x: CameraLayoutConfig.horizontalPadding,
-                y: CameraLayoutConfig.verticalOffset,
-                width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2),
-                height: availableHeight - CameraLayoutConfig.bottomOffset
+                x: 0,
+                y: 0,
+                width: geometry.size.width,
+                height: availableHeight
             )
             
             ZStack {
@@ -121,6 +121,9 @@ struct CameraContainer: View {
                             cameraManager: cameraManager,
                             captureManager: captureManager
                         )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .edgesIgnoringSafeArea(.all)
+                        .position(x: geometry.size.width/2, y: geometry.size.height/2)
                     } else {
                         if let image = processedImage {
                             ZStack {
@@ -130,13 +133,11 @@ struct CameraContainer: View {
                                 Image(uiImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .frame(width: geometry.size.width - (CameraLayoutConfig.horizontalPadding * 2), 
-                                           height: availableHeight - CameraLayoutConfig.bottomOffset)
-                                    .clipShape(RoundedRectangle(cornerRadius: 0))
-                                    //.clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .edgesIgnoringSafeArea(.all)
                                     .scaleEffect(currentScale, anchor: .center)
-                                    .position(x: geometry.size.width/2, y: geometry.size.height/2)
                                     .rotationEffect(Angle(degrees: shouldRotateCamera(orientation: deviceOrientation) ? 180 : 0))
+                                    .position(x: geometry.size.width/2, y: geometry.size.height/2)
                                     .simultaneousGesture(
                                         MagnificationGesture()
                                             .onChanged { scale in
@@ -517,36 +518,30 @@ struct SystemCameraView: View {
                 Color.black
                     .edgesIgnoringSafeArea(.all)
                 
-                let cameraView = CameraView(
-                    session: session,
-                    isMirrored: isMirrored,
-                    isSystemCamera: isSystemCamera,
-                    isBackCamera: isBackCamera
-                )
-                
-                cameraView
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    //.clipShape(RoundedRectangle(cornerRadius: CameraLayoutConfig.cornerRadius))
-                    .clipShape(RoundedRectangle(cornerRadius: 0))
-                    .padding(.horizontal, CameraLayoutConfig.horizontalPadding)
-                    .padding(.top, CameraLayoutConfig.verticalOffset)
-                    .padding(.bottom, CameraLayoutConfig.bottomOffset)
-                    .scaleEffect(currentScale, anchor: .center)
-                    .position(x: geometry.size.width/2, y: geometry.size.height/2)
-                    .rotationEffect(Angle(degrees: shouldRotateCamera(orientation: deviceOrientation) ? 180 : 0))
-                    .simultaneousGesture(
-                        MagnificationGesture()
-                            .onChanged { scale in
-                                onPinchChanged(scale)
-                                ViewActionLogger.shared.logZoomAction(scale: currentScale)
-                            }
-                            .onEnded { scale in
-                                onPinchEnded(scale)
-                                ViewActionLogger.shared.logZoomAction(scale: currentScale)
-                            }
-                    )
+                if let image = processedImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .edgesIgnoringSafeArea(.all)
+                        .scaleEffect(currentScale, anchor: .center)
+                        .rotationEffect(Angle(degrees: shouldRotateCamera(orientation: deviceOrientation) ? 180 : 0))
+                        .position(x: geometry.size.width/2, y: geometry.size.height/2)
+                        .simultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { scale in
+                                    onPinchChanged(scale)
+                                    ViewActionLogger.shared.logZoomAction(scale: currentScale)
+                                }
+                                .onEnded { scale in
+                                    onPinchEnded(scale)
+                                    ViewActionLogger.shared.logZoomAction(scale: currentScale)
+                                }
+                        )
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .edgesIgnoringSafeArea(.all)
         }
         .onAppear {
             print("------------------------")

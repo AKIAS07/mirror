@@ -375,6 +375,28 @@ class CameraManager: ObservableObject {
                     }
                 }
             }
+            
+            // 添加视频输出
+            if session.canAddOutput(videoOutput) {
+                videoOutput.videoSettings = [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+                ]
+                videoOutput.alwaysDiscardsLateVideoFrames = true
+                session.addOutput(videoOutput)
+                
+                if let connection = videoOutput.connection(with: .video) {
+                    if connection.isVideoMirroringSupported {
+                        connection.isVideoMirrored = isMirrored
+                    }
+                    connection.videoOrientation = .portrait
+                }
+                
+                // 设置视频输出代理
+                if let delegate = videoOutputDelegate {
+                    let queue = DispatchQueue(label: "videoQueue", qos: .userInteractive)
+                    videoOutput.setSampleBufferDelegate(delegate, queue: queue)
+                }
+            }
         }
     }
     
