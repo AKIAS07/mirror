@@ -357,6 +357,7 @@ class CaptureManager: ObservableObject {
             self.lastDragOffset = .zero
             self.isCheckmarkEnabled = false  // 重置勾选状态
             self.previewMixImage = nil  // 清除预览图片缓存
+            // 注意：不再在这里清理绘画相关状态
         }
         
         // 解锁设备方向

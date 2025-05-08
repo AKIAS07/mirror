@@ -701,6 +701,9 @@ struct DrawingCanvasView: View {
                     currentLine = nil
                     pinnedImage = nil
                     isPinned = false
+                    // 更新 CaptureManager 中的状态
+                    CaptureManager.shared.updatePinnedDrawingImage(nil)
+                    CaptureManager.shared.isPinnedDrawingActive = false
                     NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
                 }
             }
@@ -715,6 +718,9 @@ struct DrawingCanvasView: View {
                     isVisible = false
                     isPinned = false
                     pinnedImage = nil
+                    // 更新 CaptureManager 中的状态
+                    CaptureManager.shared.updatePinnedDrawingImage(nil)
+                    CaptureManager.shared.isPinnedDrawingActive = false
                     NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
                 }
             }

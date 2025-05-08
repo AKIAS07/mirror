@@ -862,6 +862,10 @@ public struct CaptureActionsView: View {
                                 generator.impactOccurred()
                                 
                                 withAnimation {
+                                    // 只重置勾选状态和预览图片缓存
+                                    captureManager.isCheckmarkEnabled = false
+                                    captureManager.previewMixImage = nil
+                                    
                                     captureManager.hidePreview(cameraManager: cameraManager)
                                     onDismiss()
                                 }
