@@ -45,67 +45,91 @@ class CaptureManager: ObservableObject {
     
     // 旋转横屏图片
     private func rotateImageIfNeeded(_ image: UIImage) -> UIImage {
-        let orientation = captureOrientation
-        if orientation == .portrait {
+        print("------------------------")
+        print("[图片旋转] 开始")
+        print("原始尺寸：\(image.size.width) x \(image.size.height)")
+        print("设备方向：\(orientationManager.getOrientationDescription(captureOrientation))")
+        print("原始图片方向：\(image.imageOrientation.rawValue)")
+        
+        // 如果图片已经是正确的方向，直接返回
+        if image.imageOrientation == .up && captureOrientation == .portrait {
+            print("[图片旋转] 图片已经是正确方向，无需旋转")
             return image
         }
-        
-        // 使用下划线忽略未使用的变量
-        let _ = orientation.isValidInterfaceOrientation
         
         // 根据方向旋转图片
         let angle: CGFloat
-        switch orientation {
+        let shouldSwapDimensions: Bool
+        
+        switch captureOrientation {
+        case .portrait:
+            print("[图片旋转] 竖屏，无需旋转")
+            return image
+            
         case .landscapeLeft:
             angle = .pi / 2
+            shouldSwapDimensions = true
+            print("[图片旋转] 向左横屏，旋转90度")
+            
         case .landscapeRight:
             angle = -.pi / 2
+            shouldSwapDimensions = true
+            print("[图片旋转] 向右横屏，旋转-90度")
+            
         case .portraitUpsideDown:
             angle = .pi
+            shouldSwapDimensions = false
+            print("[图片旋转] 倒置竖屏，旋转180度")
+            
         default:
+            print("[图片旋转] 未知方向，不旋转")
             return image
         }
         
-        // 创建绘图上下文
-        let size: CGSize
-        if orientation == .portraitUpsideDown {
-            // 倒置竖屏时保持原始尺寸
-            size = image.size
-        } else {
-            // 横屏时交换宽高
-            size = CGSize(width: image.size.height, height: image.size.width)
+        return autoreleasepool { () -> UIImage in
+            // 创建绘图上下文
+            let size: CGSize
+            if shouldSwapDimensions {
+                size = CGSize(width: image.size.height, height: image.size.width)
+                print("[图片旋转] 交换宽高：\(size.width) x \(size.height)")
+            } else {
+                size = image.size
+                print("[图片旋转] 保持原始尺寸：\(size.width) x \(size.height)")
+            }
+            
+            UIGraphicsBeginImageContextWithOptions(size, false, image.scale)
+            let context = UIGraphicsGetCurrentContext()!
+            
+            // 移动原点到中心并旋转
+            context.translateBy(x: size.width / 2, y: size.height / 2)
+            context.rotate(by: angle)
+            
+            // 绘制图片
+            let rect = CGRect(
+                x: -image.size.width / 2,
+                y: -image.size.height / 2,
+                width: image.size.width,
+                height: image.size.height
+            )
+            
+            image.draw(in: rect)
+            
+            // 获取旋转后的图片
+            let rotatedImage = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            
+            if let finalImage = rotatedImage {
+                print("[图片旋转] 完成")
+                print("最终尺寸：\(finalImage.size.width) x \(finalImage.size.height)")
+                print("最终图片方向：\(finalImage.imageOrientation.rawValue)")
+                print("------------------------")
+                return finalImage
+            } else {
+                print("[图片旋转] 失败，返回原始图片")
+                print("------------------------")
+                return image
+            }
         }
-        
-        UIGraphicsBeginImageContextWithOptions(size, false, image.scale)
-        let context = UIGraphicsGetCurrentContext()!
-        
-        // 移动原点到中心并旋转
-        context.translateBy(x: size.width / 2, y: size.height / 2)
-        context.rotate(by: angle)
-        
-        // 绘制图片
-        let rect: CGRect
-        if orientation == .portraitUpsideDown {
-            // 倒置竖屏时使用原始尺寸
-            rect = CGRect(x: -image.size.width / 2,
-                         y: -image.size.height / 2,
-                         width: image.size.width,
-                         height: image.size.height)
-        } else {
-            // 横屏时使用交换后的尺寸
-            rect = CGRect(x: -image.size.width / 2,
-                         y: -image.size.height / 2,
-                         width: image.size.width,
-                         height: image.size.height)
-        }
-        
-        image.draw(in: rect)
-        
-        // 获取旋转后的图片
-        let rotatedImage = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
-        
-        return rotatedImage ?? image
     }
     
     // 添加图片旋转函数
@@ -180,9 +204,26 @@ class CaptureManager: ObservableObject {
     
     // 显示预览
     func showPreview(image: UIImage, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
+        print("------------------------")
+        print("[预览显示] 开始")
+        print("传入方向：\(orientationManager.getOrientationDescription(orientation))")
+        print("当前设备方向：\(orientationManager.getOrientationDescription(orientationManager.currentOrientation))")
+        
+        // 使用当前实际的设备方向，而不是传入的方向
+        let actualOrientation = orientationManager.currentOrientation
+        
+        // 先设置捕获方向，这样后续的旋转处理才能正确进行
+        self.captureOrientation = actualOrientation
+        
+        print("[预览显示] 设置捕获方向：\(orientationManager.getOrientationDescription(actualOrientation))")
+        
         // 处理图片旋转（包括横屏和倒置竖屏）
-        let processedImage = (orientation.isLandscape || orientation == .portraitUpsideDown) ? 
+        let processedImage = (actualOrientation.isLandscape || actualOrientation == .portraitUpsideDown) ? 
             rotateImageIfNeeded(image) : image
+        
+        print("[预览显示] 图片处理")
+        print("原始尺寸：\(image.size.width) x \(image.size.height)")
+        print("处理后尺寸：\(processedImage.size.width) x \(processedImage.size.height)")
         
         // 清除之前的预览图片缓存
         previewMixImage = nil
@@ -191,7 +232,8 @@ class CaptureManager: ObservableObject {
         self.currentScale = scale
         self.currentIndicatorScale = scale
         self.isLivePhoto = false
-        self.captureOrientation = orientation
+        
+        print("[预览显示] 最终方向：\(orientationManager.getOrientationDescription(actualOrientation))")
         
         // 锁定设备方向，防止旋转
         orientationManager.lockOrientation()
@@ -214,6 +256,9 @@ class CaptureManager: ObservableObject {
             cameraManager.safelyStopSession()
             self.restartManager.isCameraActive = false
         }
+        
+        print("[预览显示] 完成")
+        print("------------------------")
     }
     
     // 显示 Live Photo 预览

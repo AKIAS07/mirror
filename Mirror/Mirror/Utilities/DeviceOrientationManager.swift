@@ -19,6 +19,21 @@ class DeviceOrientationManager: ObservableObject {
     ]
     
     private init() {
+        // 确保在开始监听之前就开始生成设备方向通知
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+        
+        // 等待一小段时间确保设备方向已经准确
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            if let initialOrientation = self?.getCurrentValidOrientation() {
+                self?.currentOrientation = initialOrientation
+                self?.lastValidOrientation = initialOrientation
+                print("------------------------")
+                print("[设备方向] 初始化")
+                print("初始方向：\(self?.getOrientationDescription(initialOrientation) ?? "未知")")
+                print("------------------------")
+            }
+        }
+        
         // 监听 ProManager 的 isPro 变化
         NotificationCenter.default.addObserver(
             self,
@@ -27,11 +42,6 @@ class DeviceOrientationManager: ObservableObject {
             object: nil
         )
         
-        // 初始化时立即获取当前方向
-        if let initialOrientation = getCurrentValidOrientation() {
-            self.currentOrientation = initialOrientation
-            self.lastValidOrientation = initialOrientation
-        }
         startOrientationMonitoring()
     }
     

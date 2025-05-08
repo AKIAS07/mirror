@@ -32,7 +32,7 @@ struct DraggableMakeupView: View {
     @State private var position = CGPoint(x: UIScreen.main.bounds.width / 2, y: 200)
     @State private var dragOffset = CGSize.zero
     @State private var selectedImage: UIImage?
-    @State private var originalImage: UIImage?  // 添加原始图片存储
+    @State private var originalImage: UIImage?
     @State private var showImagePicker = false
     @State private var isEditing: Bool = false
     @State private var showImageEditor = false
@@ -78,6 +78,9 @@ struct DraggableMakeupView: View {
     
     // 移动边界矩形参数
     @State private var movableBoundsRect: CGRect = .zero
+    
+    // 添加记录图片上传时的设备方向
+    @State private var imageUploadOrientation: UIDeviceOrientation = .portrait
     
     // 计算图片初始尺寸
     private func calculateInitialImageSize(_ image: UIImage) -> (width: CGFloat, height: CGFloat) {
@@ -127,14 +130,14 @@ struct DraggableMakeupView: View {
         }())
         
         let image = renderer.image { ctx in
-            //UIColor.white.withAlphaComponent(0.5).setFill()
             // 清除背景（完全透明）
             UIColor.clear.setFill()
             ctx.fill(CGRect(origin: .zero, size: screenSize))
             
-            // 计算黑色矩形的位置（使用当前视图位置）
-            let rectWidth: CGFloat = 240
-            let rectHeight: CGFloat = 180
+            // 根据设备方向确定矩形尺寸
+            let isLandscape = orientationManager.validOrientation.isLandscape
+            let rectWidth: CGFloat = isLandscape ? 180 : 240  // 横屏时宽度变小
+            let rectHeight: CGFloat = isLandscape ? 240 : 180  // 横屏时高度变大
             
             // 计算矩形中心点相对于屏幕的偏移比例
             let centerX = position.x
@@ -183,6 +186,24 @@ struct DraggableMakeupView: View {
                     height: scaledHeight
                 )
                 
+                // 计算相对旋转角度（当前方向相对于上传时的方向）
+                let currentOrientation = orientationManager.validOrientation
+                let relativeRotationAngle = calculateRelativeRotationAngle(
+                    from: imageUploadOrientation,
+                    to: currentOrientation
+                )
+                
+                // 设置旋转中心点
+                let rotationCenter = CGPoint(
+                    x: rectX + rectWidth/2,
+                    y: rectY + rectHeight/2
+                )
+                
+                // 应用旋转变换
+                ctx.cgContext.translateBy(x: rotationCenter.x, y: rotationCenter.y)
+                ctx.cgContext.rotate(by: relativeRotationAngle.radians)
+                ctx.cgContext.translateBy(x: -rotationCenter.x, y: -rotationCenter.y)
+                
                 // 绘制图片（保持原始透明度）
                 selectedImage.draw(in: imageRect, blendMode: .normal, alpha: 1.0)
                 
@@ -195,9 +216,12 @@ struct DraggableMakeupView: View {
                 print("安全区域：top=\(safeAreaInsets.top), bottom=\(safeAreaInsets.bottom)")
                 print("视图位置：x=\(centerX), y=\(centerY)")
                 print("矩形位置：x=\(rectX), y=\(rectY)")
+                print("矩形尺寸：\(rectWidth) x \(rectHeight)")
                 print("图片尺寸：\(scaledWidth) x \(scaledHeight)")
                 print("图片偏移：x=\(imageOffset.width), y=\(imageOffset.height)")
-                print("图片区域：\(imageRect)")
+                print("上传方向：\(imageUploadOrientation.rawValue)")
+                print("当前方向：\(currentOrientation.rawValue)")
+                print("相对旋转角度：\(relativeRotationAngle.degrees)°")
                 print("------------------------")
             } else {
                 print("------------------------")
@@ -210,6 +234,13 @@ struct DraggableMakeupView: View {
         }
         
         return image
+    }
+    
+    // 添加计算相对旋转角度的方法
+    private func calculateRelativeRotationAngle(from sourceOrientation: UIDeviceOrientation, to targetOrientation: UIDeviceOrientation) -> Angle {
+        let sourceAngle = calculateRotationAngle(sourceOrientation)
+        let targetAngle = calculateRotationAngle(targetOrientation)
+        return targetAngle - sourceAngle
     }
     
     var body: some View {
@@ -509,7 +540,11 @@ struct DraggableMakeupView: View {
             }
         }
         .sheet(isPresented: $showImagePicker) {
-            PhotoPicker(selectedImage: $selectedImage, originalImage: $originalImage)
+            PhotoPicker(
+                selectedImage: $selectedImage,
+                originalImage: $originalImage,
+                imageUploadOrientation: $imageUploadOrientation
+            )
         }
         .onChange(of: selectedImage) { _ in
             // 重置图片状态
@@ -532,6 +567,16 @@ struct DraggableMakeupView: View {
             // 当视图位置改变时，更新模拟图片
             if captureManager.isMakeupViewActive {
                 captureManager.makeupImage = generateSimulatedMakeupImage()
+            }
+        }
+        .onChange(of: orientationManager.validOrientation) { newOrientation in
+            // 当设备方向改变时，更新模拟图片
+            if captureManager.isMakeupViewActive {
+                captureManager.makeupImage = generateSimulatedMakeupImage()
+                print("------------------------")
+                print("[化妆视图] 设备方向变化")
+                print("新方向：\(newOrientation.rawValue)")
+                print("------------------------")
             }
         }
         .onChange(of: isVisible) { newValue in
@@ -620,6 +665,7 @@ extension UIDeviceOrientation {
 struct PhotoPicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
     @Binding var originalImage: UIImage?
+    @Binding var imageUploadOrientation: UIDeviceOrientation  // 添加绑定属性
     @Environment(\.presentationMode) private var presentationMode
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
@@ -671,10 +717,13 @@ struct PhotoPicker: UIViewControllerRepresentable {
                             print("[化妆视图] 图片上传成功")
                             print("图片尺寸：\(image.size.width) x \(image.size.height)")
                             print("图片比例：\(image.size.width / image.size.height)")
+                            print("上传时设备方向：\(UIDevice.current.orientation.rawValue)")
                             print("------------------------")
                             
                             self.parent.selectedImage = image
                             self.parent.originalImage = image
+                            // 记录上传时的设备方向
+                            self.parent.imageUploadOrientation = UIDevice.current.orientation
                         }
                     }
                 }
