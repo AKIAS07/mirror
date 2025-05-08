@@ -83,15 +83,26 @@ struct DraggableMakeupView: View {
     private func calculateInitialImageSize(_ image: UIImage) -> (width: CGFloat, height: CGFloat) {
         let imageAspectRatio = image.size.width / image.size.height
         
+        print("------------------------")
+        print("[化妆视图] 计算图片尺寸")
+        print("原始尺寸：\(image.size.width) x \(image.size.height)")
+        print("原始比例：\(imageAspectRatio)")
+        print("视图比例：\(viewAspectRatio)")
+        print("------------------------")
+        
         if imageAspectRatio > viewAspectRatio {
             // 图片较宽，高度匹配
             let height = centerAreaHeight
             let width = height * imageAspectRatio
+            print("调整后尺寸：\(width) x \(height)")
+            print("------------------------")
             return (width, height)
         } else {
             // 图片较高，宽度匹配
             let width = totalWidth
             let height = width / imageAspectRatio
+            print("调整后尺寸：\(width) x \(height)")
+            print("------------------------")
             return (width, height)
         }
     }
@@ -104,13 +115,21 @@ struct DraggableMakeupView: View {
     // 添加生成模拟图片的方法
     private func generateSimulatedMakeupImage() -> UIImage? {
         let screenSize = UIScreen.main.bounds.size
-        let safeAreaInsets = UIApplication.shared.windows.first?.safeAreaInsets ?? .zero
+        let safeAreaInsets = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first?.safeAreaInsets ?? .zero
         
-        // 创建绘图上下文
-        let renderer = UIGraphicsImageRenderer(size: screenSize)
+        // 创建绘图上下文，设置透明背景
+        let renderer = UIGraphicsImageRenderer(size: screenSize, format: {
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = false // 设置非不透明，支持透明通道
+            return format
+        }())
+        
         let image = renderer.image { ctx in
-            // 绘制半透明白色背景
-            UIColor.white.withAlphaComponent(0.5).setFill()
+            //UIColor.white.withAlphaComponent(0.5).setFill()
+            // 清除背景（完全透明）
+            UIColor.clear.setFill()
             ctx.fill(CGRect(origin: .zero, size: screenSize))
             
             // 计算黑色矩形的位置（使用当前视图位置）
@@ -131,19 +150,63 @@ struct DraggableMakeupView: View {
             let rectX = (screenSize.width - rectWidth) / 2 + offsetX
             let rectY = (screenSize.height - rectHeight) / 2 + offsetY
             
-            // 绘制黑色矩形
-            UIColor.black.setFill()
+            // 绘制黑色矩形（半透明）
+            UIColor.black.withAlphaComponent(0).setFill()
             ctx.fill(CGRect(x: rectX, y: rectY, width: rectWidth, height: rectHeight))
             
-            print("------------------------")
-            print("[化妆视图] 生成模拟图片")
-            print("屏幕尺寸：\(screenSize.width) x \(screenSize.height)")
-            print("安全区域：top=\(safeAreaInsets.top), bottom=\(safeAreaInsets.bottom)")
-            print("视图位置：x=\(centerX), y=\(centerY)")
-            print("屏幕中心：x=\(screenCenterX), y=\(screenCenterY)")
-            print("偏移量：x=\(offsetX), y=\(offsetY)")
-            print("矩形位置：x=\(rectX), y=\(rectY)")
-            print("------------------------")
+            // 如果有选中的图片，在黑色矩形上绘制图片
+            if let selectedImage = selectedImage {
+                // 计算图片在视图中的实际位置和大小
+                let imageSize = calculateInitialImageSize(selectedImage)
+                let scaledWidth = imageSize.width * imageScale
+                let scaledHeight = imageSize.height * imageScale
+                
+                // 保存当前上下文状态
+                ctx.cgContext.saveGState()
+                
+                // 创建裁剪路径（矩形区域，无圆角）
+                let clipPath = UIBezierPath(
+                    rect: CGRect(
+                        x: rectX,
+                        y: rectY,
+                        width: rectWidth,
+                        height: rectHeight
+                    )
+                )
+                clipPath.addClip()
+                
+                // 计算图片的绘制区域（考虑缩放和偏移）
+                let imageRect = CGRect(
+                    x: rectX + (rectWidth - scaledWidth)/2 + imageOffset.width,
+                    y: rectY + (rectHeight - scaledHeight)/2 + imageOffset.height,
+                    width: scaledWidth,
+                    height: scaledHeight
+                )
+                
+                // 绘制图片（保持原始透明度）
+                selectedImage.draw(in: imageRect, blendMode: .normal, alpha: 1.0)
+                
+                // 恢复上下文状态
+                ctx.cgContext.restoreGState()
+                
+                print("------------------------")
+                print("[化妆视图] 生成模拟图片")
+                print("屏幕尺寸：\(screenSize.width) x \(screenSize.height)")
+                print("安全区域：top=\(safeAreaInsets.top), bottom=\(safeAreaInsets.bottom)")
+                print("视图位置：x=\(centerX), y=\(centerY)")
+                print("矩形位置：x=\(rectX), y=\(rectY)")
+                print("图片尺寸：\(scaledWidth) x \(scaledHeight)")
+                print("图片偏移：x=\(imageOffset.width), y=\(imageOffset.height)")
+                print("图片区域：\(imageRect)")
+                print("------------------------")
+            } else {
+                print("------------------------")
+                print("[化妆视图] 生成模拟图片")
+                print("状态：无图片")
+                print("位置：x=\(centerX), y=\(centerY)")
+                print("矩形：\(rectX), \(rectY), \(rectWidth) x \(rectHeight)")
+                print("------------------------")
+            }
         }
         
         return image
@@ -239,8 +302,8 @@ struct DraggableMakeupView: View {
                                     // 触控区层
                                     Color.black.opacity(0.01)
                                         .frame(width: totalWidth, height: centerAreaHeight)
-                                        .background(Color.clear) // 添加背景色以便于调试
-                                        .contentShape(Rectangle()) // 确保整个区域都能响应手势
+                                        .background(Color.clear)
+                                        .contentShape(Rectangle())
                                         .onAppear {
                                             print("------------------------")
                                             print("[触控区] 初始化")
@@ -251,12 +314,6 @@ struct DraggableMakeupView: View {
                                         .gesture(
                                             DragGesture()
                                                 .onChanged { value in
-                                                    print("------------------------")
-                                                    print("[触控区] 拖拽手势开始")
-                                                    print("触控区大小：\(totalWidth) x \(centerAreaHeight)")
-                                                    print("触摸位置：\(value.location)")
-                                                    print("------------------------")
-                                                    
                                                     let translation = value.translation
                                                     // 计算边界限制
                                                     let scaledWidth = imageSize.width * imageScale
@@ -272,25 +329,18 @@ struct DraggableMakeupView: View {
                                                         height: max(-maxOffsetY, min(maxOffsetY, proposedY))
                                                     )
                                                     
-                                                    print("图片偏移：\(imageOffset)")
-                                                    print("------------------------")
+                                                    // 更新模拟图片
+                                                    if captureManager.isMakeupViewActive {
+                                                        captureManager.makeupImage = generateSimulatedMakeupImage()
+                                                    }
                                                 }
                                                 .onEnded { _ in
                                                     lastImageOffset = imageOffset
-                                                    print("------------------------")
-                                                    print("[触控区] 拖拽手势结束")
-                                                    print("最终偏移：\(imageOffset)")
-                                                    print("------------------------")
                                                 }
                                         )
                                         .simultaneousGesture(
                                             MagnificationGesture()
                                                 .onChanged { value in
-                                                    print("------------------------")
-                                                    print("[触控区] 缩放手势变化")
-                                                    print("当前缩放值：\(value.magnitude)")
-                                                    print("------------------------")
-                                                    
                                                     let proposedScale = value.magnitude * lastImageScale
                                                     imageScale = min(max(proposedScale, minScale), maxScale)
                                                     
@@ -305,16 +355,13 @@ struct DraggableMakeupView: View {
                                                         height: max(-maxOffsetY, min(maxOffsetY, imageOffset.height))
                                                     )
                                                     
-                                                    print("图片缩放比例：\(imageScale)")
-                                                    print("边界限制：X=±\(maxOffsetX), Y=±\(maxOffsetY)")
-                                                    print("------------------------")
+                                                    // 更新模拟图片
+                                                    if captureManager.isMakeupViewActive {
+                                                        captureManager.makeupImage = generateSimulatedMakeupImage()
+                                                    }
                                                 }
-                                                .onEnded { value in
+                                                .onEnded { _ in
                                                     lastImageScale = imageScale
-                                                    print("------------------------")
-                                                    print("[触控区] 缩放手势结束")
-                                                    print("最终缩放比例：\(imageScale)")
-                                                    print("------------------------")
                                                 }
                                         )
                                         .zIndex(10) // 提高触控区的层级
@@ -488,6 +535,11 @@ struct DraggableMakeupView: View {
             }
         }
         .onChange(of: isVisible) { newValue in
+            print("------------------------")
+            print("[化妆视图] 状态变化")
+            print("新状态：\(newValue ? "开启" : "关闭")")
+            print("------------------------")
+            
             if !newValue {
                 // 当视图关闭时清理图片缓存
                 cleanupImageCache()
@@ -595,17 +647,42 @@ struct PhotoPicker: UIViewControllerRepresentable {
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             parent.presentationMode.wrappedValue.dismiss()
             
-            guard let provider = results.first?.itemProvider else { return }
+            guard let provider = results.first?.itemProvider else {
+                print("------------------------")
+                print("[化妆视图] 图片选择失败")
+                print("原因：未选择图片")
+                print("------------------------")
+                return
+            }
             
             if provider.canLoadObject(ofClass: UIImage.self) {
-                provider.loadObject(ofClass: UIImage.self) { image, _ in
+                provider.loadObject(ofClass: UIImage.self) { image, error in
                     DispatchQueue.main.async {
+                        if let error = error {
+                            print("------------------------")
+                            print("[化妆视图] 图片加载失败")
+                            print("错误信息：\(error.localizedDescription)")
+                            print("------------------------")
+                            return
+                        }
+                        
                         if let image = image as? UIImage {
+                            print("------------------------")
+                            print("[化妆视图] 图片上传成功")
+                            print("图片尺寸：\(image.size.width) x \(image.size.height)")
+                            print("图片比例：\(image.size.width / image.size.height)")
+                            print("------------------------")
+                            
                             self.parent.selectedImage = image
-                            self.parent.originalImage = image  // 同时设置原始图片
+                            self.parent.originalImage = image
                         }
                     }
                 }
+            } else {
+                print("------------------------")
+                print("[化妆视图] 图片选择失败")
+                print("原因：无法加载图片")
+                print("------------------------")
             }
         }
     }

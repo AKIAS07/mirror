@@ -78,17 +78,48 @@ class ImageProcessor {
                 
                 // 如果有化妆图片，绘制化妆图片
                 if let makeupImage = makeupImage {
-                    // 计算化妆图片的绘制区域，以高度为基准进行缩放
+                    // 计算化妆图片的绘制区域，考虑缩放比例
                     let makeupSize = makeupImage.size
-                    let scale = size.height / makeupSize.height
-                    let scaledWidth = makeupSize.width * scale
+                    let makeupAspect = makeupSize.width / makeupSize.height
                     
-                    // 计算居中位置
-                    let x = (size.width - scaledWidth) / 2
-                    let y = 0.0
+                    var drawRect: CGRect
+                    if scale == 1.0 {
+                        // 全屏模式（100%）- 保持原始宽高比
+                        let makeupDrawHeight = size.height
+                        let makeupDrawWidth = makeupDrawHeight * makeupAspect
+                        
+                        // 居中绘制
+                        let x = (size.width - makeupDrawWidth) / 2
+                        let y = 0.0
+                        
+                        drawRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
+                    } else {
+                        // 其他模式（60%和100%以上）- 根据缩放比例调整大小
+                        // 根据基础图片的缩放比例计算化妆图片的大小
+                        let scaledBaseHeight = size.height / scale
+                        
+                        // 计算化妆图片的绘制尺寸，保持与基础图片相同的缩放比例
+                        let makeupDrawWidth = makeupSize.width * (scaledBaseHeight / makeupSize.height)
+                        let makeupDrawHeight = scaledBaseHeight
+                        
+                        // 居中绘制
+                        let x = (size.width - makeupDrawWidth) / 2
+                        let y = (size.height - makeupDrawHeight) / 2
+                        
+                        drawRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
+                    }
                     
                     // 绘制化妆图片
-                    makeupImage.draw(in: CGRect(x: x, y: y, width: scaledWidth, height: size.height))
+                    makeupImage.draw(in: drawRect)
+                    
+                    print("------------------------")
+                    print("[图片合成] 绘制化妆图片")
+                    print("基础图片尺寸：\(size.width) x \(size.height)")
+                    print("化妆图片原始尺寸：\(makeupSize.width) x \(makeupSize.height)")
+                    print("绘制区域：\(drawRect)")
+                    print("缩放比例：\(scale)")
+                    print("缩放模式：\(scale == 1.0 ? "全屏100%" : (scale < 1.0 ? "全景模式" : "全屏放大模式"))")
+                    print("------------------------")
                 }
             }
             
@@ -185,17 +216,48 @@ class ImageProcessor {
                 
                 // 如果有化妆图片，绘制化妆图片
                 if let makeupImage = makeupImage {
-                    // 计算化妆图片的绘制区域，以高度为基准进行缩放
+                    // 计算化妆图片的绘制区域，考虑缩放比例
                     let makeupSize = makeupImage.size
-                    let scale = size.height / makeupSize.height
-                    let scaledWidth = makeupSize.width * scale
+                    let makeupAspect = makeupSize.width / makeupSize.height
                     
-                    // 计算居中位置
-                    let x = (size.width - scaledWidth) / 2
-                    let y = 0.0
+                    var drawRect: CGRect
+                    if scale == 1.0 {
+                        // 全屏模式（100%）- 保持原始宽高比
+                        let makeupDrawHeight = size.height
+                        let makeupDrawWidth = makeupDrawHeight * makeupAspect
+                        
+                        // 居中绘制
+                        let x = (size.width - makeupDrawWidth) / 2
+                        let y = 0.0
+                        
+                        drawRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
+                    } else {
+                        // 其他模式（60%和100%以上）- 根据缩放比例调整大小
+                        // 根据基础图片的缩放比例计算化妆图片的大小
+                        let scaledBaseHeight = size.height / scale
+                        
+                        // 计算化妆图片的绘制尺寸，保持与基础图片相同的缩放比例
+                        let makeupDrawWidth = makeupSize.width * (scaledBaseHeight / makeupSize.height)
+                        let makeupDrawHeight = scaledBaseHeight
+                        
+                        // 居中绘制
+                        let x = (size.width - makeupDrawWidth) / 2
+                        let y = (size.height - makeupDrawHeight) / 2
+                        
+                        drawRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
+                    }
                     
                     // 绘制化妆图片
-                    makeupImage.draw(in: CGRect(x: x, y: y, width: scaledWidth, height: size.height))
+                    makeupImage.draw(in: drawRect)
+                    
+                    print("------------------------")
+                    print("[预览图片] 绘制化妆图片")
+                    print("基础图片尺寸：\(size.width) x \(size.height)")
+                    print("化妆图片原始尺寸：\(makeupSize.width) x \(makeupSize.height)")
+                    print("绘制区域：\(drawRect)")
+                    print("缩放比例：\(scale)")
+                    print("缩放模式：\(scale == 1.0 ? "全屏100%" : (scale < 1.0 ? "全景模式" : "全屏放大模式"))")
+                    print("------------------------")
                 }
             }
             

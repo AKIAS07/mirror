@@ -44,22 +44,24 @@ class CaptureManager: ObservableObject {
     private init() {}
     
     // 旋转横屏图片
-    private func rotateImage(_ image: UIImage, orientation: UIDeviceOrientation) -> UIImage {
-        print("[图片旋转] 开始旋转图片")
-        print("原始尺寸：\(image.size.width) x \(image.size.height)")
-        print("设备方向：\(orientation.rawValue)")
+    private func rotateImageIfNeeded(_ image: UIImage) -> UIImage {
+        let orientation = captureOrientation
+        if orientation == .portrait {
+            return image
+        }
         
-        let rotationAngle: CGFloat
-        let isLandscape = image.size.width > image.size.height
+        // 使用下划线忽略未使用的变量
+        let _ = orientation.isValidInterfaceOrientation
         
-        // 根据设备方向决定旋转角度
+        // 根据方向旋转图片
+        let angle: CGFloat
         switch orientation {
         case .landscapeLeft:
-            rotationAngle = .pi / 2 // 顺时针90度
+            angle = .pi / 2
         case .landscapeRight:
-            rotationAngle = -.pi / 2 // 逆时针90度
+            angle = -.pi / 2
         case .portraitUpsideDown:
-            rotationAngle = .pi // 180度
+            angle = .pi
         default:
             return image
         }
@@ -79,7 +81,7 @@ class CaptureManager: ObservableObject {
         
         // 移动原点到中心并旋转
         context.translateBy(x: size.width / 2, y: size.height / 2)
-        context.rotate(by: rotationAngle)
+        context.rotate(by: angle)
         
         // 绘制图片
         let rect: CGRect
@@ -102,9 +104,6 @@ class CaptureManager: ObservableObject {
         // 获取旋转后的图片
         let rotatedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
-        
-        print("[图片旋转] 旋转完成")
-        print("旋转后尺寸：\(rotatedImage?.size.width ?? 0) x \(rotatedImage?.size.height ?? 0)")
         
         return rotatedImage ?? image
     }
@@ -183,7 +182,7 @@ class CaptureManager: ObservableObject {
     func showPreview(image: UIImage, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
         // 处理图片旋转（包括横屏和倒置竖屏）
         let processedImage = (orientation.isLandscape || orientation == .portraitUpsideDown) ? 
-            rotateImage(image, orientation: orientation) : image
+            rotateImageIfNeeded(image) : image
         
         // 清除之前的预览图片缓存
         previewMixImage = nil
@@ -226,7 +225,7 @@ class CaptureManager: ObservableObject {
         
         // 处理图片旋转（包括横屏和倒置竖屏）
         let processedImage = (orientation.isLandscape || orientation == .portraitUpsideDown) ? 
-            rotateImage(image, orientation: orientation) : image
+            rotateImageIfNeeded(image) : image
         
         // 首先将文件复制到持久化目录
         let persistentImageURL = persistentDirectory.appendingPathComponent("\(identifier).heic")
