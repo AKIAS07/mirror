@@ -115,6 +115,25 @@ struct DraggableMakeupView: View {
         return orientationManager.getRotationAngle(orientation)
     }
     
+    // 修改计算相对旋转角度的方法
+    private func calculateRelativeRotationAngle(from sourceOrientation: UIDeviceOrientation, to targetOrientation: UIDeviceOrientation) -> Angle {
+        print("------------------------")
+        print("[旋转角度计算]")
+        print("源方向：\(sourceOrientation.rawValue)")
+        print("目标方向：\(targetOrientation.rawValue)")
+        
+        let sourceAngle = calculateRotationAngle(sourceOrientation)
+        let targetAngle = calculateRotationAngle(targetOrientation)
+        let relativeAngle = targetAngle - sourceAngle
+        
+        print("源角度：\(sourceAngle.degrees)°")
+        print("目标角度：\(targetAngle.degrees)°")
+        print("相对角度：\(relativeAngle.degrees)°")
+        print("------------------------")
+        
+        return relativeAngle
+    }
+    
     // 添加生成模拟图片的方法
     private func generateSimulatedMakeupImage() -> UIImage? {
         let screenSize = UIScreen.main.bounds.size
@@ -134,8 +153,11 @@ struct DraggableMakeupView: View {
             UIColor.clear.setFill()
             ctx.fill(CGRect(origin: .zero, size: screenSize))
             
+            // 获取当前有效的设备方向
+            let currentOrientation = orientationManager.validOrientation
+            
             // 根据设备方向确定矩形尺寸
-            let isLandscape = orientationManager.validOrientation.isLandscape
+            let isLandscape = currentOrientation.isLandscape
             let rectWidth: CGFloat = isLandscape ? 180 : 240  // 横屏时宽度变小
             let rectHeight: CGFloat = isLandscape ? 240 : 180  // 横屏时高度变大
             
@@ -187,7 +209,6 @@ struct DraggableMakeupView: View {
                 )
                 
                 // 计算相对旋转角度（当前方向相对于上传时的方向）
-                let currentOrientation = orientationManager.validOrientation
                 let relativeRotationAngle = calculateRelativeRotationAngle(
                     from: imageUploadOrientation,
                     to: currentOrientation
@@ -234,13 +255,6 @@ struct DraggableMakeupView: View {
         }
         
         return image
-    }
-    
-    // 添加计算相对旋转角度的方法
-    private func calculateRelativeRotationAngle(from sourceOrientation: UIDeviceOrientation, to targetOrientation: UIDeviceOrientation) -> Angle {
-        let sourceAngle = calculateRotationAngle(sourceOrientation)
-        let targetAngle = calculateRotationAngle(targetOrientation)
-        return targetAngle - sourceAngle
     }
     
     var body: some View {
@@ -717,13 +731,13 @@ struct PhotoPicker: UIViewControllerRepresentable {
                             print("[化妆视图] 图片上传成功")
                             print("图片尺寸：\(image.size.width) x \(image.size.height)")
                             print("图片比例：\(image.size.width / image.size.height)")
-                            print("上传时设备方向：\(UIDevice.current.orientation.rawValue)")
+                            print("上传时设备方向：\(DeviceOrientationManager.shared.validOrientation.rawValue)")
                             print("------------------------")
                             
                             self.parent.selectedImage = image
                             self.parent.originalImage = image
-                            // 记录上传时的设备方向
-                            self.parent.imageUploadOrientation = UIDevice.current.orientation
+                            // 记录上传时的设备方向，使用 orientationManager 的有效方向
+                            self.parent.imageUploadOrientation = DeviceOrientationManager.shared.validOrientation
                         }
                     }
                 }
