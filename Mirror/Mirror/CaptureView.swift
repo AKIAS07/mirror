@@ -456,6 +456,9 @@ public struct CaptureActionsView: View {
     @State private var baseScale: CGFloat = 1.0
     @State private var shouldIgnoreScale: Bool = false
     
+    // 添加加载状态
+    @State private var isProcessingSimulation = false
+    
     public var body: some View {
         if captureManager.isPreviewVisible {
             GeometryReader { geometry in
@@ -478,15 +481,39 @@ public struct CaptureActionsView: View {
                                 let displayHeight = screenBounds.height
                                 
                                 Group {
-                                    // 根据勾选状态显示不同的图片
-                                    let displayImage = Image(uiImage: captureManager.getPreviewImage(baseImage: image))
-                                    displayImage
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: displayWidth, height: displayHeight)
-                                        .scaleEffect(captureManager.currentScale)
-                                        .offset(captureManager.dragOffset)
-                                        .clipped()
+                                    // 根据Live模式和勾选状态显示不同的图片
+                                    if captureManager.isLivePhoto {
+                                        // Live Photo模式
+                                        if captureManager.isCheckmarkEnabled {
+                                            // 勾选状态 - 显示模拟的黄色图片
+                                            Image(uiImage: image)  // 此时image已经是黄色的模拟图片
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: displayWidth, height: displayHeight)
+                                                .scaleEffect(captureManager.currentScale)
+                                                .offset(captureManager.dragOffset)
+                                                .clipped()
+                                        } else {
+                                            // 未勾选状态 - 显示原始Live Photo静态图片
+                                            Image(uiImage: image)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: displayWidth, height: displayHeight)
+                                                .scaleEffect(captureManager.currentScale)
+                                                .offset(captureManager.dragOffset)
+                                                .clipped()
+                                        }
+                                    } else {
+                                        // 普通照片模式 - 使用现有的预览图片处理逻辑
+                                        let displayImage = Image(uiImage: captureManager.getPreviewImage(baseImage: image))
+                                        displayImage
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: displayWidth, height: displayHeight)
+                                            .scaleEffect(captureManager.currentScale)
+                                            .offset(captureManager.dragOffset)
+                                            .clipped()
+                                    }
                                 }
                             }
                         }
@@ -498,8 +525,7 @@ public struct CaptureActionsView: View {
                                 let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
                                 let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
                                 
-                                Color.clear
-                                
+                                // 使用LivePhotoPlayerView播放视频，无论是否为模拟模式
                                 LivePhotoPlayerView(
                                     videoURL: captureManager.livePhotoVideoURL!,
                                     isPlaying: $captureManager.isPlayingLivePhoto,
@@ -832,26 +858,55 @@ public struct CaptureActionsView: View {
                             Spacer()
                             // 添加勾选按钮
                             if captureManager.shouldShowCheckmark {
-                                Button(action: {
-                                    // 触发震动反馈
-                                    let generator = UIImpactFeedbackGenerator(style: .light)
-                                    generator.prepare()
-                                    generator.impactOccurred()
-                                    
-                                    withAnimation {
-                                        captureManager.isCheckmarkEnabled.toggle()
+                                ZStack {
+                                    Button(action: {
+                                        // 触发震动反馈
+                                        let generator = UIImpactFeedbackGenerator(style: .light)
+                                        generator.prepare()
+                                        generator.impactOccurred()
+                                        
+                                        withAnimation {
+                                            if captureManager.isCheckmarkEnabled {
+                                                // 直接取消勾选
+                                                captureManager.isCheckmarkEnabled.toggle()
+                                                captureManager.handleCheckmarkToggle()
+                                            } else {
+                                                // 开始处理模拟数据
+                                                isProcessingSimulation = true
+                                                captureManager.isCheckmarkEnabled.toggle()
+                                                captureManager.handleCheckmarkToggle()
+                                            }
+                                        }
+                                    }) {
+                                        Image(systemName: captureManager.isCheckmarkEnabled ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 20, weight: .medium))
+                                            .foregroundColor(.white)
+                                            .frame(width: 36, height: 36)
+                                            .background(Color.black.opacity(0.35))
+                                            .clipShape(Circle())
                                     }
-                                }) {
-                                    Image(systemName: captureManager.isCheckmarkEnabled ? "checkmark.circle.fill" : "circle")
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(.white)
-                                        .frame(width: 36, height: 36)
-                                        .background(Color.black.opacity(0.35))
-                                        .clipShape(Circle())
+                                    .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
+                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                    .padding(.top, 80)
+                                    
+                                    // 添加加载指示器
+                                    if isProcessingSimulation {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            .scaleEffect(1.2)
+                                            .frame(width: 36, height: 36)
+                                            .background(Color.black.opacity(0.35))
+                                            .clipShape(Circle())
+                                            .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
+                                            .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                            .padding(.top, 80)
+                                    }
                                 }
-                                .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
-                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                .padding(.top, 80)
+                                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("SimulationComplete"))) { _ in
+                                    withAnimation {
+                                        isProcessingSimulation = false
+                                    }
+                                }
                             }
                             
                             Button(action: {

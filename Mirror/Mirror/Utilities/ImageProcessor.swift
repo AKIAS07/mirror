@@ -264,4 +264,15 @@ class ImageProcessor {
             return previewImage
         }
     }
+    
+    func createSimulatedMixLivePhoto(baseImage: UIImage, drawingImage: UIImage?, makeupImage: UIImage?) -> (UIImage, URL?) {
+        // 创建模拟的静态图片(黄色)
+        let simulatedImage = UIGraphicsImageRenderer(size: baseImage.size).image { ctx in
+            UIColor.yellow.setFill()
+            ctx.fill(CGRect(origin: .zero, size: baseImage.size))
+        }
+        
+        // 这里返回模拟数据,后续实现实际视频处理
+        return (simulatedImage, nil)
+    }
 } 
