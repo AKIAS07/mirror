@@ -438,6 +438,35 @@ public struct CaptureActionButton: View {
     }
 }
 
+// 修改进度条视图
+struct SimulationProgressView: View {
+    let progress: Double
+    let screenBounds: CGRect
+    
+    var body: some View {
+        ZStack {
+            // 全屏半透明白色遮罩
+            Color.white.opacity(0.5)
+                .frame(width: screenBounds.width, height: screenBounds.height)
+                .edgesIgnoringSafeArea(.all)
+            
+            // 进度指示器
+            VStack(spacing: 12) {
+                ProgressView(value: progress)
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(1.5)
+                
+                Text("\(Int(progress * 100))%")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+            }
+            .padding(20)
+            .background(Color.black.opacity(0.6))
+            .cornerRadius(12)
+        }
+    }
+}
+
 // 截图操作视图
 public struct CaptureActionsView: View {
     @ObservedObject var captureManager: CaptureManager
@@ -939,7 +968,7 @@ public struct CaptureActionsView: View {
                         }
                         Spacer()
                     }
-                    .zIndex(100)
+                    .zIndex(99)
                     
                     // 添加缩放指示器
                     if captureManager.showScaleIndicator {
@@ -949,11 +978,25 @@ public struct CaptureActionsView: View {
                             isMinScale: abs(captureManager.currentIndicatorScale - 0.6) < 0.01
                         )
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
-                        .zIndex(10)
+                        .zIndex(98)
+                    }
+                    
+                    // 将进度条和遮罩层移到最顶层
+                    if isProcessingSimulation && captureManager.simulationProgress > 0 && captureManager.simulationProgress <= 1.0 {
+                        Color.white.opacity(0.5)
+                            .frame(width: screenBounds.width, height: screenBounds.height)
+                            .edgesIgnoringSafeArea(.all)
+                            .zIndex(200)
+                        
+                        SimulationProgressView(
+                            progress: captureManager.simulationProgress,
+                            screenBounds: screenBounds
+                        )
+                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .zIndex(201)
                     }
                 }
                 .ignoresSafeArea()
-                .zIndex(9)
             }
         }
     }

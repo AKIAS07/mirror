@@ -35,6 +35,7 @@ class CaptureManager: ObservableObject {
     @Published var makeupImage: UIImage? = nil  // 添加化妆图片状态
     @Published var simulatedLivePhotoMode: Bool = false // 用于测试mix-live功能
     @Published var isSimulatedMode: Bool = false  // 添加模拟模式状态
+    @Published var simulationProgress: Double = 0.0 // 添加模拟进度状态
     
     // 添加缓存属性
     private var cachedSimulatedImageURL: URL?
@@ -757,7 +758,7 @@ class CaptureManager: ObservableObject {
         return image
     }
     
-    // 修改createSimulatedVideo方法中的异步部分
+    // 修改createSimulatedVideo方法
     private func createSimulatedVideo(size: CGSize, completion: @escaping (URL?) -> Void) {
         let tempDir = FileManager.default.temporaryDirectory
         let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString).mov")
@@ -840,6 +841,12 @@ class CaptureManager: ObservableObject {
                             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
                             
                             adaptor.append(pixelBuffer, withPresentationTime: presentationTime)
+                            
+                            // 更新进度（最多更新到95%）
+                            let progress = min(0.95, Double(frameNumber) / Double(frameCount))
+                            DispatchQueue.main.async { [weak self] in
+                                self?.simulationProgress = progress
+                            }
                         }
                     }
                     frameNumber += 1
@@ -847,8 +854,10 @@ class CaptureManager: ObservableObject {
             }
             
             videoInput.markAsFinished()
-            videoWriter.finishWriting {
+            videoWriter.finishWriting { [weak self] in
                 DispatchQueue.main.async {
+                    // 设置进度为98%，表示视频已生成，正在处理最后的步骤
+                    self?.simulationProgress = 0.98
                     completion(outputURL)
                 }
             }
@@ -865,6 +874,9 @@ class CaptureManager: ObservableObject {
                     return
                 }
                 
+                // 重置进度为0%
+                simulationProgress = 0.0
+                
                 // 如果已经有缓存的资源，直接使用
                 if let imageURL = cachedSimulatedImageURL,
                    let videoURL = cachedSimulatedVideoURL,
@@ -879,13 +891,21 @@ class CaptureManager: ObservableObject {
                         let finalSimulatedImage = (self.captureOrientation.isLandscape || self.captureOrientation == .portraitUpsideDown) ? 
                             self.rotateImageIfNeeded(simulatedImage) : simulatedImage
                         
-                        self.capturedImage = finalSimulatedImage
-                        self.simulatedVideoURL = videoURL
-                        self.livePhotoVideoURL = videoURL
-                        self.simulatedLivePhotoMode = true
+                        // 更新进度到100%
+                        self.simulationProgress = 1.0
                         
-                        // 发送模拟完成通知
-                        NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                        // 延迟更新UI和发送完成通知
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            // 更新UI
+                            self.capturedImage = finalSimulatedImage
+                            self.simulatedVideoURL = videoURL
+                            self.livePhotoVideoURL = videoURL
+                            self.simulatedLivePhotoMode = true
+                            self.isGeneratingSimulation = false
+                            
+                            // 发送完成通知
+                            NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                        }
                     }
                     return
                 }
@@ -980,17 +1000,23 @@ class CaptureManager: ObservableObject {
                                         let finalSimulatedImage = (self.captureOrientation.isLandscape || self.captureOrientation == .portraitUpsideDown) ? 
                                             self.rotateImageIfNeeded(simulatedImage) : simulatedImage
                                         
-                                        // 更新UI
-                                        self.capturedImage = finalSimulatedImage
-                                        self.simulatedLivePhotoMode = true
-                                        self.isGeneratingSimulation = false
+                                        // 更新进度到100%
+                                        self.simulationProgress = 1.0
                                         
-                                        print("[勾选处理] 模拟资源生成完成")
-                                        print("- 图片尺寸：\(targetSize.width) x \(targetSize.height)")
-                                        print("- 视频尺寸：\(targetSize.width) x \(targetSize.height)")
-                                        
-                                        // 发送模拟完成通知
-                                        NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                                        // 延迟更新UI和发送完成通知
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                            // 更新UI
+                                            self.capturedImage = finalSimulatedImage
+                                            self.simulatedLivePhotoMode = true
+                                            self.isGeneratingSimulation = false
+                                            
+                                            print("[勾选处理] 模拟资源生成完成")
+                                            print("- 图片尺寸：\(targetSize.width) x \(targetSize.height)")
+                                            print("- 视频尺寸：\(targetSize.width) x \(targetSize.height)")
+                                            
+                                            // 发送完成通知
+                                            NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                                        }
                                     }
                                 }
                             }
