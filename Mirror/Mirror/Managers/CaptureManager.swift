@@ -927,101 +927,81 @@ class CaptureManager: ObservableObject {
                         print("[模拟Live] 竖屏模式，使用尺寸：\(targetSize.width) x \(targetSize.height)")
                     }
                     
-                    // 创建模拟图片并保存到文件
-                    let renderer = UIGraphicsImageRenderer(size: targetSize, format: {
-                        let format = UIGraphicsImageRendererFormat()
-                        format.scale = 1.0  // 强制使用1.0的缩放比例
-                        format.opaque = true  // 设置为不透明
-                        return format
-                    }())
+                    // 创建模拟图片（使用原始图片和化妆视图的混合）
+                    let simulatedImage = ImageProcessor.shared.createMixImage(
+                        baseImage: originalLiveImage!,
+                        drawingImage: pinnedDrawingImage,
+                        makeupImage: makeupImage,
+                        scale: currentScale
+                    )
                     
-                    let simulatedImage = renderer.image { ctx in
-                        // 使用Core Graphics绘制以确保正确的尺寸
-                        let context = ctx.cgContext
-                        
-                        // 创建渐变
-                        let colors = [
-                            UIColor.yellow.cgColor,
-                            UIColor(red: 1.0, green: 0.8, blue: 0.0, alpha: 1.0).cgColor
-                        ]
-                        let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                                colors: colors as CFArray,
-                                                locations: [0, 1])!
-                        
-                        context.drawLinearGradient(gradient,
-                                                 start: CGPoint(x: 0, y: 0),
-                                                 end: CGPoint(x: targetSize.width, y: targetSize.height),
-                                                 options: [])
-                    }
+                    // 根据方向处理模拟图片
+                    let finalSimulatedImage = (captureOrientation.isLandscape || captureOrientation == .portraitUpsideDown) ? 
+                        rotateImageIfNeeded(simulatedImage) : simulatedImage
                     
-                    print("[模拟Live] 生成的图片尺寸：\(simulatedImage.size.width) x \(simulatedImage.size.height)")
+                    // 更新进度到50%（图片处理完成）
+                    self.simulationProgress = 0.5
                     
-                    // 保存模拟图片
+                    // 保存模拟图片到缓存，使用正确的颜色空间和编码设置
                     let imageIdentifier = UUID().uuidString
                     let imageURL = persistentDirectory.appendingPathComponent("\(imageIdentifier).heic")
                     
-                    // 使用CGImageDestination直接写入HEIC文件
+                    // 使用 CGImageDestination 直接写入 HEIC 文件，确保正确的颜色空间
                     if let destination = CGImageDestinationCreateWithURL(imageURL as CFURL,
                                                                        UTType.heic.identifier as CFString,
                                                                        1, nil) {
-                        let options: [CFString: Any] = [
+                        // 设置图片属性，包括颜色空间和压缩选项
+                        let imageProperties = [
                             kCGImageDestinationLossyCompressionQuality: 1.0,
-                            kCGImageDestinationOptimizeColorForSharing: true
-                        ]
+                            kCGImageDestinationOptimizeColorForSharing: true,
+                            kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB,
+                            kCGImageDestinationEmbedThumbnail: true
+                        ] as [CFString : Any]
                         
-                        CGImageDestinationSetProperties(destination, options as CFDictionary)
-                        CGImageDestinationAddImage(destination, simulatedImage.cgImage!, options as CFDictionary)
+                        CGImageDestinationSetProperties(destination, imageProperties as CFDictionary)
                         
-                        if CGImageDestinationFinalize(destination) {
-                            print("[模拟Live] 图片已保存到：\(imageURL.path)")
+                        // 确保图片有正确的 CGImage
+                        if let cgImage = finalSimulatedImage.cgImage {
+                            CGImageDestinationAddImage(destination, cgImage, imageProperties as CFDictionary)
                             
-                            // 验证保存后的图片尺寸
-                            if let imageSource = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
-                               let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [String: Any],
-                               let width = properties[kCGImagePropertyPixelWidth as String] as? Int,
-                               let height = properties[kCGImagePropertyPixelHeight as String] as? Int {
-                                print("[模拟Live] 验证保存后的图片尺寸：\(width) x \(height)")
-                            }
-                            
-                            self.cachedSimulatedImageURL = imageURL
-                            print("[模拟Live] 图片已缓存：\(imageURL.path)")
-                            
-                            // 创建模拟视频
-                            createSimulatedVideo(size: targetSize) { [weak self] url in
-                                guard let self = self else { return }
-                                DispatchQueue.main.async {
-                                    if let url = url {
-                                        print("[模拟Live] 视频已缓存：\(url.path)")
-                                        self.cachedSimulatedVideoURL = url
-                                        self.simulatedVideoURL = url
-                                        self.livePhotoVideoURL = url
-                                        
-                                        // 根据方向处理模拟图片
-                                        let finalSimulatedImage = (self.captureOrientation.isLandscape || self.captureOrientation == .portraitUpsideDown) ? 
-                                            self.rotateImageIfNeeded(simulatedImage) : simulatedImage
-                                        
-                                        // 更新进度到100%
-                                        self.simulationProgress = 1.0
-                                        
-                                        // 延迟更新UI和发送完成通知
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                                            // 更新UI
-                                            self.capturedImage = finalSimulatedImage
-                                            self.simulatedLivePhotoMode = true
-                                            self.isGeneratingSimulation = false
+                            if CGImageDestinationFinalize(destination) {
+                                self.cachedSimulatedImageURL = imageURL
+                                
+                                // 更新UI
+                                self.capturedImage = finalSimulatedImage
+                                
+                                // 使用原始视频
+                                if let originalVideo = self.originalVideoURL {
+                                    print("[模拟Live] 使用原始视频：\(originalVideo.path)")
                                             
-                                            print("[勾选处理] 模拟资源生成完成")
-                                            print("- 图片尺寸：\(targetSize.width) x \(targetSize.height)")
-                                            print("- 视频尺寸：\(targetSize.width) x \(targetSize.height)")
+                                            // 更新进度到100%
+                                            self.simulationProgress = 1.0
                                             
-                                            // 发送完成通知
-                                            NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
-                                        }
+                                            // 延迟更新UI和发送完成通知
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        self.simulatedVideoURL = originalVideo
+                                        self.livePhotoVideoURL = originalVideo
+                                        self.cachedSimulatedVideoURL = originalVideo
+                                                self.simulatedLivePhotoMode = true
+                                                self.isGeneratingSimulation = false
+                                                
+                                                print("[勾选处理] 模拟资源生成完成")
+                                                print("- 图片尺寸：\(targetSize.width) x \(targetSize.height)")
+                                        print("- 使用原始视频")
+                                                
+                                                // 发送完成通知
+                                                NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
                                     }
                                 }
                             }
                         }
                     }
+                    
+                    print("[模拟Live] 创建mix-live预览")
+                    print("- 静态图片: 混合图片 (\(targetSize.width) x \(targetSize.height))")
+                    print("- 视频: 使用原始视频")
+                    print("- 设备方向: \(captureOrientation.rawValue)")
+                    print("- 保存原始图片和视频引用")
                 }
             } else {
                 // 恢复原始图片和视频

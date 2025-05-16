@@ -31,12 +31,25 @@ class ImageProcessor {
         return autoreleasepool { () -> UIImage in
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1.0 // 使用1.0的scale以避免尺寸过大
-            format.opaque = false
+            format.opaque = false // 允许透明通道
+            format.preferredRange = .standard // 使用标准颜色范围
             
+            // 创建渲染器时指定颜色空间
             let renderer = UIGraphicsImageRenderer(size: size, format: format)
             let mixImage = renderer.image { ctx in
+                // 设置颜色空间和混合模式
+                let context = ctx.cgContext
+                context.setAllowsAntialiasing(true)
+                context.setShouldAntialias(true)
+                
+                // 使用设备RGB颜色空间
+                if let colorSpace = CGColorSpace(name: CGColorSpace.displayP3) {
+                    context.setFillColorSpace(colorSpace)
+                    context.setStrokeColorSpace(colorSpace)
+                }
+                
                 // 确保绘制区域被裁剪
-                ctx.cgContext.setBlendMode(.normal)
+                context.setBlendMode(.normal)
                 
                 // 绘制基础图片
                 baseImage.draw(in: CGRect(origin: .zero, size: size))
@@ -95,10 +108,7 @@ class ImageProcessor {
                         drawRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
                     } else {
                         // 其他模式（60%和100%以上）- 根据缩放比例调整大小
-                        // 根据基础图片的缩放比例计算化妆图片的大小
                         let scaledBaseHeight = size.height / scale
-                        
-                        // 计算化妆图片的绘制尺寸，保持与基础图片相同的缩放比例
                         let makeupDrawWidth = makeupSize.width * (scaledBaseHeight / makeupSize.height)
                         let makeupDrawHeight = scaledBaseHeight
                         
@@ -110,16 +120,7 @@ class ImageProcessor {
                     }
                     
                     // 绘制化妆图片
-                    makeupImage.draw(in: drawRect)
-                    
-                    print("------------------------")
-                    print("[图片合成] 绘制化妆图片")
-                    print("基础图片尺寸：\(size.width) x \(size.height)")
-                    print("化妆图片原始尺寸：\(makeupSize.width) x \(makeupSize.height)")
-                    print("绘制区域：\(drawRect)")
-                    print("缩放比例：\(scale)")
-                    print("缩放模式：\(scale == 1.0 ? "全屏100%" : (scale < 1.0 ? "全景模式" : "全屏放大模式"))")
-                    print("------------------------")
+                    makeupImage.draw(in: drawRect, blendMode: .normal, alpha: 1.0)
                 }
             }
             
@@ -266,13 +267,14 @@ class ImageProcessor {
     }
     
     func createSimulatedMixLivePhoto(baseImage: UIImage, drawingImage: UIImage?, makeupImage: UIImage?) -> (UIImage, URL?) {
-        // 创建模拟的静态图片(黄色)
-        let simulatedImage = UIGraphicsImageRenderer(size: baseImage.size).image { ctx in
-            UIColor.yellow.setFill()
-            ctx.fill(CGRect(origin: .zero, size: baseImage.size))
-        }
+        // 创建混合图片
+        let simulatedImage = createMixImage(
+            baseImage: baseImage,
+            drawingImage: drawingImage,
+            makeupImage: makeupImage
+        )
         
-        // 这里返回模拟数据,后续实现实际视频处理
+        // 这里返回混合数据，后续实现实际视频处理
         return (simulatedImage, nil)
     }
 } 
