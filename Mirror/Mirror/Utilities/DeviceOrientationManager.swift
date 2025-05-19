@@ -22,16 +22,14 @@ class DeviceOrientationManager: ObservableObject {
         // 确保在开始监听之前就开始生成设备方向通知
         UIDevice.current.beginGeneratingDeviceOrientationNotifications()
         
-        // 等待一小段时间确保设备方向已经准确
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            if let initialOrientation = self?.getCurrentValidOrientation() {
-                self?.currentOrientation = initialOrientation
-                self?.lastValidOrientation = initialOrientation
-                print("------------------------")
-                print("[设备方向] 初始化")
-                print("初始方向：\(self?.getOrientationDescription(initialOrientation) ?? "未知")")
-                print("------------------------")
-            }
+        // 立即获取初始方向
+        if let initialOrientation = getCurrentValidOrientation() {
+            self.currentOrientation = initialOrientation
+            self.lastValidOrientation = initialOrientation
+            print("------------------------")
+            print("[设备方向] 初始化")
+            print("初始方向：\(getOrientationDescription(initialOrientation))")
+            print("------------------------")
         }
         
         // 监听 ProManager 的 isPro 变化
@@ -43,6 +41,14 @@ class DeviceOrientationManager: ObservableObject {
         )
         
         startOrientationMonitoring()
+        
+        // 每次应用进入前台时更新方向
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleApplicationWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
     }
     
     @objc private func handleProStatusChange() {
@@ -91,12 +97,31 @@ class DeviceOrientationManager: ObservableObject {
         
         // 只处理允许的方向，否则保持最后一个有效方向
         if allowedOrientations.contains(newOrientation) {
+            updateOrientation(to: newOrientation)
+        }
+    }
+    
+    @objc private func handleApplicationWillEnterForeground() {
+        if let currentValidOrientation = getCurrentValidOrientation() {
+            updateOrientation(to: currentValidOrientation)
+        }
+    }
+    
+    private func updateOrientation(to newOrientation: UIDeviceOrientation) {
+        if !isOrientationLocked && proManager.isPro && allowedOrientations.contains(newOrientation) {
             lastValidOrientation = newOrientation
             currentOrientation = newOrientation
             print("------------------------")
-            print("设备方向改变")
-            print("当前方向：\(getOrientationDescription(newOrientation))")
+            print("[设备方向] 更新")
+            print("新方向：\(getOrientationDescription(newOrientation))")
             print("------------------------")
+            
+            // 发送方向更新通知
+            NotificationCenter.default.post(
+                name: NSNotification.Name("DeviceOrientationDidChange"),
+                object: nil,
+                userInfo: ["orientation": newOrientation]
+            )
         }
     }
     

@@ -151,6 +151,7 @@ class CaptureManager: ObservableObject {
         print("[图片旋转] 开始处理保存时的图片旋转")
         print("原始尺寸：\(image.size.width) x \(image.size.height)")
         print("设备方向：\(orientation.rawValue)")
+        print("原始图片方向：\(image.imageOrientation.rawValue)")
         
         let rotationAngle: CGFloat
         let shouldRotate: Bool
@@ -161,14 +162,18 @@ class CaptureManager: ObservableObject {
             rotationAngle = -.pi/2
             shouldRotate = true
             newSize = CGSize(width: image.size.height, height: image.size.width)
+            print("[图片旋转] 向左横屏，旋转-90度")
         case .landscapeRight:
             rotationAngle = .pi/2
             shouldRotate = true
             newSize = CGSize(width: image.size.height, height: image.size.width)
+            print("[图片旋转] 向右横屏，旋转90度")
         case .portraitUpsideDown:
             rotationAngle = .pi
             shouldRotate = true
+            print("[图片旋转] 倒置竖屏，旋转180度")
         default:
+            print("[图片旋转] 正常竖屏，无需旋转")
             return image
         }
         
@@ -177,8 +182,12 @@ class CaptureManager: ObservableObject {
         }
         
         return autoreleasepool { () -> UIImage in
-            UIGraphicsBeginImageContextWithOptions(newSize, false, image.scale)
+            UIGraphicsBeginImageContextWithOptions(newSize, true, image.scale)
             let context = UIGraphicsGetCurrentContext()!
+            
+            // 先填充白色背景
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: newSize))
             
             // 根据方向调整绘制方式
             switch orientation {
@@ -211,6 +220,7 @@ class CaptureManager: ObservableObject {
             
             print("[图片旋转] 旋转完成")
             print("旋转后尺寸：\(rotatedImage?.size.width ?? 0) x \(rotatedImage?.size.height ?? 0)")
+            print("旋转后图片方向：\(rotatedImage?.imageOrientation.rawValue ?? 0)")
             
             return rotatedImage ?? image
         }
@@ -224,7 +234,7 @@ class CaptureManager: ObservableObject {
         print("当前设备方向：\(orientationManager.getOrientationDescription(orientationManager.currentOrientation))")
         
         // 使用当前实际的设备方向，而不是传入的方向
-        let actualOrientation = orientationManager.currentOrientation
+        let actualOrientation = orientationManager.validOrientation
         
         // 先设置捕获方向，这样后续的旋转处理才能正确进行
         self.captureOrientation = actualOrientation
@@ -285,8 +295,14 @@ class CaptureManager: ObservableObject {
         // 保存原始视频URL
         self.originalVideoURL = videoURL
         
+        // 使用当前实际的设备方向，而不是传入的方向
+        let actualOrientation = orientationManager.validOrientation
+        self.captureOrientation = actualOrientation
+        
+        print("[Live Photo预览] 使用实际设备方向：\(orientationManager.getOrientationDescription(actualOrientation))")
+        
         // 处理图片旋转（包括横屏和倒置竖屏）
-        let processedImage = (orientation.isLandscape || orientation == .portraitUpsideDown) ? 
+        let processedImage = (actualOrientation.isLandscape || actualOrientation == .portraitUpsideDown) ? 
             rotateImageIfNeeded(image) : image
         
         // 保存原始处理后的图片
@@ -296,43 +312,33 @@ class CaptureManager: ObservableObject {
         if isCheckmarkEnabled && (isPinnedDrawingActive || isMakeupViewActive) {
             simulatedLivePhotoMode = true
             
-            // 获取标准尺寸（竖屏3024x4032）
-            let standardSize = CGSize(width: 3024, height: 4032)
+            // 复制原始资源
+            let (copiedImageURL, copiedVideoURL) = copyLivePhotoResources(
+                imageURL: imageURL,
+                videoURL: videoURL
+            )
             
-            // 根据方向调整尺寸
-            let targetSize: CGSize
-            if orientation.isLandscape {
-                targetSize = CGSize(width: standardSize.height, height: standardSize.width)
-                print("[模拟Live] 横屏模式，使用尺寸：\(targetSize.width) x \(targetSize.height)")
-            } else {
-                targetSize = standardSize
-                print("[模拟Live] 竖屏模式，使用尺寸：\(targetSize.width) x \(targetSize.height)")
+            guard let newImageURL = copiedImageURL,
+                  let newVideoURL = copiedVideoURL else {
+                print("[Live Photo预览] 资源复制失败")
+                simulatedLivePhotoMode = false
+                self.capturedImage = processedImage
+                self.livePhotoVideoURL = videoURL
+                return
             }
             
-            // 创建模拟的mix-live图片(黄色)
-            let renderer = UIGraphicsImageRenderer(size: targetSize)
-            let simulatedImage = renderer.image { ctx in
-                UIColor.yellow.setFill()
-                ctx.fill(CGRect(origin: .zero, size: targetSize))
-            }
+            // 缓存复制的资源
+            self.cachedSimulatedImageURL = newImageURL
+            self.cachedSimulatedVideoURL = newVideoURL
             
-            // 根据方向处理模拟图片
-            let finalSimulatedImage = (orientation.isLandscape || orientation == .portraitUpsideDown) ? 
-                rotateImageIfNeeded(simulatedImage) : simulatedImage
+            // 更新UI
+            self.capturedImage = processedImage
+            self.simulatedVideoURL = newVideoURL
+            self.livePhotoVideoURL = newVideoURL
             
-            self.capturedImage = finalSimulatedImage
-            
-            // 创建模拟视频（白色）
-            createSimulatedVideo(size: targetSize) { url in
-                self.simulatedVideoURL = url
-                self.livePhotoVideoURL = url
-            }
-            
-            print("[模拟Live] 创建mix-live预览")
-            print("- 静态图片: 黄色 (\(targetSize.width) x \(targetSize.height))")
-            print("- 视频: 白色 (\(targetSize.width) x \(targetSize.height))")
-            print("- 设备方向: \(orientation.rawValue)")
-            print("- 保存原始图片和视频引用")
+            print("[Live Photo预览] 使用复制的资源")
+            print("- 使用原始图片")
+            print("- 使用复制的视频：\(newVideoURL.path)")
         } else {
             simulatedLivePhotoMode = false
             self.capturedImage = processedImage
@@ -373,7 +379,6 @@ class CaptureManager: ObservableObject {
             self.tempVideoURL = persistentVideoURL
             self.livePhotoIdentifier = identifier
             self.isLivePhoto = true
-            self.captureOrientation = orientation
             self.currentScale = scale
             self.currentIndicatorScale = scale
             
@@ -381,6 +386,14 @@ class CaptureManager: ObservableObject {
             print("- isLivePhoto：\(self.isLivePhoto)")
             print("- livePhotoVideoURL：\(String(describing: self.livePhotoVideoURL))")
             print("- isPlayingLivePhoto：\(self.isPlayingLivePhoto)")
+            
+            // 添加方向更新监听
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleOrientationChangeForLivePhoto),
+                name: NSNotification.Name("DeviceOrientationDidChange"),
+                object: nil
+            )
             
             // 锁定设备方向，防止旋转
             orientationManager.lockOrientation()
@@ -411,8 +424,36 @@ class CaptureManager: ObservableObject {
         print("------------------------")
     }
     
+    // 添加处理 Live Photo 方向变化的方法
+    @objc private func handleOrientationChangeForLivePhoto(_ notification: Notification) {
+        guard let newOrientation = notification.userInfo?["orientation"] as? UIDeviceOrientation,
+              let originalImage = self.originalLiveImage else {
+            return
+        }
+        
+        print("[Live Photo方向更新] 开始")
+        print("新方向：\(orientationManager.getOrientationDescription(newOrientation))")
+        
+        // 更新捕获方向
+        self.captureOrientation = newOrientation
+        
+        // 重新处理图片旋转
+        let processedImage = (newOrientation.isLandscape || newOrientation == .portraitUpsideDown) ? 
+            rotateImageIfNeeded(originalImage) : originalImage
+        
+        // 更新显示的图片
+        DispatchQueue.main.async {
+            self.capturedImage = processedImage
+        }
+        
+        print("[Live Photo方向更新] 完成")
+    }
+    
     // 隐藏预览
     func hidePreview(cameraManager: CameraManager) {
+        // 移除方向更新监听
+        NotificationCenter.default.removeObserver(self, name: NSNotification.Name("DeviceOrientationDidChange"), object: nil)
+        
         withAnimation {
             self.isPreviewVisible = false
             self.isPlayingLivePhoto = false
@@ -464,6 +505,7 @@ class CaptureManager: ObservableObject {
         // 重置状态
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             self.capturedImage = nil
+            self.originalLiveImage = nil  // 清除原始 Live Photo 图片
             self.livePhotoVideoURL = nil
             self.tempImageURL = nil
             self.tempVideoURL = nil
@@ -571,96 +613,98 @@ class CaptureManager: ObservableObject {
         print("模拟模式：\(simulatedLivePhotoMode)")
         print("设备方向：\(captureOrientation.rawValue)")
         
-        if simulatedLivePhotoMode {
-            // 使用缓存的资源
-            guard let imageURL = cachedSimulatedImageURL,
-                  let videoURL = cachedSimulatedVideoURL else {
-                print("错误：没有缓存的模拟资源")
-                completion(false)
-                return
-            }
-            
-            print("[模拟Live] 使用缓存资源")
-            print("- 图片路径：\(imageURL.path)")
-            print("- 视频路径：\(videoURL.path)")
-            
-            // 生成Live Photo
-            LivePhoto.generate(from: imageURL, videoURL: videoURL) { progress in
-                print("Live Photo生成进度: \(progress)")
-            } completion: { livePhoto, resources in
-                if let resources = resources {
-                    // 保存到相册
-                    LivePhoto.saveToLibrary(resources) { success in
-                        if success {
-                            print("模拟Live Photo已成功保存到相册")
-                            DispatchQueue.main.async {
-                                self.showSaveSuccess = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                    self.showSaveSuccess = false
-                                }
-                            }
-                            completion(true)
-                        } else {
-                            print("保存模拟Live Photo失败")
-                            completion(false)
-                        }
-                    }
+        // 确定要使用的图片和视频URL
+        let imageURLToUse: URL?
+        let videoURLToUse: URL?
+        
+        if simulatedLivePhotoMode && isCheckmarkEnabled {
+            // 使用处理后的临时文件
+            if let originalImage = originalLiveImage {
+                // 使用 LiveProcessor 处理图片
+                let processedImage = LiveProcessor.shared.processLivePhotoImage(
+                    baseImage: originalImage,
+                    drawingImage: pinnedDrawingImage,
+                    makeupImage: makeupImage,
+                    scale: currentScale
+                )
+                
+                // 根据设备方向旋转图片
+                print("[保存Live Photo] 处理图片旋转")
+                print("当前设备方向：\(captureOrientation.rawValue)")
+                let rotatedImage = rotateImageForSaving(processedImage, orientation: captureOrientation)
+                
+                // 将处理后的图片保存为临时文件
+                let tempDir = FileManager.default.temporaryDirectory
+                let processedImageURL = tempDir.appendingPathComponent("\(UUID().uuidString)_processed.heic")
+                
+                if let imageData = rotatedImage.heicData() {
+                    try? imageData.write(to: processedImageURL)
+                    imageURLToUse = processedImageURL
+                    print("[保存Live Photo] 已保存旋转后的图片到：\(processedImageURL.path)")
                 } else {
-                    print("错误：Live Photo资源生成失败")
-                    completion(false)
+                    imageURLToUse = tempImageURL
+                    print("[保存Live Photo] 图片处理失败，使用原始图片")
                 }
+            } else {
+                imageURLToUse = tempImageURL
             }
+            videoURLToUse = simulatedVideoURL ?? livePhotoVideoURL
         } else {
-            // 原始Live Photo保存逻辑
-            guard let imageURL = tempImageURL,
-                  let videoURL = livePhotoVideoURL else {
-                print("错误：缺少必要的Live Photo资源")
-                print("- 图片URL：\(String(describing: tempImageURL))")
-                print("- 视频URL：\(String(describing: livePhotoVideoURL))")
-                completion(false)
-                return
-            }
-            
-            // 检查文件是否存在
-            let fileManager = FileManager.default
-            let imageExists = fileManager.fileExists(atPath: imageURL.path)
-            let videoExists = fileManager.fileExists(atPath: videoURL.path)
-            
-            print("[Live Photo保存] 资源检查：")
-            print("- 图片文件存在：\(imageExists)")
-            print("- 视频文件存在：\(videoExists)")
-            
-            guard imageExists && videoExists else {
-                print("错误：Live Photo资源文件不存在")
-                completion(false)
-                return
-            }
-            
-            // 生成Live Photo
-            LivePhoto.generate(from: imageURL, videoURL: videoURL) { progress in
-                print("Live Photo生成进度: \(progress)")
-            } completion: { livePhoto, resources in
-                if let resources = resources {
-                    // 保存到相册
-                    LivePhoto.saveToLibrary(resources) { success in
-                        if success {
-                            print("Live Photo已成功保存到相册")
-                            DispatchQueue.main.async {
-                                self.showSaveSuccess = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                    self.showSaveSuccess = false
-                                }
+            // 使用原始文件
+            imageURLToUse = tempImageURL
+            videoURLToUse = livePhotoVideoURL
+        }
+        
+        print("[Live Photo保存] 使用的资源：")
+        print("- 图片URL：\(String(describing: imageURLToUse?.path))")
+        print("- 视频URL：\(String(describing: videoURLToUse?.path))")
+        
+        guard let imageURL = imageURLToUse,
+              let videoURL = videoURLToUse else {
+            print("错误：缺少必要的Live Photo资源")
+            completion(false)
+            return
+        }
+        
+        // 检查文件是否存在
+        let fileManager = FileManager.default
+        let imageExists = fileManager.fileExists(atPath: imageURL.path)
+        let videoExists = fileManager.fileExists(atPath: videoURL.path)
+        
+        print("[Live Photo保存] 资源检查：")
+        print("- 图片文件存在：\(imageExists)")
+        print("- 视频文件存在：\(videoExists)")
+        
+        guard imageExists && videoExists else {
+            print("错误：Live Photo资源文件不存在")
+            completion(false)
+            return
+        }
+        
+        // 生成Live Photo
+        LivePhoto.generate(from: imageURL, videoURL: videoURL) { progress in
+            print("Live Photo生成进度: \(progress)")
+        } completion: { livePhoto, resources in
+            if let resources = resources {
+                // 保存到相册
+                LivePhoto.saveToLibrary(resources) { success in
+                    if success {
+                        print("Live Photo已成功保存到相册")
+                        DispatchQueue.main.async {
+                            self.showSaveSuccess = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                self.showSaveSuccess = false
                             }
-                            completion(true)
-                        } else {
-                            print("保存Live Photo失败")
-                            completion(false)
                         }
+                        completion(true)
+                    } else {
+                        print("保存Live Photo失败")
+                        completion(false)
                     }
-                } else {
-                    print("错误：Live Photo资源生成失败")
-                    completion(false)
                 }
+            } else {
+                print("错误：Live Photo资源生成失败")
+                completion(false)
             }
         }
     }
@@ -864,6 +908,37 @@ class CaptureManager: ObservableObject {
         }
     }
     
+    // 添加复制Live Photo资源的方法
+    private func copyLivePhotoResources(imageURL: URL, videoURL: URL) -> (imageURL: URL?, videoURL: URL?) {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory
+        
+        // 生成唯一标识符
+        let identifier = UUID().uuidString
+        
+        // 创建目标URL
+        let copiedImageURL = tempDir.appendingPathComponent("\(identifier)_copy.heic")
+        let copiedVideoURL = tempDir.appendingPathComponent("\(identifier)_copy.mov")
+        
+        do {
+            // 复制图片文件
+            try fileManager.copyItem(at: imageURL, to: copiedImageURL)
+            // 复制视频文件
+            try fileManager.copyItem(at: videoURL, to: copiedVideoURL)
+            
+            print("[资源复制] 成功")
+            print("- 原始图片：\(imageURL.path)")
+            print("- 复制图片：\(copiedImageURL.path)")
+            print("- 原始视频：\(videoURL.path)")
+            print("- 复制视频：\(copiedVideoURL.path)")
+            
+            return (copiedImageURL, copiedVideoURL)
+        } catch {
+            print("[资源复制] 失败：\(error.localizedDescription)")
+            return (nil, nil)
+        }
+    }
+
     // 修改勾选状态变化的处理
     public func handleCheckmarkToggle() {
         if isLivePhoto {
@@ -888,120 +963,110 @@ class CaptureManager: ObservableObject {
                     
                     // 直接使用缓存的资源更新UI
                     if let simulatedImage = UIImage(contentsOfFile: imageURL.path) {
-                        let finalSimulatedImage = (self.captureOrientation.isLandscape || self.captureOrientation == .portraitUpsideDown) ? 
-                            self.rotateImageIfNeeded(simulatedImage) : simulatedImage
+                        // 处理图片，添加绘画和化妆效果
+                        let processedImage = LiveProcessor.shared.processLivePhotoImage(
+                            baseImage: simulatedImage,
+                            drawingImage: pinnedDrawingImage,
+                            makeupImage: makeupImage,
+                            scale: currentScale
+                        )
                         
-                        // 更新进度到100%
-                        self.simulationProgress = 1.0
-                        
-                        // 延迟更新UI和发送完成通知
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                            // 更新UI
-                            self.capturedImage = finalSimulatedImage
-                            self.simulatedVideoURL = videoURL
-                            self.livePhotoVideoURL = videoURL
-                            self.simulatedLivePhotoMode = true
-                            self.isGeneratingSimulation = false
-                            
-                            // 发送完成通知
-                            NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                        // 处理视频
+                        Task {
+                            if let processedVideoURL = await LiveProcessor.shared.processLivePhotoVideo(
+                                videoURL: videoURL,
+                                drawingImage: pinnedDrawingImage,
+                                makeupImage: makeupImage,
+                                scale: currentScale,
+                                orientation: self.captureOrientation,
+                                progressHandler: { [weak self] progress in
+                                    self?.simulationProgress = progress
+                                }
+                            ) {
+                                let finalSimulatedImage = (self.captureOrientation.isLandscape || self.captureOrientation == .portraitUpsideDown) ? 
+                                    self.rotateImageIfNeeded(processedImage) : processedImage
+                                
+                                // 在主线程更新UI
+                                await MainActor.run {
+                                    // 更新UI
+                                    self.capturedImage = finalSimulatedImage
+                                    self.simulatedVideoURL = processedVideoURL
+                                    self.livePhotoVideoURL = processedVideoURL
+                                    self.simulatedLivePhotoMode = true
+                                    self.isGeneratingSimulation = false
+                                    
+                                    // 发送完成通知
+                                    NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                                }
+                            }
                         }
                     }
                     return
                 }
                 
                 // 切换到模拟模式
-                if originalLiveImage != nil {
+                if let originalImage = originalLiveImage,
+                   let _ = originalVideoURL, let tempVideo = tempVideoURL {
                     isGeneratingSimulation = true
                     
-                    // 获取标准尺寸（竖屏3024x4032）
-                    let standardSize = CGSize(width: 3024, height: 4032)
+                    // 复制未勾选时的mov（tempVideoURL），图片仍用tempImageURL
+                    let (copiedImageURL, copiedVideoURL) = copyLivePhotoResources(
+                        imageURL: tempImageURL!,
+                        videoURL: tempVideo
+                    )
                     
-                    // 根据方向调整尺寸
-                    let targetSize: CGSize
-                    if captureOrientation.isLandscape {
-                        targetSize = CGSize(width: standardSize.height, height: standardSize.width)
-                        print("[模拟Live] 横屏模式，使用尺寸：\(targetSize.width) x \(targetSize.height)")
-                    } else {
-                        targetSize = standardSize
-                        print("[模拟Live] 竖屏模式，使用尺寸：\(targetSize.width) x \(targetSize.height)")
+                    guard let imageURL = copiedImageURL,
+                          let videoURL = copiedVideoURL else {
+                        print("[勾选处理] 资源复制失败")
+                        isGeneratingSimulation = false
+                        return
                     }
                     
-                    // 创建模拟图片（使用原始图片和化妆视图的混合）
-                    let simulatedImage = ImageProcessor.shared.createMixImage(
-                        baseImage: originalLiveImage!,
+                    // 缓存复制的资源
+                    self.cachedSimulatedImageURL = imageURL
+                    self.cachedSimulatedVideoURL = videoURL
+                    
+                    // 处理图片，添加绘画和化妆效果
+                    let processedImage = LiveProcessor.shared.processLivePhotoImage(
+                        baseImage: originalImage,
                         drawingImage: pinnedDrawingImage,
                         makeupImage: makeupImage,
                         scale: currentScale
                     )
                     
-                    // 根据方向处理模拟图片
-                    let finalSimulatedImage = (captureOrientation.isLandscape || captureOrientation == .portraitUpsideDown) ? 
-                        rotateImageIfNeeded(simulatedImage) : simulatedImage
-                    
-                    // 更新进度到50%（图片处理完成）
-                    self.simulationProgress = 0.5
-                    
-                    // 保存模拟图片到缓存，使用正确的颜色空间和编码设置
-                    let imageIdentifier = UUID().uuidString
-                    let imageURL = persistentDirectory.appendingPathComponent("\(imageIdentifier).heic")
-                    
-                    // 使用 CGImageDestination 直接写入 HEIC 文件，确保正确的颜色空间
-                    if let destination = CGImageDestinationCreateWithURL(imageURL as CFURL,
-                                                                       UTType.heic.identifier as CFString,
-                                                                       1, nil) {
-                        // 设置图片属性，包括颜色空间和压缩选项
-                        let imageProperties = [
-                            kCGImageDestinationLossyCompressionQuality: 1.0,
-                            kCGImageDestinationOptimizeColorForSharing: true,
-                            kCGImagePropertyColorModel: kCGImagePropertyColorModelRGB,
-                            kCGImageDestinationEmbedThumbnail: true
-                        ] as [CFString : Any]
-                        
-                        CGImageDestinationSetProperties(destination, imageProperties as CFDictionary)
-                        
-                        // 确保图片有正确的 CGImage
-                        if let cgImage = finalSimulatedImage.cgImage {
-                            CGImageDestinationAddImage(destination, cgImage, imageProperties as CFDictionary)
-                            
-                            if CGImageDestinationFinalize(destination) {
-                                self.cachedSimulatedImageURL = imageURL
-                                
+                    // 处理视频
+                    Task {
+                        if let processedVideoURL = await LiveProcessor.shared.processLivePhotoVideo(
+                            videoURL: videoURL,
+                            drawingImage: pinnedDrawingImage,
+                            makeupImage: makeupImage,
+                            scale: currentScale,
+                            orientation: self.captureOrientation,
+                            progressHandler: { [weak self] progress in
+                                self?.simulationProgress = progress
+                            }
+                        ) {
+                            // 在主线程更新UI
+                            await MainActor.run {
                                 // 更新UI
-                                self.capturedImage = finalSimulatedImage
+                                self.capturedImage = processedImage
+                                self.simulatedVideoURL = processedVideoURL
+                                self.livePhotoVideoURL = processedVideoURL
+                                self.simulatedLivePhotoMode = true
+                                self.isGeneratingSimulation = false
                                 
-                                // 使用原始视频
-                                if let originalVideo = self.originalVideoURL {
-                                    print("[模拟Live] 使用原始视频：\(originalVideo.path)")
-                                            
-                                            // 更新进度到100%
-                                            self.simulationProgress = 1.0
-                                            
-                                            // 延迟更新UI和发送完成通知
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                        self.simulatedVideoURL = originalVideo
-                                        self.livePhotoVideoURL = originalVideo
-                                        self.cachedSimulatedVideoURL = originalVideo
-                                                self.simulatedLivePhotoMode = true
-                                                self.isGeneratingSimulation = false
-                                                
-                                                print("[勾选处理] 模拟资源生成完成")
-                                                print("- 图片尺寸：\(targetSize.width) x \(targetSize.height)")
-                                        print("- 使用原始视频")
-                                                
-                                                // 发送完成通知
-                                                NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
-                                    }
-                                }
+                                // 更新进度到100%
+                                self.simulationProgress = 1.0
+                                
+                                // 发送完成通知
+                                NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                                
+                                print("[勾选处理] 模拟资源生成完成")
+                                print("- 使用处理后的图片")
+                                print("- 使用处理后的视频：\(processedVideoURL.path)")
                             }
                         }
                     }
-                    
-                    print("[模拟Live] 创建mix-live预览")
-                    print("- 静态图片: 混合图片 (\(targetSize.width) x \(targetSize.height))")
-                    print("- 视频: 使用原始视频")
-                    print("- 设备方向: \(captureOrientation.rawValue)")
-                    print("- 保存原始图片和视频引用")
                 }
             } else {
                 // 恢复原始图片和视频
@@ -1040,13 +1105,40 @@ extension UIImage {
             return nil
         }
         
+        // 创建不透明的图片
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue)
+        guard let context = CGContext(data: nil,
+                                    width: cgImage.width,
+                                    height: cgImage.height,
+                                    bitsPerComponent: 8,
+                                    bytesPerRow: 0,
+                                    space: colorSpace,
+                                    bitmapInfo: bitmapInfo.rawValue) else {
+            print("[HEIC转换] 创建上下文失败")
+            return nil
+        }
+        
+        // 先填充白色背景
+        context.setFillColor(CGColor(gray: 1.0, alpha: 1.0))
+        context.fill(CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        
+        // 绘制原始图片
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        
+        // 获取处理后的图片
+        guard let opaqueImage = context.makeImage() else {
+            print("[HEIC转换] 创建不透明图片失败")
+            return nil
+        }
+        
         let options: [CFString: Any] = [
             kCGImageDestinationLossyCompressionQuality: compressionQuality,
             kCGImageDestinationOptimizeColorForSharing: true,
             kCGImagePropertyOrientation: self.imageOrientation.rawValue
         ]
         
-        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+        CGImageDestinationAddImage(destination, opaqueImage, options as CFDictionary)
         
         guard CGImageDestinationFinalize(destination) else {
             print("[HEIC转换] 完成转换失败")

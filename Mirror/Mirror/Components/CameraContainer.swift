@@ -89,6 +89,24 @@ struct CameraContainer: View {
         self.onPinchEnded = onPinchEnded
         self.minScale = minScale
         self.captureState = captureState
+        
+        // 添加方向更新通知监听
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("DeviceOrientationDidChange"),
+            object: nil,
+            queue: .main
+        ) { notification in
+            if let newOrientation = notification.userInfo?["orientation"] as? UIDeviceOrientation {
+                print("[相机容器] 收到设备方向更新通知：\(newOrientation.rawValue)")
+                // 更新相机预览方向
+                if let connection = session.connections.first {
+                    let videoOrientation = AVCaptureVideoOrientation(deviceOrientation: newOrientation) ?? .portrait
+                    if connection.isVideoOrientationSupported {
+                        connection.videoOrientation = videoOrientation
+                    }
+                }
+            }
+        }
     }
     
     var body: some View {
@@ -650,5 +668,18 @@ struct SystemCameraView: View {
         }
         
         return shouldRotate
+    }
+}
+
+// 添加 AVCaptureVideoOrientation 扩展
+private extension AVCaptureVideoOrientation {
+    init?(deviceOrientation: UIDeviceOrientation) {
+        switch deviceOrientation {
+        case .portrait: self = .portrait
+        case .portraitUpsideDown: self = .portraitUpsideDown
+        case .landscapeLeft: self = .landscapeRight
+        case .landscapeRight: self = .landscapeLeft
+        default: return nil
+        }
     }
 } 
