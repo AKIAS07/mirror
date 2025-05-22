@@ -37,7 +37,7 @@ class ProManager: ObservableObject {
         
         // 开发阶段可添加测试代码
         #if DEBUG
-        isPro = true // 强制开启付费功能
+        isPro = false // 强制开启付费功能
         #endif
     }
     

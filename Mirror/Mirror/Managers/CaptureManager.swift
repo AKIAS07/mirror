@@ -940,7 +940,7 @@ class CaptureManager: ObservableObject {
     }
 
     // 修改勾选状态变化的处理
-    public func handleCheckmarkToggle() {
+    public func handleCheckmarkToggle(isMirrored: Bool, isFront: Bool, isBack: Bool) {
         if isLivePhoto {
             if isCheckmarkEnabled {
                 // 避免重复生成
@@ -979,12 +979,15 @@ class CaptureManager: ObservableObject {
                                 makeupImage: makeupImage,
                                 scale: currentScale,
                                 orientation: self.captureOrientation,
+                                isMirrored: isMirrored,
+                                isFront: isFront,
+                                isBack: isBack,
                                 progressHandler: { [weak self] progress in
                                     self?.simulationProgress = progress
                                 }
                             ) {
                                 let finalSimulatedImage = (self.captureOrientation.isLandscape || self.captureOrientation == .portraitUpsideDown) ? 
-                                    self.rotateImageIfNeeded(processedImage) : processedImage
+                                    self.processImageForOrientation(processedImage) : processedImage
                                 
                                 // 在主线程更新UI
                                 await MainActor.run {
@@ -1042,6 +1045,9 @@ class CaptureManager: ObservableObject {
                             makeupImage: makeupImage,
                             scale: currentScale,
                             orientation: self.captureOrientation,
+                            isMirrored: isMirrored,
+                            isFront: isFront,
+                            isBack: isBack,
                             progressHandler: { [weak self] progress in
                                 self?.simulationProgress = progress
                             }

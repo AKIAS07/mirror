@@ -82,6 +82,9 @@ struct DraggableMakeupView: View {
     // 添加记录图片上传时的设备方向
     @State private var imageUploadOrientation: UIDeviceOrientation = .portrait
     
+    // 添加方向提示的状态变量
+    @State private var showOrientationAlert: Bool = false
+    
     // 计算图片初始尺寸
     private func calculateInitialImageSize(_ image: UIImage) -> (width: CGFloat, height: CGFloat) {
         let imageAspectRatio = image.size.width / image.size.height
@@ -436,7 +439,12 @@ struct DraggableMakeupView: View {
                         } else {
                             Button(action: {
                                 if proManager.isPro {
-                                    checkAndRequestPhotoAccess()
+                                    // 检查设备方向
+                                    if orientationManager.validOrientation == .portrait {
+                                        checkAndRequestPhotoAccess()
+                                    } else {
+                                        showOrientationAlert = true
+                                    }
                                 } else {
                                     print("------------------------")
                                     print("[化妆视图] 点击上传按钮")
@@ -465,6 +473,13 @@ struct DraggableMakeupView: View {
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(isSimplifiedMode ? Color.clear : Color.black.opacity(0.4))
+                            .alert(isPresented: $showOrientationAlert) {
+                                Alert(
+                                    title: Text("提示"),
+                                    message: Text("请先将设备调整至竖屏"),
+                                    dismissButton: .default(Text("确定"))
+                                )
+                            }
                         }
                     }
                     .frame(width: totalWidth, height: centerAreaHeight)

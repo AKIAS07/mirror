@@ -704,15 +704,23 @@ public struct CaptureActionsView: View {
                                         generator.impactOccurred()
                                         
                                         withAnimation {
+                                            captureManager.isCheckmarkEnabled.toggle()
                                             if captureManager.isCheckmarkEnabled {
-                                                // 直接取消勾选
-                                                captureManager.isCheckmarkEnabled.toggle()
-                                                captureManager.handleCheckmarkToggle()
-                                            } else {
-                                                // 开始处理模拟数据
+                                                // 设置处理状态为true
                                                 isProcessingSimulation = true
-                                                captureManager.isCheckmarkEnabled.toggle()
-                                                captureManager.handleCheckmarkToggle()
+                                                // 勾选时的处理
+                                                captureManager.handleCheckmarkToggle(
+                                                    isMirrored: cameraManager.isMirrored,
+                                                    isFront: cameraManager.isFront,
+                                                    isBack: cameraManager.isBack
+                                                )
+                                            } else {
+                                                // 取消勾选时的处理
+                                                captureManager.handleCheckmarkToggle(
+                                                    isMirrored: cameraManager.isMirrored,
+                                                    isFront: cameraManager.isFront,
+                                                    isBack: cameraManager.isBack
+                                                )
                                             }
                                         }
                                     }) {
@@ -818,7 +826,7 @@ public struct CaptureActionsView: View {
 }
 
 // 添加获取旋转角度的辅助方法
-private func getRotationAngle(for orientation: UIDeviceOrientation) -> Angle {
+func getRotationAngle(for orientation: UIDeviceOrientation) -> Angle {
     switch orientation {
     case .landscapeLeft:
         return .degrees(90)
@@ -967,7 +975,7 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
 }
 
 // 添加计算最大拖动范围的辅助函数
-private func calculateMaxOffset(scale: CGFloat, screenSize: CGSize, imageSize: CGSize) -> CGSize {
+func calculateMaxOffset(scale: CGFloat, screenSize: CGSize, imageSize: CGSize) -> CGSize {
     // 计算图片在屏幕上的实际显示尺寸
     let imageAspect = imageSize.width / imageSize.height
     let screenAspect = screenSize.width / screenSize.height

@@ -6,6 +6,88 @@ class LiveProcessor {
     
     private init() {}
     
+    // 处理图像变换的方法
+    private func processImageTransformation(
+        image: UIImage?,
+        isMirrored: Bool,
+        isFront: Bool,
+        isBack: Bool,
+        orientation: UIDeviceOrientation
+    ) -> UIImage? {
+        guard let image = image else { return nil }
+        
+        print("[图像变换] 开始处理")
+        print("镜像状态：\(isMirrored)")
+        print("前置摄像头：\(isFront)")
+        print("后置摄像头：\(isBack)")
+        print("设备方向：\(orientation.rawValue)")
+        
+        var resultImage = image
+        
+        if !isMirrored {
+            // 情况一：非镜像模式
+            if isBack && !isFront {
+                // 1. 后置摄像头，任何方向都进行方法B（逆时针90度）
+                print("[图像变换] 后置非镜像：应用方法B（逆时针90度）")
+                if let rotated = rotateCounterClockwise90(resultImage) {
+                    resultImage = rotated
+                }
+            } else if !isBack && isFront {
+                if orientation == .portrait || orientation == .portraitUpsideDown {
+                    // 2. 前置摄像头，竖屏或倒置竖屏时进行方法B
+                    print("[图像变换] 前置非镜像竖屏：应用方法B（逆时针90度）")
+                    if let rotated = rotateCounterClockwise90(resultImage) {
+                        resultImage = rotated
+                    }
+                } else if orientation == .landscapeLeft || orientation == .landscapeRight {
+                    // 3. 前置摄像头，横屏时进行方法A
+                    print("[图像变换] 前置非镜像横屏：应用方法A（顺时针90度）")
+                    if let rotated = rotateClockwise90(resultImage) {
+                        resultImage = rotated
+                    }
+                }
+            }
+        } else {
+            // 情况二：镜像模式
+            if isBack && !isFront {
+                if orientation == .portrait || orientation == .portraitUpsideDown {
+                    // 1. 后置摄像头，竖屏或倒置竖屏时先B后D
+                    print("[图像变换] 后置镜像竖屏：应用方法B（逆时针90度）后方法D（垂直翻转）")
+                    if let rotated = rotateCounterClockwise90(resultImage),
+                       let flipped = flipVertical180(rotated) {
+                        resultImage = flipped
+                    }
+                } else if orientation == .landscapeLeft || orientation == .landscapeRight {
+                    // 2. 后置摄像头，横屏时先B后C
+                    print("[图像变换] 后置镜像横屏：应用方法B（逆时针90度）后方法C（水平翻转）")
+                    if let rotated = rotateCounterClockwise90(resultImage),
+                       let flipped = flipHorizontal180(rotated) {
+                        resultImage = flipped
+                    }
+                }
+            } else if !isBack && isFront {
+                if orientation == .portrait || orientation == .portraitUpsideDown {
+                    // 3. 前置摄像头，竖屏或倒置竖屏时先B后D
+                    print("[图像变换] 前置镜像竖屏：应用方法B（逆时针90度）后方法D（垂直翻转）")
+                    if let rotated = rotateCounterClockwise90(resultImage),
+                       let flipped = flipVertical180(rotated) {
+                        resultImage = flipped
+                    }
+                } else if orientation == .landscapeLeft || orientation == .landscapeRight {
+                    // 4. 前置摄像头，横屏时先A后C
+                    print("[图像变换] 前置镜像横屏：应用方法A（顺时针90度）后方法C（水平翻转）")
+                    if let rotated = rotateClockwise90(resultImage),
+                       let flipped = flipHorizontal180(rotated) {
+                        resultImage = flipped
+                    }
+                }
+            }
+        }
+        
+        print("[图像变换] 处理完成")
+        return resultImage
+    }
+    
     // 处理 Live Photo 的图片部分
     func processLivePhotoImage(baseImage: UIImage, drawingImage: UIImage?, makeupImage: UIImage?, scale: CGFloat = 1.0) -> UIImage {
         print("[图片处理] 开始处理 Live Photo 图片")
@@ -124,11 +206,34 @@ class LiveProcessor {
         makeupImage: UIImage?,
         scale: CGFloat = 1.0,
         orientation: UIDeviceOrientation = .portrait,
+        isMirrored: Bool = false,
+        isFront: Bool = true,
+        isBack: Bool = false,
         progressHandler: ((Double) -> Void)? = nil
     ) async -> URL? {
         print("[视频处理] 开始处理视频")
         print("输入视频URL：\(videoURL.path)")
         print("设备方向：\(orientation.rawValue)")
+        print("镜像状态：\(isMirrored)")
+        print("前置摄像头：\(isFront)")
+        print("后置摄像头：\(isBack)")
+        
+        // 处理绘画图层和化妆图层的变换
+        let transformedDrawingImage = processImageTransformation(
+            image: drawingImage,
+            isMirrored: isMirrored,
+            isFront: isFront,
+            isBack: isBack,
+            orientation: orientation
+        )
+        
+        let transformedMakeupImage = processImageTransformation(
+            image: makeupImage,
+            isMirrored: isMirrored,
+            isFront: isFront,
+            isBack: isBack,
+            orientation: orientation
+        )
         
         let asset = AVAsset(url: videoURL)
         
@@ -178,7 +283,7 @@ class LiveProcessor {
         
         let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         writerInput.expectsMediaDataInRealTime = false
-        writerInput.transform = preferredTransform  // 使用原始视频的变换信息
+        writerInput.transform = preferredTransform
         
         // 设置像素缓冲适配器
         let attributes: [String: Any] = [
@@ -217,7 +322,21 @@ class LiveProcessor {
         // 获取总帧数（用于进度计算）
         let duration = try? await track.load(.timeRange).duration
         let totalFrames = Double(CMTimeGetSeconds(duration ?? .zero) * Float64(track.nominalFrameRate))
-        var processedFrames: Double = 0
+        
+        // 使用 actor 来管理帧计数
+        actor FrameCounter {
+            private var count: Double = 0
+            
+            func increment() {
+                count += 1
+            }
+            
+            func getProgress(total: Double) -> Double {
+                return count / total
+            }
+        }
+        
+        let frameCounter = FrameCounter()
         
         return await withCheckedContinuation { continuation in
             // 创建串行队列处理视频帧
@@ -264,9 +383,10 @@ class LiveProcessor {
                         // 处理帧图像
                         let processedImage = ImageProcessor.shared.createMixImage(
                             baseImage: frameImage,
-                            drawingImage: drawingImage,
-                            makeupImage: makeupImage,
-                            scale: scale
+                            drawingImage: transformedDrawingImage,
+                            makeupImage: transformedMakeupImage,
+                            scale: scale,
+                            isForVideo: true
                         )
                         
                         // 创建新的像素缓冲区
@@ -312,13 +432,16 @@ class LiveProcessor {
                             
                             // 写入处理后的帧
                             adaptor.append(pixelBuffer, withPresentationTime: presentationTime)
-                        }
-                        
-                        // 更新进度
-                        processedFrames += 1
-                        if let handler = progressHandler {
-                            DispatchQueue.main.async {
-                                handler(processedFrames / totalFrames)
+                            
+                            // 更新进度
+                            Task {
+                                await frameCounter.increment()
+                                if let handler = progressHandler {
+                                    let progress = await frameCounter.getProgress(total: totalFrames)
+                                    DispatchQueue.main.async {
+                                        handler(progress)
+                                    }
+                                }
                             }
                         }
                     }
@@ -340,6 +463,54 @@ class LiveProcessor {
         default:
             return 0
         }
+    }
+    
+    // 顺时针旋转90度
+    func rotateClockwise90(_ image: UIImage?) -> UIImage? {
+        guard let image = image else { return nil }
+        return image.rotated(by: 90)
+    }
+    
+    // 逆时针旋转90度
+    func rotateCounterClockwise90(_ image: UIImage?) -> UIImage? {
+        guard let image = image else { return nil }
+        return image.rotated(by: -90)
+    }
+    
+    // 水平翻转
+    func flipHorizontal180(_ image: UIImage?) -> UIImage? {
+        guard let image = image else { return nil }
+        UIGraphicsBeginImageContextWithOptions(image.size, false, image.scale)
+        defer { UIGraphicsEndImageContext() }
+        
+        guard let context = UIGraphicsGetCurrentContext() else { return nil }
+        
+        // 水平翻转变换
+        context.translateBy(x: image.size.width, y: 0)
+        context.scaleBy(x: -1, y: 1)
+        
+        // 绘制图像
+        image.draw(in: CGRect(x: 0, y: 0, width: image.size.width, height: image.size.height))
+        
+        return UIGraphicsGetImageFromCurrentImageContext()
+    }
+    
+    // 垂直翻转
+    func flipVertical180(_ image: UIImage?) -> UIImage? {
+        guard let image = image else { return nil }
+        UIGraphicsBeginImageContextWithOptions(image.size, false, image.scale)
+        defer { UIGraphicsEndImageContext() }
+        
+        guard let context = UIGraphicsGetCurrentContext() else { return nil }
+        
+        // 垂直翻转变换
+        context.translateBy(x: 0, y: image.size.height)
+        context.scaleBy(x: 1, y: -1)
+        
+        // 绘制图像
+        image.draw(in: CGRect(x: 0, y: 0, width: image.size.width, height: image.size.height))
+        
+        return UIGraphicsGetImageFromCurrentImageContext()
     }
 }
 
