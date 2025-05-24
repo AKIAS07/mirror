@@ -60,8 +60,14 @@ class ImageProcessor {
         return mixImage
     }
     
-    // 添加水印处理方法
+    // 修改添加水印处理方法
     func addWatermark(to image: UIImage, orientation: UIDeviceOrientation) -> UIImage {
+        // 检查水印开关状态
+        let isWatermarkEnabled = UserSettingsManager.shared.loadWatermarkEnabled()
+        if !isWatermarkEnabled {
+            return image
+        }
+        
         // 从缓存获取已旋转的水印
         guard let watermark = getCachedWatermark(for: orientation) else {
             print("[水印处理] 无法获取水印图片")
@@ -111,7 +117,7 @@ class ImageProcessor {
         return UIGraphicsGetImageFromCurrentImageContext()
     }
     
-    // 优化的图像合成方法
+    // 修改图像合成方法
     func createMixImage(
         baseImage: UIImage,
         drawingImage: UIImage?,
@@ -264,12 +270,15 @@ class ImageProcessor {
                 }
                 
                 // 添加水印
-                if let watermark = watermark {
-                    // 使用传入的已变换水印
-                    watermark.draw(in: CGRect(origin: .zero, size: size))
-                } else if let defaultWatermark = getCachedWatermark(for: orientation) {
-                    // 使用默认水印
-                    defaultWatermark.draw(in: CGRect(origin: .zero, size: size))
+                let isWatermarkEnabled = UserSettingsManager.shared.loadWatermarkEnabled()
+                if isWatermarkEnabled {
+                    if let watermark = watermark {
+                        // 使用传入的已变换水印
+                        watermark.draw(in: CGRect(origin: .zero, size: size))
+                    } else if let defaultWatermark = getCachedWatermark(for: orientation) {
+                        // 使用默认水印
+                        defaultWatermark.draw(in: CGRect(origin: .zero, size: size))
+                    }
                 }
             }
             

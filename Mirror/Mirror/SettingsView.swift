@@ -153,6 +153,7 @@ public struct SettingsPanel: View {
     @State private var isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
     @State private var flashIntensity = AppConfig.AnimationConfig.Flash.intensity
     @State private var autoEnterTwoOfMe: Bool = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
+    @State private var isWatermarkEnabled: Bool = UserSettingsManager.shared.loadWatermarkEnabled()
     
     // 添加网格设置状态
     @State private var gridSpacing: CGFloat = UserSettingsManager.shared.loadGridSettings().spacing
@@ -208,7 +209,7 @@ public struct SettingsPanel: View {
     
     // 保存当前设置状态的结构体
     private struct SettingsState {
-        var borderLightColor: Color = BorderLightStyleManager.shared.selectedColor
+        var borderLightColor: Color = UserSettingsManager.shared.loadBorderLightColor()  // 使用UserSettingsManager加载默认颜色
         var borderLightWidth: CGFloat = BorderLightStyleManager.shared.selectedWidth
         var isDefaultGesture: Bool = BorderLightStyleManager.shared.isDefaultGesture
         var iconColor: Color = BorderLightStyleManager.shared.iconColor
@@ -221,6 +222,7 @@ public struct SettingsPanel: View {
         var gridSpacing: CGFloat = UserSettingsManager.shared.loadGridSettings().spacing
         var gridLineColor: Color = UserSettingsManager.shared.loadGridSettings().color
         var gridLineOpacity: Double = UserSettingsManager.shared.loadGridSettings().opacity
+        var isWatermarkEnabled: Bool = UserSettingsManager.shared.loadWatermarkEnabled()
     }
     
     // 检查是否有未保存的更改
@@ -236,7 +238,8 @@ public struct SettingsPanel: View {
                initialState.autoEnterTwoOfMe != autoEnterTwoOfMe ||
                initialState.gridSpacing != gridSpacing ||
                initialState.gridLineColor != gridLineColor ||
-               initialState.gridLineOpacity != gridLineOpacity
+               initialState.gridLineOpacity != gridLineOpacity ||
+               initialState.isWatermarkEnabled != isWatermarkEnabled
     }
     
     // 保存设置
@@ -256,6 +259,9 @@ public struct SettingsPanel: View {
             color: gridLineColor,
             opacity: gridLineOpacity
         )
+        
+        // 保存水印设置
+        UserSettingsManager.shared.saveWatermarkEnabled(isWatermarkEnabled)
         
         // 同步 TwoOfMe 相关设置
         NotificationCenter.default.post(
@@ -307,6 +313,9 @@ public struct SettingsPanel: View {
         gridSpacing = initialState.gridSpacing
         gridLineColor = initialState.gridLineColor
         gridLineOpacity = initialState.gridLineOpacity
+        
+        // 恢复水印设置
+        isWatermarkEnabled = initialState.isWatermarkEnabled
         
         // 发送通知更新预览
         NotificationCenter.default.post(
@@ -413,31 +422,62 @@ public struct SettingsPanel: View {
                                 }
                                 
                                 // 常用颜色快捷选择
-                                HStack(spacing: SettingsTheme.buttonSpacing) {
-                                    ForEach([
-                                        Color(red: 255/255, green: 255/255, blue: 255/255),  //颜色1
-                                        Color(red: 104/255, green: 109/255, blue: 203/255),  //颜色2
-                                        Color(red: 58/255, green: 187/255, blue: 201/255),  //颜色3
-                                        Color(red: 155/255, green: 202/255, blue: 62/255),  //颜色4
-                                        Color(red: 254/255, green: 235/255, blue: 81/255),  //颜色5
-                                        Color(red: 255/255, green: 185/255, blue: 42/255),  //颜色6
-                                        Color(red: 237/255, green: 83/255, blue: 20/255)  //颜色7 
-                                    ], id: \.self) { color in
-                                        Button(action: {
-                                            // 不再立即保存，只更新显示
-                                            styleManager.updateStyle(color: color)
-                                        }) {
-                                            Circle()
-                                                .fill(color)
-                                                .frame(width: 24, height: 24)
-                                                .padding(styleManager.selectedColor == color ? 4 : 0)
-                                                .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
-                                                .overlay(
-                                                    Circle().stroke(
-                                                        SettingsTheme.selectedButtonBorderColor,
-                                                        lineWidth: styleManager.selectedColor == color ? SettingsTheme.selectedBorderWidth : 0
+                                VStack(spacing: SettingsTheme.buttonSpacing) {
+                                    // 第一排颜色
+                                    HStack(spacing: SettingsTheme.buttonSpacing) {
+                                        ForEach([
+                                            Color(red: 234/255, green: 189/255, blue: 124/255),  //暖光1
+                                            Color(red: 245/255, green: 217/255, blue: 155/255),  // 暖光2
+                                            Color(red: 248/255, green: 237/255, blue: 206/255),   // 暖光3
+                                            Color(red: 241/255, green: 235/255, blue: 223/255),    // 白光
+                                            Color(red: 200/255, green: 210/255, blue: 213/255),    // 冷光1
+                                            Color(red: 198/255, green: 223/255, blue: 239/255),   // 冷光2
+                                            Color(red: 190/255, green: 229/255, blue: 246/255)     // 冷光3
+                                        ], id: \.self) { color in
+                                            Button(action: {
+                                                styleManager.updateStyle(color: color)
+                                            }) {
+                                                Circle()
+                                                    .fill(color)
+                                                    .frame(width: 24, height: 24)
+                                                    .padding(styleManager.selectedColor == color ? 4 : 0)
+                                                    .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
+                                                    .overlay(
+                                                        Circle().stroke(
+                                                            SettingsTheme.selectedButtonBorderColor,
+                                                            lineWidth: styleManager.selectedColor == color ? SettingsTheme.selectedBorderWidth : 0
+                                                        )
                                                     )
-                                                )
+                                            }
+                                        }
+                                    }
+                                    
+                                    // 第二排颜色
+                                    HStack(spacing: SettingsTheme.buttonSpacing) {
+                                        ForEach([
+                                            Color(red: 255/255, green: 255/255, blue: 255/255),  // 颜色1
+                                            Color(red: 104/255, green: 109/255, blue: 203/255),  //颜色2
+                                            Color(red: 58/255, green: 187/255, blue: 201/255),   //颜色3
+                                            Color(red: 155/255, green: 202/255, blue: 62/255),   //颜色4
+                                            Color(red: 254/255, green: 235/255, blue: 81/255),   //颜色5
+                                            Color(red: 255/255, green: 185/255, blue: 42/255),   //颜色6
+                                            Color(red: 237/255, green: 83/255, blue: 20/255)     //颜色7 
+                                        ], id: \.self) { color in
+                                            Button(action: {
+                                                styleManager.updateStyle(color: color)
+                                            }) {
+                                                Circle()
+                                                    .fill(color)
+                                                    .frame(width: 24, height: 24)
+                                                    .padding(styleManager.selectedColor == color ? 4 : 0)
+                                                    .overlay(Circle().stroke(SettingsTheme.buttonBorderColor, lineWidth: SettingsTheme.normalBorderWidth))
+                                                    .overlay(
+                                                        Circle().stroke(
+                                                            SettingsTheme.selectedButtonBorderColor,
+                                                            lineWidth: styleManager.selectedColor == color ? SettingsTheme.selectedBorderWidth : 0
+                                                        )
+                                                    )
+                                            }
                                         }
                                     }
                                 }
@@ -497,7 +537,16 @@ public struct SettingsPanel: View {
                                         // 更新 AppConfig
                                         AppConfig.AnimationConfig.Flash.isEnabled = newValue
                                         // 保存设置
-                                        UserDefaults.standard.set(newValue, forKey: "FlashEnabled")
+                                        UserSettingsManager.shared.saveFlashSettings(
+                                            isEnabled: newValue,
+                                            intensity: flashIntensity
+                                        )
+                                        // 发送通知同步工具栏按钮状态
+                                        NotificationCenter.default.post(
+                                            name: NSNotification.Name("FlashSettingChanged"),
+                                            object: nil,
+                                            userInfo: ["isEnabled": newValue]
+                                        )
                                     }
                             }
                             
@@ -826,6 +875,20 @@ public struct SettingsPanel: View {
                                         UserSettingsManager.shared.saveAutoEnterTwoOfMe(newValue)
                                     }
                             }
+                            
+                            HStack {
+                                Text("照片水印")
+                                    .foregroundColor(SettingsTheme.subtitleColor)
+                                Spacer()
+                                Toggle("", isOn: $isWatermarkEnabled)
+                                    .labelsHidden()
+                                    .onChange(of: isWatermarkEnabled) { newValue in
+                                        // 保存设置
+                                        UserSettingsManager.shared.saveWatermarkEnabled(newValue)
+                                        // 发送通知更新水印状态
+                                        NotificationCenter.default.post(name: NSNotification.Name("WatermarkSettingChanged"), object: nil)
+                                    }
+                            }
                         }
                         .padding(SettingsTheme.padding)
                         .background(getSettingBackground(.system))
@@ -963,6 +1026,29 @@ public struct SettingsPanel: View {
                 // 进入预览模式，显示边框灯
                 borderLightManager.showOriginalHighlight = true
                 borderLightManager.showMirroredHighlight = true
+                
+                // 添加闪光灯状态变化监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("FlashSettingChanged"),
+                    object: nil,
+                    queue: .main
+                ) { notification in
+                    if let isEnabled = notification.userInfo?["isEnabled"] as? Bool {
+                        isFlashEnabled = isEnabled
+                    }
+                }
+                
+                // 添加颜色更新监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("UpdateButtonColors"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    // 强制刷新视图以更新颜色选择器的状态
+                    withAnimation {
+                        initialState = SettingsState()
+                    }
+                }
             }
             .onDisappear {
                 // 恢复原始亮度
@@ -982,6 +1068,13 @@ public struct SettingsPanel: View {
                 }
                 // 发送设置页面关闭通知
                 NotificationCenter.default.post(name: NSNotification.Name("SettingsDismissed"), object: nil)
+                
+                // 移除通知监听器
+                NotificationCenter.default.removeObserver(
+                    self,
+                    name: NSNotification.Name("UpdateButtonColors"),
+                    object: nil
+                )
             }
         }
         .transition(.opacity)

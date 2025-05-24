@@ -30,6 +30,14 @@ private enum UserSettingsKeys {
     static let gridSpacing = "gridSpacing"
     static let gridLineColor = "gridLineColor"
     static let gridLineOpacity = "gridLineOpacity"
+    static let watermarkEnabled = "watermarkEnabled"  // 添加水印开关键
+}
+
+// 添加默认白光颜色常量
+private struct DefaultColors {
+    static let whiteLight = Color(red: 241/255, green: 235/255, blue: 223/255)
+    static let warmLight = Color(red: 245/255, green: 217/255, blue: 155/255)
+    static let coolLight = Color(red: 198/255, green: 223/255, blue: 239/255)
 }
 
 // 用户设置管理器
@@ -278,7 +286,7 @@ class UserSettingsManager {
         }
         
         print("使用边框灯默认颜色")
-        return BorderStyle.selectedColor
+        return DefaultColors.whiteLight  // 修改默认颜色为白光
     }
     
     // 加载边框灯宽度
@@ -551,6 +559,10 @@ class UserSettingsManager {
         // 重置分屏图片
         defaults.set("icon-bf-color-1", forKey: UserSettingsKeys.splitScreenIconImage)
         
+        // 重置水印设置（默认开启）
+        defaults.set(true, forKey: UserSettingsKeys.watermarkEnabled)
+        print("- 水印设置已重置为开启状态")
+        
         // 同步到内存
         defaults.synchronize()
         
@@ -590,6 +602,52 @@ class UserSettingsManager {
         print("状态：\(enabled ? "开启" : "关闭")")
         print("------------------------")
         return enabled
+    }
+
+    // MARK: - 水印设置
+    
+    // 保存水印开关状态
+    func saveWatermarkEnabled(_ enabled: Bool) {
+        print("------------------------")
+        print("[水印设置] 保存设置")
+        defaults.set(enabled, forKey: UserSettingsKeys.watermarkEnabled)
+        defaults.synchronize()
+        print("- 水印状态：\(enabled ? "开启" : "关闭")")
+        print("------------------------")
+    }
+    
+    // 加载水印开关状态
+    func loadWatermarkEnabled() -> Bool {
+        // 默认为开启状态
+        let enabled = defaults.object(forKey: UserSettingsKeys.watermarkEnabled) == nil ? true : defaults.bool(forKey: UserSettingsKeys.watermarkEnabled)
+        print("------------------------")
+        print("[水印设置] 加载设置")
+        print("- 水印状态：\(enabled ? "开启" : "关闭")")
+        print("------------------------")
+        return enabled
+    }
+    
+    // 获取下一个灯光颜色
+    func getNextLightColor(_ currentColor: Color) -> Color {
+        let uiCurrentColor = UIColor(currentColor)
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        uiCurrentColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        
+        // 将当前颜色与预设颜色进行比较
+        let tolerance: CGFloat = 0.01
+        
+        // 检查是否为白光
+        if abs(red - 241/255) < tolerance && abs(green - 235/255) < tolerance && abs(blue - 223/255) < tolerance {
+            return DefaultColors.warmLight  // 切换到暖光
+        }
+        // 检查是否为暖光
+        else if abs(red - 245/255) < tolerance && abs(green - 217/255) < tolerance && abs(blue - 155/255) < tolerance {
+            return DefaultColors.coolLight  // 切换到冷光
+        }
+        // 其他情况（包括冷光）
+        else {
+            return DefaultColors.whiteLight  // 切换回白光
+        }
     }
 }
 

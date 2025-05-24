@@ -38,24 +38,28 @@ enum DragDirection {
 // 添加按钮类型枚举
 enum ToolbarButtonType: Int, CaseIterable {
     case live = 0
+    case flash      // 新增闪光按钮
     case light
     case capture
-    case camera  // 改为摄像头切换按钮
     case zoom
+    case color      // 新增颜色按钮
+    case camera
     
     var icon: String {
         switch self {
-        case .live: return "livephoto"  // 改为根据状态动态获取
+        case .live: return "livephoto"
+        case .flash: return "bolt.fill"  // 闪光灯图标
         case .light: return "lightbulb"
         case .capture: return "circle.fill"
-        case .camera: return "camera.rotate"  // 使用摄像头切换图标
-        case .zoom: return "1.circle"  // 默认显示1倍
+        case .zoom: return "1.circle"
+        case .color: return "paintpalette.fill"  // 调色板图标
+        case .camera: return "camera.rotate"
         }
     }
     
     var size: CGFloat {
         switch self {
-        case .capture: return 50 // 拍照按钮稍大
+        case .capture: return 50
         default: return 40
         }
     }
@@ -84,9 +88,12 @@ enum UtilityButtonType: Int, CaseIterable {
     }
     
     var size: CGFloat {
-        return 20  // 减小按钮尺寸（原值为30）
+        switch self {
+        case .drag: return 20  // icon-star单独使用较小尺寸
+        default: return 30  // 其他按钮保持40
+        }
     }
-    
+
     // 添加属性来判断是否为系统图标
     var isSystemIcon: Bool {
         switch self {
@@ -173,13 +180,13 @@ struct DraggableToolbar: View {
     // 添加工具条显示状态
     @State private var shouldHideToolbar: Bool = false
     
-    // 工具栏尺寸常量
+    // 修改工具栏尺寸常量
     private let toolbarHeight: CGFloat = 60
     private let toolbarWidth: CGFloat = UIScreen.main.bounds.width
-    private let buttonSpacing: CGFloat = 25  // 原值
-    private let utilityButtonSpacing: CGFloat = 15  // 新增：工具按钮的间距更小
+    private let mainButtonSpacing: CGFloat = 10  // 主按钮间距改为15
+    private let utilityButtonSpacing: CGFloat = 15  // 工具按钮间距保持25
     private let edgeThreshold: CGFloat = 80
-    private let verticalToolbarWidth: CGFloat = 70  // 新增：垂直布局时的宽度
+    private let verticalToolbarWidth: CGFloat = 70
     
     // 添加设备方向
     @ObservedObject private var orientationManager = DeviceOrientationManager.shared
@@ -206,6 +213,12 @@ struct DraggableToolbar: View {
 
     // 添加权限管理器
     @ObservedObject private var permissionManager = PermissionManager.shared
+    
+    // 添加闪光灯状态
+    @State private var isFlashEnabled: Bool = UserSettingsManager.shared.loadFlashSettings().isEnabled
+    
+    // 添加颜色选择状态
+    @State private var showColorPicker: Bool = false
     
     var body: some View {
         // 只有在相机权限已授权时才显示工具条
@@ -246,16 +259,19 @@ struct DraggableToolbar: View {
                     }
                 }
                 .onAppear {
+                    // 加载闪光灯设置
+                    let flashSettings = UserSettingsManager.shared.loadFlashSettings()
+                    isFlashEnabled = flashSettings.isEnabled
+                    
                     // 添加通知监听器
                     NotificationCenter.default.addObserver(
-                        forName: NSNotification.Name("UpdateButtonColors"),
+                        forName: NSNotification.Name("FlashSettingChanged"),
                         object: nil,
                         queue: .main
-                    ) { _ in
-                        print("------------------------")
-                        print("[工具栏] 接收到主题颜色变化通知")
-                        print("当前主题颜色：\(styleManager.iconColor)")
-                        print("------------------------")
+                    ) { notification in
+                        if let isEnabled = notification.userInfo?["isEnabled"] as? Bool {
+                            isFlashEnabled = isEnabled
+                        }
                     }
                 }
             }
@@ -377,21 +393,15 @@ struct DraggableToolbar: View {
             if isVertical {
                 HStack(spacing: 0) {
                     if position == .right || position == .rightBottom {
-                        // 右侧或右下时，工具按钮在左边
                         utilityButtonsContainer(isVertical: true)
                     }
-                    
-                    // 主按钮容器
                     mainButtonsContainer(isVertical: true)
-                    
                     if position == .left || position == .leftBottom {
-                        // 左侧或左下时，工具按钮在右边
                         utilityButtonsContainer(isVertical: true)
                     }
                 }
             } else {
-                // 顶部工具栏时，垂直排列两个容器
-                VStack(spacing: 0) {
+                VStack(spacing: 5) {
                     mainButtonsContainer(isVertical: false)
                     utilityButtonsContainer(isVertical: false)
                 }
@@ -402,34 +412,35 @@ struct DraggableToolbar: View {
     private func mainButtonsContainer(isVertical: Bool) -> some View {
         VStack {
             if isVertical {
-                VStack(spacing: buttonSpacing) {
+                VStack(spacing: mainButtonSpacing) {
                     toolbarButtons()
                 }
-                .padding(.vertical, 10)  // 垂直布局时的内边距
+                .padding(.vertical, 10)
             } else {
-                // 顶部布局时，使用 Spacer 将按钮推到下方
                 Spacer()
-                    .frame(height: 100)  // 增加上方空间到50点
+                    .frame(height: 100)
                 
-                HStack(spacing: buttonSpacing) {
+                HStack(alignment: .center, spacing: mainButtonSpacing) {
                     toolbarButtons()
                 }
-                .padding(.bottom, 15)  // 底部留出一定空间
+                .padding(.horizontal, 20)  // 增加水平内边距
+                .padding(.bottom, 15)
+                .frame(maxWidth: .infinity, alignment: .center)  // 确保按钮居中
             }
         }
-        .padding(.horizontal, isVertical ? 5 : 20)  // 水平内边距保持不变
+        .padding(.horizontal, isVertical ? 5 : 20)
         .frame(
-            width: isVertical ? nil : UIScreen.main.bounds.width-60,  // 顶部时宽度为屏幕宽度
-            height: isVertical ? nil : 150  // 保持高度为150
+            width: isVertical ? nil : UIScreen.main.bounds.width-35,
+            height: isVertical ? nil : 150
         )
         .background(
             Group {
                 if !isCollapsed {
-                    RoundedRectangle(cornerRadius: isVertical ? 12 : 20)
+                    RoundedRectangle(cornerRadius: isVertical ? 12 : 12)
                         .fill(Color.black.opacity(0.15))
                         .overlay(
-                            RoundedRectangle(cornerRadius: isVertical ? 12 : 20)
-                                .stroke(Color.white.opacity(isDragging ? 0.3 : 0), lineWidth: 2)
+                            RoundedRectangle(cornerRadius: isVertical ? 12 : 12)
+                                .stroke(Color.white.opacity(isDragging ? 0.75 : 0.3), lineWidth: 2)
                         )
                 }
             }
@@ -439,35 +450,35 @@ struct DraggableToolbar: View {
     private func utilityButtonsContainer(isVertical: Bool) -> some View {
         Group {
             if isVertical {
-                VStack(spacing: utilityButtonSpacing) {  // 使用更小的间距
+                VStack(spacing: utilityButtonSpacing) {
                     utilityButtonsContent()
                 }
-                .padding(.vertical, 5)  // 减小垂直内边距
-                .padding(.horizontal, 5)  // 减小水平内边距
+                .padding(.vertical, 10)
+                .padding(.horizontal, 15)
                 .background(
                     Group {
                         if !isCollapsed {
-                            RoundedRectangle(cornerRadius: 0)
-                                .fill(Color.yellow.opacity(0))
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.white.opacity(0))
                         }
                     }
                 )
-                .frame(width: 40)  // 限制垂直布局时的宽度
+                .frame(width: 50)
             } else {
-                HStack(spacing: utilityButtonSpacing) {  // 使用更小的间距
+                HStack(spacing: utilityButtonSpacing) {
                     utilityButtonsContent()
                 }
-                .padding(.vertical, 5)  // 减小垂直内边距
-                .padding(.horizontal, 10)  // 减小水平内边距
+                .padding(.vertical, 10)  // 增加垂直内边距
+                .padding(.horizontal, 15)  // 增加水平内边距，与垂直布局保持一致
                 .background(
                     Group {
                         if !isCollapsed {
-                            RoundedRectangle(cornerRadius: 0)
-                                .fill(Color.yellow.opacity(0))
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.white.opacity(0))
                         }
                     }
                 )
-                .frame(height: 40)  // 限制水平布局时的高度
+                .frame(height: 50)  // 增加高度以适应新的内边距
             }
         }
     }
@@ -530,6 +541,24 @@ struct DraggableToolbar: View {
                                     .font(.system(size: 15, weight: .medium))
                                     .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                     .frame(width: buttonType.size, height: buttonType.size)
+                            } else if buttonType == .flash {
+                                Image(systemName: isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
+                                    .frame(width: buttonType.size, height: buttonType.size)
+                            } else if buttonType == .color {
+                                ZStack {
+                                    // 背景圆形
+                                    Circle()
+                                        .fill(Color.black.opacity(0.15))
+                                        .frame(width: buttonType.size, height: buttonType.size)
+                                    
+                                    // 颜色指示器
+                                    Circle()
+                                        .fill(styleManager.selectedColor)
+                                        .frame(width: buttonType.size - 12, height: buttonType.size - 12)
+                                }
+                                .opacity(restartManager.isCameraActive ? 1.0 : 0.3)
                             } else if buttonType == .live {
                                 ZStack {
                                     Image(systemName: cameraManager.isUsingSystemCamera ? "livephoto" : "livephoto.slash")
@@ -569,14 +598,18 @@ struct DraggableToolbar: View {
         switch buttonType {
         case .live:
             ViewActionLogger.shared.logAction(.toolbarAction(.live))
+        case .flash:
+            ViewActionLogger.shared.logAction(.toolbarAction(.flash))
         case .light:
             ViewActionLogger.shared.logAction(.toolbarAction(.light))
         case .capture:
             ViewActionLogger.shared.logAction(.toolbarAction(.capture))
-        case .camera:
-            ViewActionLogger.shared.logAction(.toolbarAction(.camera))
         case .zoom:
             ViewActionLogger.shared.logAction(.toolbarAction(.zoom))
+        case .color:
+            ViewActionLogger.shared.logAction(.toolbarAction(.color))
+        case .camera:
+            ViewActionLogger.shared.logAction(.toolbarAction(.camera))
         }
         
         feedbackGenerator.impactOccurred()
@@ -733,6 +766,45 @@ struct DraggableToolbar: View {
             
             print("更新后缩放比例：\(Int(nextScale * 100))%")
             print("------------------------")
+        case .flash:
+            print("------------------------")
+            print("工具栏：点击闪光灯按钮")
+            print("当前状态：\(isFlashEnabled ? "开启" : "关闭")")
+            print("------------------------")
+            
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isFlashEnabled.toggle()
+                // 更新 AppConfig
+                AppConfig.AnimationConfig.Flash.isEnabled = isFlashEnabled
+                // 保存设置
+                UserSettingsManager.shared.saveFlashSettings(
+                    isEnabled: isFlashEnabled,
+                    intensity: AppConfig.AnimationConfig.Flash.intensity
+                )
+                // 发送通知以同步设置面板
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("FlashSettingChanged"),
+                    object: nil,
+                    userInfo: ["isEnabled": isFlashEnabled]
+                )
+            }
+            
+        case .color:
+            print("------------------------")
+            print("工具栏：点击颜色按钮")
+            print("当前颜色：\(styleManager.selectedColor)")
+            print("------------------------")
+            
+            withAnimation(.easeInOut(duration: 0.2)) {
+                // 获取下一个颜色
+                let nextColor = UserSettingsManager.shared.getNextLightColor(styleManager.selectedColor)
+                // 更新颜色
+                styleManager.updateStyle(color: nextColor)
+                // 保存设置
+                UserSettingsManager.shared.saveBorderLightColor(nextColor)
+                // 发送通知以更新设置面板
+                NotificationCenter.default.post(name: NSNotification.Name("UpdateButtonColors"), object: nil)
+            }
         }
     }
     
@@ -742,27 +814,27 @@ struct DraggableToolbar: View {
             let xOffset = min(max(dragOffset.width, -geometry.size.width/2), geometry.size.width/2)
             return CGPoint(
                 x: geometry.size.width / 2 + xOffset,
-                y: toolbarHeight
+                y: toolbarHeight + 10  // 稍微向下移动一点
             )
         case .left:
             return CGPoint(
-                x: (verticalToolbarWidth / 2) + 17,
+                x: verticalToolbarWidth / 2 + 30,
                 y: geometry.size.height * 0.3
             )
         case .right:
             return CGPoint(
-                x: geometry.size.width - (verticalToolbarWidth / 2) - 17,
+                x: geometry.size.width - (verticalToolbarWidth / 2) - 30,
                 y: geometry.size.height * 0.3
             )
         case .leftBottom:
             return CGPoint(
-                x: (verticalToolbarWidth / 2) + 17,
-                y: geometry.size.height * 0.3 + 200  // 在左侧位置下方100pt
+                x: verticalToolbarWidth / 2 + 30,
+                y: geometry.size.height * 0.3 + 200
             )
         case .rightBottom:
             return CGPoint(
-                x: geometry.size.width - (verticalToolbarWidth / 2) - 17,
-                y: geometry.size.height * 0.3 + 200  // 在右侧位置下方100pt
+                x: geometry.size.width - (verticalToolbarWidth / 2) - 30,
+                y: geometry.size.height * 0.3 + 200
             )
         }
     }
@@ -774,22 +846,30 @@ struct DraggableToolbar: View {
                     if buttonType == .drag {
                         // 拖拽按钮添加拖拽手势
                         GeometryReader { geometry in
+                            ZStack {
+                                // 背景圆形
+                                Circle()
+                                    .fill(Color.black.opacity(0.15))
+                                    .frame(width: 40, height: 40)
+                                
+                                // 图标
                             Group {
                                 if buttonType.isSystemIcon {
                                     Image(systemName: buttonType.icon)
-                                        .font(.system(size: 16))
+                                            .font(.system(size: 22))
                                         .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                         .frame(width: buttonType.size, height: buttonType.size)
                                 } else {
                                     Image(buttonType.icon)
                                         .resizable()
-                                        .renderingMode(.template) // 添加template渲染模式
+                                            .renderingMode(.template)
                                         .scaledToFit()
                                         .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                         .frame(width: buttonType.size, height: buttonType.size)
                                 }
                             }
-                            .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))  // 增加触控区域到 44x44
+                            }
+                            .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
                             .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                             .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                             .onTapGesture {
@@ -827,14 +907,21 @@ struct DraggableToolbar: View {
                             .disabled(!restartManager.isCameraActive)
                             .scaleEffect(isDragging ? 0.95 : 1.0)
                         }
-                        .frame(width: buttonType.size, height: buttonType.size)
+                        .frame(width: 40, height: 40)  // 统一按钮容器大小
                     } else {
                         Button(action: {
                             handleUtilityButtonTap(buttonType)
                         }) {
+                            ZStack {
+                                // 背景圆形
+                                Circle()
+                                    .fill(Color.black.opacity(0.15))
+                                    .frame(width: 40, height: 40)
+                                
+                                // 图标
                             if buttonType.isSystemIcon {
                                 Image(systemName: buttonType.icon)
-                                    .font(.system(size: 16))
+                                        .font(.system(size: 22))
                                     .foregroundColor(buttonType == .add && !isAddButtonEnabled ? styleManager.iconColor.opacity(0.3) : (restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3)))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             } else {
@@ -846,7 +933,9 @@ struct DraggableToolbar: View {
                                     .frame(width: buttonType.size, height: buttonType.size)
                             }
                         }
-                        .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))  // 增加触控区域到 44x44
+                        }
+                        .frame(width: 40, height: 40)  // 统一按钮容器大小
+                        .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                         .disabled(!restartManager.isCameraActive || (buttonType == .add && !isAddButtonEnabled))

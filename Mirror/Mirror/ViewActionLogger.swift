@@ -4,18 +4,22 @@ import SwiftUI
 // 定义工具栏操作类型
 enum ToolbarAction {
     case live       // Live 模式切换
+    case flash      // 闪光灯控制
     case light      // 灯光控制
     case capture    // 拍照
-    case camera     // 摄像头切换
     case zoom       // 缩放控制
+    case color      // 颜色控制
+    case camera     // 摄像头切换
     
     var description: String {
         switch self {
         case .live: return "Live模式切换"
+        case .flash: return "闪光灯控制"
         case .light: return "灯光控制"
         case .capture: return "拍照"
-        case .camera: return "摄像头切换"
         case .zoom: return "缩放控制"
+        case .color: return "颜色控制"
+        case .camera: return "摄像头切换"
         }
     }
 }

@@ -138,6 +138,9 @@ class LiveProcessor {
         print("缩放比例：\(scale)")
         print("设备方向：\(orientation)")
         
+        // 检查水印开关状态
+        let isWatermarkEnabled = UserSettingsManager.shared.loadWatermarkEnabled()
+        
         // 使用原始图片尺寸
         let size = baseImage.size
         
@@ -189,12 +192,14 @@ class LiveProcessor {
                         )
                     }
                     
-                    // 绘制绘画图片，保持原始比例
+                    print("[图片处理] 绘画图层绘制区域：\(drawingRect)")
+                    // 绘制绘画图片
                     drawingImage.draw(in: drawingRect)
                 }
                 
                 // 如果有化妆图片，绘制化妆图片
                 if let makeupImage = makeupImage {
+                    print("[图片处理] 绘制化妆图层")
                     // 计算化妆图片的绘制区域，考虑缩放比例
                     let makeupSize = makeupImage.size
                     let makeupAspect = makeupSize.width / makeupSize.height
@@ -231,8 +236,10 @@ class LiveProcessor {
                 }
                 
                 // 添加水印（使用缓存的水印）
-                if let watermark = getCachedWatermark(for: orientation) {
-                    watermark.draw(in: CGRect(origin: .zero, size: size))
+                if isWatermarkEnabled {
+                    if let watermark = getCachedWatermark(for: orientation) {
+                        watermark.draw(in: CGRect(origin: .zero, size: size))
+                    }
                 }
             }
             
@@ -261,6 +268,9 @@ class LiveProcessor {
         print("前置摄像头：\(isFront)")
         print("后置摄像头：\(isBack)")
         
+        // 检查水印开关状态
+        let isWatermarkEnabled = UserSettingsManager.shared.loadWatermarkEnabled()
+        
         // 处理绘画图层和化妆图层的变换
         let transformedDrawingImage = processImageTransformation(
             image: drawingImage,
@@ -279,13 +289,13 @@ class LiveProcessor {
         )
         
         // 处理水印图片的变换
-        let transformedWatermark = processImageTransformation(
+        let transformedWatermark = isWatermarkEnabled ? processImageTransformation(
             image: getCachedWatermark(for: orientation),
             isMirrored: isMirrored,
             isFront: isFront,
             isBack: isBack,
             orientation: orientation
-        )
+        ) : nil
         
         let asset = AVAsset(url: videoURL)
         
@@ -432,7 +442,7 @@ class LiveProcessor {
                         
                         let frameImage = UIImage(cgImage: cgImage)
                         
-                        // 处理帧图像 - 无论是否有绘画和化妆图层，都添加水印
+                        // 处理帧图像 - 根据水印开关状态决定是否添加水印
                         let processedImage = ImageProcessor.shared.createMixImage(
                             baseImage: frameImage,
                             drawingImage: transformedDrawingImage,
@@ -440,7 +450,7 @@ class LiveProcessor {
                             scale: scale,
                             isForVideo: true,
                             orientation: orientation,
-                            watermark: transformedWatermark
+                            watermark: isWatermarkEnabled ? transformedWatermark : nil
                         )
                         
                         // 创建新的像素缓冲区

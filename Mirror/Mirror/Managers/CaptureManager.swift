@@ -50,6 +50,9 @@ class CaptureManager: ObservableObject {
     private var cachedSimulatedVideoURL: URL?
     private var isGeneratingSimulation = false
     
+    // 添加水印开关状态监听
+    private var watermarkObserver: NSObjectProtocol?
+    
     // 添加计算属性来判断是否应该显示勾选按钮
     var shouldShowCheckmark: Bool {
         return (isPinnedDrawingActive || isMakeupViewActive)
@@ -63,7 +66,28 @@ class CaptureManager: ObservableObject {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
     
-    private init() {}
+    private init() {
+        // 添加水印设置变化的监听
+        watermarkObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("WatermarkSettingChanged"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // 清除预览缓存，强制重新生成预览图片
+            self?.clearPreviewCache()
+            // 如果当前有图片，重新生成预览
+            if let baseImage = self?.capturedImage {
+                self?.previewMixImage = self?.getPreviewImage(baseImage: baseImage)
+            }
+        }
+    }
+    
+    deinit {
+        // 移除通知监听
+        if let observer = watermarkObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
     
     // 旋转横屏图片
     private func rotateImageIfNeeded(_ image: UIImage) -> UIImage {
@@ -353,7 +377,7 @@ class CaptureManager: ObservableObject {
             print("- 使用复制的视频：\(newVideoURL.path)")
         } else {
             simulatedLivePhotoMode = false
-            // 使用 LiveProcessor 处理图片，添加水印
+            // 使用 LiveProcessor 处理图片，根据水印开关状态添加水印
             let processedWithWatermark = LiveProcessor.shared.processLivePhotoImage(
                 baseImage: processedImage,
                 drawingImage: nil,
@@ -364,7 +388,7 @@ class CaptureManager: ObservableObject {
             self.capturedImage = processedWithWatermark
             self.livePhotoVideoURL = videoURL
             
-            // 处理视频，添加变换后的水印
+            // 处理视频，根据水印开关状态添加变换后的水印
             Task {
                 if let processedVideo = await LiveProcessor.shared.processLivePhotoVideo(
                     videoURL: videoURL,
@@ -374,7 +398,10 @@ class CaptureManager: ObservableObject {
                     orientation: actualOrientation,
                     isMirrored: isMirrored,
                     isFront: isFront,
-                    isBack: isBack
+                    isBack: isBack,
+                    progressHandler: { [weak self] progress in
+                        self?.simulationProgress = progress
+                    }
                 ) {
                     await MainActor.run {
                         self.processedVideoURL = processedVideo
@@ -1120,8 +1147,8 @@ class CaptureManager: ObservableObject {
                         Task {
                             if let processedVideoURL = await LiveProcessor.shared.processLivePhotoVideo(
                                 videoURL: videoURL,
-                                drawingImage: pinnedDrawingImage,
-                                makeupImage: makeupImage,
+                                drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
+                                makeupImage: isCheckmarkEnabled ? makeupImage : nil,
                                 scale: captureScale,  // 使用拍摄时的缩放比例
                                 orientation: self.captureOrientation,
                                 isMirrored: isMirrored,
