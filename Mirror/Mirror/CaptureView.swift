@@ -342,15 +342,17 @@ public struct CaptureActionsView: View {
                                                 .clipped()
                                         }
                                     } else {
-                                        // 普通照片模式 - 使用现有的预览图片处理逻辑
+                                        // 普通照片模式 - 使用预览图片处理逻辑
                                         let displayImage = Image(uiImage: captureManager.getPreviewImage(baseImage: image))
-                                        displayImage
                                             .resizable()
                                             .aspectRatio(contentMode: .fill)
                                             .frame(width: displayWidth, height: displayHeight)
                                             .scaleEffect(captureManager.currentScale)
                                             .offset(captureManager.dragOffset)
                                             .clipped()
+                                        
+                                        // 使用id修饰符强制在勾选状态变化时刷新视图
+                                        displayImage.id(captureManager.isCheckmarkEnabled)
                                     }
                                 }
                             }
@@ -363,16 +365,18 @@ public struct CaptureActionsView: View {
                                 let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
                                 let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
                                 
-                                // 使用LivePhotoPlayerView播放视频，无论是否为模拟模式
-                                LivePhotoPlayerView(
-                                    videoURL: captureManager.livePhotoVideoURL!,
-                                    isPlaying: $captureManager.isPlayingLivePhoto,
-                                    orientation: captureManager.captureOrientation
-                                )
-                                .frame(width: isLandscape ? displayWidth:displayWidth+250, height: isLandscape ? displayHeight+250:displayHeight)
-                                .scaleEffect(captureManager.currentScale)
-                                .offset(captureManager.dragOffset)
-                                .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
+                                // 使用LivePhotoPlayerView播放视频
+                                if let videoURL = captureManager.isCheckmarkEnabled ? captureManager.simulatedVideoURL : (captureManager.processedVideoURL ?? captureManager.livePhotoVideoURL) {
+                                    LivePhotoPlayerView(
+                                        videoURL: videoURL,
+                                        isPlaying: $captureManager.isPlayingLivePhoto,
+                                        orientation: captureManager.captureOrientation
+                                    )
+                                    .frame(width: isLandscape ? displayWidth:displayWidth+250, height: isLandscape ? displayHeight+250:displayHeight)
+                                    .scaleEffect(captureManager.currentScale)
+                                    .offset(captureManager.dragOffset)
+                                    .rotationEffect(getRotationAngle(for: captureManager.captureOrientation))
+                                }
                             }
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .allowsHitTesting(false)
@@ -400,30 +404,31 @@ public struct CaptureActionsView: View {
                                                 
                                                 // 更新缩放提示
                                                 captureManager.currentIndicatorScale = captureManager.currentScale
-                                                captureManager.showScaleIndicator = true
                                                 
                                                 // 特殊处理100%和60%之间的缩放
                                                 if abs(captureManager.currentScale - 1.0) < 0.01 && value < 1.0 {
                                                     // 从100%缩小时，直接跳到60%
-                                                    captureManager.currentScale = minScale
-                                                    baseScale = minScale
-                                                    captureManager.currentIndicatorScale = minScale
-                                                    
-                                                    // 重置偏移量
                                                     withAnimation(.easeOut(duration: 0.2)) {
+                                                        captureManager.currentScale = minScale
+                                                        baseScale = minScale
+                                                        captureManager.currentIndicatorScale = minScale
+                                                        captureManager.showScaleIndicator = true
+                                                        
+                                                        // 重置偏移量
                                                         captureManager.dragOffset = .zero
                                                         captureManager.lastDragOffset = .zero
                                                     }
                                                     return
                                                 } else if abs(captureManager.currentScale - minScale) < 0.01 && value > 1.0 {
                                                     // 从60%放大时，直接跳到100%并结束当前手势
-                                                    captureManager.currentScale = 1.0
-                                                    baseScale = 1.0
-                                                    captureManager.currentIndicatorScale = 1.0
-                                                    shouldIgnoreScale = true
-                                                    
-                                                    // 重置偏移量
                                                     withAnimation(.easeOut(duration: 0.2)) {
+                                                        captureManager.currentScale = 1.0
+                                                        baseScale = 1.0
+                                                        captureManager.currentIndicatorScale = 1.0
+                                                        captureManager.showScaleIndicator = true
+                                                        shouldIgnoreScale = true
+                                                        
+                                                        // 重置偏移量
                                                         captureManager.dragOffset = .zero
                                                         captureManager.lastDragOffset = .zero
                                                     }
@@ -432,6 +437,7 @@ public struct CaptureActionsView: View {
                                                     // 在100%以上时允许自由缩放
                                                     let oldScale = captureManager.currentScale
                                                     captureManager.currentScale = min(max(newScale, 1.0), maxScale)
+                                                    captureManager.showScaleIndicator = true
                                                     
                                                     // 根据缩放比例调整偏移量
                                                     if captureManager.currentScale > 1.0 {
@@ -504,19 +510,6 @@ public struct CaptureActionsView: View {
                                                         width: captureManager.lastDragOffset.width + value.translation.width,
                                                         height: captureManager.lastDragOffset.height + value.translation.height
                                                     )
-                                                    
-                                                    // 添加边缘阻尼效果
-                                                    let dampingFactor: CGFloat = 0.2
-                                                    if abs(newOffset.width) > maxOffset.width {
-                                                        let overscroll = abs(newOffset.width) - maxOffset.width
-                                                        let damping = 1.0 - min(overscroll / maxOffset.width, dampingFactor)
-                                                        newOffset.width *= damping
-                                                    }
-                                                    if abs(newOffset.height) > maxOffset.height {
-                                                        let overscroll = abs(newOffset.height) - maxOffset.height
-                                                        let damping = 1.0 - min(overscroll / maxOffset.height, dampingFactor)
-                                                        newOffset.height *= damping
-                                                    }
                                                     
                                                     // 限制拖动范围
                                                     newOffset.width = max(-maxOffset.width, min(maxOffset.width, newOffset.width))
@@ -655,6 +648,25 @@ public struct CaptureActionsView: View {
                             .cornerRadius(8)
                             .position(x: screenBounds.width/2, y: screenBounds.height/2)
                             .zIndex(11)
+                    }
+                    
+                    // 添加保存进度条
+                    if captureManager.isSaving {
+                        VStack(spacing: 10) {
+                            ProgressView(value: captureManager.savingProgress)
+                                .progressViewStyle(LinearProgressViewStyle(tint: .white))
+                                .frame(width: 200)
+                            
+                            Text("正在保存...")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.vertical, 15)
+                        .padding(.horizontal, 20)
+                        .background(Color.black.opacity(0.6))
+                        .cornerRadius(10)
+                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .zIndex(12)
                     }
                     
                     // 底部操作按钮

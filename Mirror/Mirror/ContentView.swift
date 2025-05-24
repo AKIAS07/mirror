@@ -985,12 +985,12 @@ struct ContentView: View {
            let rootViewController = window.rootViewController {
             
             let alertController = UIAlertController(
-                title: "无法切换模式",
-                message: "Live模式下无法切换到模式\(mode)，请先关闭Live模式",
+                title: "请先关闭live功能",
+                message: "",
                 preferredStyle: .alert
             )
             
-            alertController.addAction(UIAlertAction(title: "关闭Live模式", style: .default) { _ in
+            alertController.addAction(UIAlertAction(title: "关闭", style: .default) { _ in
                 // 关闭Live模式
                 self.cameraManager.toggleSystemCamera()
                 print("用户选择关闭Live模式")

@@ -4,7 +4,50 @@ import AVFoundation
 class LiveProcessor {
     static let shared = LiveProcessor()
     
-    private init() {}
+    // 添加水印缓存
+    private var watermarkCache: [String: UIImage] = [:]
+    private let cacheQueue = DispatchQueue(label: "com.mirror.liveWatermarkCache")
+    
+    private init() {
+        // 预加载水印图片
+        preloadWatermarks()
+    }
+    
+    // 预加载水印图片
+    private func preloadWatermarks() {
+        if let watermarkA = UIImage(named: "mixlogoA") {
+            cacheQueue.sync {
+                watermarkCache["A_0"] = watermarkA
+                watermarkCache["A_180"] = watermarkA.rotated(by: 180)
+            }
+        }
+        
+        if let watermarkB = UIImage(named: "mixlogoB") {
+            cacheQueue.sync {
+                watermarkCache["B_0"] = watermarkB
+                watermarkCache["B_90"] = watermarkB.rotated(by: 90)
+                watermarkCache["B_-90"] = watermarkB.rotated(by: -90)
+            }
+        }
+    }
+    
+    // 获取缓存的水印图片
+    private func getCachedWatermark(for orientation: UIDeviceOrientation) -> UIImage? {
+        return cacheQueue.sync {
+            switch orientation {
+            case .portrait:
+                return watermarkCache["A_0"]
+            case .portraitUpsideDown:
+                return watermarkCache["A_180"]
+            case .landscapeLeft:
+                return watermarkCache["B_90"]
+            case .landscapeRight:
+                return watermarkCache["B_-90"]
+            default:
+                return watermarkCache["A_0"]
+            }
+        }
+    }
     
     // 处理图像变换的方法
     private func processImageTransformation(
@@ -89,16 +132,11 @@ class LiveProcessor {
     }
     
     // 处理 Live Photo 的图片部分
-    func processLivePhotoImage(baseImage: UIImage, drawingImage: UIImage?, makeupImage: UIImage?, scale: CGFloat = 1.0) -> UIImage {
+    func processLivePhotoImage(baseImage: UIImage, drawingImage: UIImage?, makeupImage: UIImage?, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait) -> UIImage {
         print("[图片处理] 开始处理 Live Photo 图片")
         print("基础图片尺寸：\(baseImage.size)")
         print("缩放比例：\(scale)")
-        
-        // 如果没有绘画图片和化妆图片，直接返回原图
-        guard drawingImage != nil || makeupImage != nil else {
-            print("[图片处理] 无叠加图层，返回原图")
-            return baseImage
-        }
+        print("设备方向：\(orientation)")
         
         // 使用原始图片尺寸
         let size = baseImage.size
@@ -151,19 +189,17 @@ class LiveProcessor {
                         )
                     }
                     
-                    print("[图片处理] 绘画图层绘制区域：\(drawingRect)")
                     // 绘制绘画图片，保持原始比例
                     drawingImage.draw(in: drawingRect)
                 }
                 
                 // 如果有化妆图片，绘制化妆图片
                 if let makeupImage = makeupImage {
-                    print("[图片处理] 绘制化妆图层")
                     // 计算化妆图片的绘制区域，考虑缩放比例
                     let makeupSize = makeupImage.size
                     let makeupAspect = makeupSize.width / makeupSize.height
                     
-                    var drawRect: CGRect
+                    var makeupRect: CGRect
                     if scale == 1.0 {
                         // 全屏模式（100%）- 保持原始宽高比
                         let makeupDrawHeight = size.height
@@ -173,10 +209,12 @@ class LiveProcessor {
                         let x = (size.width - makeupDrawWidth) / 2
                         let y = 0.0
                         
-                        drawRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
+                        makeupRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
                     } else {
                         // 其他模式（60%和100%以上）- 根据缩放比例调整大小
                         let scaledBaseHeight = size.height / scale
+                        
+                        // 计算化妆图片的绘制尺寸，保持与基础图片相同的缩放比例
                         let makeupDrawWidth = makeupSize.width * (scaledBaseHeight / makeupSize.height)
                         let makeupDrawHeight = scaledBaseHeight
                         
@@ -184,12 +222,17 @@ class LiveProcessor {
                         let x = (size.width - makeupDrawWidth) / 2
                         let y = (size.height - makeupDrawHeight) / 2
                         
-                        drawRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
+                        makeupRect = CGRect(x: x, y: y, width: makeupDrawWidth, height: makeupDrawHeight)
                     }
                     
-                    print("[图片处理] 化妆图层绘制区域：\(drawRect)")
+                    print("[图片处理] 化妆图层绘制区域：\(makeupRect)")
                     // 绘制化妆图片
-                    makeupImage.draw(in: drawRect)
+                    makeupImage.draw(in: makeupRect)
+                }
+                
+                // 添加水印（使用缓存的水印）
+                if let watermark = getCachedWatermark(for: orientation) {
+                    watermark.draw(in: CGRect(origin: .zero, size: size))
                 }
             }
             
@@ -229,6 +272,15 @@ class LiveProcessor {
         
         let transformedMakeupImage = processImageTransformation(
             image: makeupImage,
+            isMirrored: isMirrored,
+            isFront: isFront,
+            isBack: isBack,
+            orientation: orientation
+        )
+        
+        // 处理水印图片的变换
+        let transformedWatermark = processImageTransformation(
+            image: getCachedWatermark(for: orientation),
             isMirrored: isMirrored,
             isFront: isFront,
             isBack: isBack,
@@ -380,13 +432,15 @@ class LiveProcessor {
                         
                         let frameImage = UIImage(cgImage: cgImage)
                         
-                        // 处理帧图像
+                        // 处理帧图像 - 无论是否有绘画和化妆图层，都添加水印
                         let processedImage = ImageProcessor.shared.createMixImage(
                             baseImage: frameImage,
                             drawingImage: transformedDrawingImage,
                             makeupImage: transformedMakeupImage,
                             scale: scale,
-                            isForVideo: true
+                            isForVideo: true,
+                            orientation: orientation,
+                            watermark: transformedWatermark
                         )
                         
                         // 创建新的像素缓冲区

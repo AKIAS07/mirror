@@ -13,12 +13,14 @@ class CaptureManager: ObservableObject {
     @Published var originalLiveImage: UIImage? // 添加属性保存原始Live图片
     @Published var originalVideoURL: URL? // 添加属性保存原始视频URL
     @Published var simulatedVideoURL: URL? // 添加属性保存模拟视频URL
+    @Published var processedVideoURL: URL? // 添加属性保存处理后的视频URL
     @Published var isLivePhoto = false
     @Published var livePhotoVideoURL: URL?
     @Published var tempImageURL: URL?
     @Published var tempVideoURL: URL?
     @Published var livePhotoIdentifier = ""
     @Published var currentScale: CGFloat = 1.0
+    @Published var captureScale: CGFloat = 1.0  // 添加新属性：保存拍摄时的缩放比例
     @Published var isCapturing = false
     @Published var showSaveSuccess = false
     @Published var isPlayingLivePhoto = false
@@ -36,6 +38,12 @@ class CaptureManager: ObservableObject {
     @Published var simulatedLivePhotoMode: Bool = false // 用于测试mix-live功能
     @Published var isSimulatedMode: Bool = false  // 添加模拟模式状态
     @Published var simulationProgress: Double = 0.0 // 添加模拟进度状态
+    @Published var isSaving: Bool = false // 添加保存状态
+    @Published var savingProgress: Double = 0.0 // 添加保存进度
+    
+    // 添加水印相关属性
+    private var watermarkImageA: UIImage? = UIImage(named: "mixlogoA")
+    private var watermarkImageB: UIImage? = UIImage(named: "mixlogoB")
     
     // 添加缓存属性
     private var cachedSimulatedImageURL: URL?
@@ -254,6 +262,7 @@ class CaptureManager: ObservableObject {
         
         self.capturedImage = processedImage
         self.currentScale = scale
+        self.captureScale = scale  // 保存拍摄时的缩放比例
         self.currentIndicatorScale = scale
         self.isLivePhoto = false
         
@@ -286,7 +295,7 @@ class CaptureManager: ObservableObject {
     }
     
     // 显示 Live Photo 预览
-    func showLivePhotoPreview(image: UIImage, videoURL: URL, imageURL: URL, identifier: String, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager, scale: CGFloat = 1.0) {
+    func showLivePhotoPreview(image: UIImage, videoURL: URL, imageURL: URL, identifier: String, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager, scale: CGFloat = 1.0, isMirrored: Bool, isFront: Bool, isBack: Bool) {
         print("------------------------")
         print("[Live Photo预览] 开始初始化")
         print("设备方向：\(orientation.rawValue)")
@@ -335,14 +344,45 @@ class CaptureManager: ObservableObject {
             self.capturedImage = processedImage
             self.simulatedVideoURL = newVideoURL
             self.livePhotoVideoURL = newVideoURL
+            self.currentScale = scale
+            self.captureScale = scale  // 保存拍摄时的缩放比例
+            self.currentIndicatorScale = scale
             
             print("[Live Photo预览] 使用复制的资源")
             print("- 使用原始图片")
             print("- 使用复制的视频：\(newVideoURL.path)")
         } else {
             simulatedLivePhotoMode = false
-            self.capturedImage = processedImage
+            // 使用 LiveProcessor 处理图片，添加水印
+            let processedWithWatermark = LiveProcessor.shared.processLivePhotoImage(
+                baseImage: processedImage,
+                drawingImage: nil,
+                makeupImage: nil,
+                scale: scale,
+                orientation: actualOrientation
+            )
+            self.capturedImage = processedWithWatermark
             self.livePhotoVideoURL = videoURL
+            
+            // 处理视频，添加变换后的水印
+            Task {
+                if let processedVideo = await LiveProcessor.shared.processLivePhotoVideo(
+                    videoURL: videoURL,
+                    drawingImage: nil,
+                    makeupImage: nil,
+                    scale: scale,
+                    orientation: actualOrientation,
+                    isMirrored: isMirrored,
+                    isFront: isFront,
+                    isBack: isBack
+                ) {
+                    await MainActor.run {
+                        self.processedVideoURL = processedVideo
+                        self.livePhotoVideoURL = processedVideo  // 立即更新播放源
+                        print("[Live Photo预览] 视频处理完成，更新播放源：\(processedVideo.path)")
+                    }
+                }
+            }
         }
         
         // 首先将文件复制到持久化目录
@@ -513,23 +553,39 @@ class CaptureManager: ObservableObject {
             self.currentScale = 1.0
             self.isCapturing = false
             
+            // 清理处理后的视频
+            if let processedVideo = self.processedVideoURL {
+                try? FileManager.default.removeItem(at: processedVideo)
+            }
+            self.processedVideoURL = nil
+            
             print("[清理缓存] 已清理所有临时文件和状态")
         }
     }
     
     // 修改保存方法
-    public func saveToPhotos(completion: ((Bool) -> Void)? = nil) {
+    public func saveToPhotos(isMirrored: Bool = false, isFront: Bool = true, isBack: Bool = false, completion: ((Bool) -> Void)? = nil) {
         if isLivePhoto {
             if simulatedLivePhotoMode {
                 print("[模拟Live] 保存mix-live图片")
                 // 这里先使用模拟数据,后续实现实际处理
-                saveLivePhotoToPhotoLibrary { success in
+                saveLivePhotoToPhotoLibrary(isMirrored: isMirrored, isFront: isFront, isBack: isBack) { success in
                     completion?(success)
                 }
             } else {
-                // 原有的Live Photo保存逻辑
-                saveLivePhotoToPhotoLibrary { success in
-                    completion?(success)
+                // 开始保存流程
+                isSaving = true
+                savingProgress = 0.0
+                
+                // 检查资源是否准备好
+                Task {
+                    await checkAndSaveLivePhoto(isMirrored: isMirrored, isFront: isFront, isBack: isBack) { success in
+                        DispatchQueue.main.async {
+                            self.isSaving = false
+                            self.savingProgress = 0.0
+                            completion?(success)
+                        }
+                    }
                 }
             }
         } else {
@@ -544,11 +600,12 @@ class CaptureManager: ObservableObject {
                         baseImage: capturedImage!,
                         drawingImage: pinnedDrawingImage,
                         makeupImage: isMakeupViewActive ? makeupImage : nil,
-                        scale: currentScale
+                        scale: currentScale,
+                        orientation: captureOrientation
                     )
                 }
             } else {
-                imageToSave = capturedImage!
+                imageToSave = ImageProcessor.shared.addWatermark(to: capturedImage!, orientation: captureOrientation)
             }
             
             // 根据设备方向旋转图片
@@ -558,6 +615,60 @@ class CaptureManager: ObservableObject {
             saveImageToPhotoLibrary(imageToSave) { success in
                 completion?(success)
             }
+        }
+    }
+    
+    // 添加资源检查和保存方法
+    private func checkAndSaveLivePhoto(isMirrored: Bool, isFront: Bool, isBack: Bool, completion: @escaping (Bool) -> Void) async {
+        print("------------------------")
+        print("[Live Photo保存] 开始检查资源")
+        
+        // 最大等待时间（秒）
+        let maxWaitTime: Double = 10.0
+        // 检查间隔（秒）
+        let checkInterval: Double = 0.1
+        // 已等待时间
+        var waitedTime: Double = 0.0
+        
+        // 循环检查资源是否准备好
+        while waitedTime < maxWaitTime {
+            // 更新进度
+            let progress = min(0.9, waitedTime / maxWaitTime)
+            await MainActor.run {
+                self.savingProgress = progress
+            }
+            
+            // 检查视频资源是否已处理完成
+            if let processedVideoURL = self.processedVideoURL,
+               FileManager.default.fileExists(atPath: processedVideoURL.path) {
+                print("[Live Photo保存] 检测到处理完成的视频资源")
+                print("视频路径：\(processedVideoURL.path)")
+                
+                // 设置进度为95%
+                await MainActor.run {
+                    self.savingProgress = 0.95
+                }
+                
+                // 执行保存操作
+                self.saveLivePhotoToPhotoLibrary(isMirrored: isMirrored, isFront: isFront, isBack: isBack) { success in
+                    DispatchQueue.main.async {
+                        // 完成后设置进度为100%
+                        self.savingProgress = 1.0
+                        completion(success)
+                    }
+                }
+                return
+            }
+            
+            // 等待一段时间后继续检查
+            try? await Task.sleep(nanoseconds: UInt64(checkInterval * 1_000_000_000))
+            waitedTime += checkInterval
+        }
+        
+        // 如果超时，使用当前可用的资源进行保存
+        print("[Live Photo保存] 等待超时，使用当前可用资源")
+        self.saveLivePhotoToPhotoLibrary(isMirrored: isMirrored, isFront: isFront, isBack: isBack) { success in
+            completion(success)
         }
     }
     
@@ -608,29 +719,55 @@ class CaptureManager: ObservableObject {
     }
     
     // 修改保存 Live Photo 的方法
-    private func saveLivePhotoToPhotoLibrary(completion: @escaping (Bool) -> Void) {
+    private func saveLivePhotoToPhotoLibrary(isMirrored: Bool = false, isFront: Bool = true, isBack: Bool = false, completion: @escaping (Bool) -> Void) {
         print("开始保存Live Photo到相册")
         print("模拟模式：\(simulatedLivePhotoMode)")
         print("设备方向：\(captureOrientation.rawValue)")
+        print("镜像状态：\(isMirrored)")
+        print("前置摄像头：\(isFront)")
+        print("后置摄像头：\(isBack)")
         
         // 确定要使用的图片和视频URL
         let imageURLToUse: URL?
-        let videoURLToUse: URL?
+        var videoURLToUse: URL?
         
         if simulatedLivePhotoMode && isCheckmarkEnabled {
-            // 使用处理后的临时文件
+            // 使用预览中的图片
+            if let previewImage = capturedImage {
+                // 根据设备方向旋转预览图片
+                print("[保存Live Photo] 处理预览图片旋转")
+                print("当前设备方向：\(captureOrientation.rawValue)")
+                let rotatedImage = rotateImageForSaving(previewImage, orientation: captureOrientation)
+                
+                // 将旋转后的预览图片保存为临时文件
+                let tempDir = FileManager.default.temporaryDirectory
+                let processedImageURL = tempDir.appendingPathComponent("\(UUID().uuidString)_processed.heic")
+                
+                if let imageData = rotatedImage.heicData() {
+                    try? imageData.write(to: processedImageURL)
+                    imageURLToUse = processedImageURL
+                    print("[保存Live Photo] 已保存旋转后的预览图片到：\(processedImageURL.path)")
+                } else {
+                    imageURLToUse = tempImageURL
+                    print("[保存Live Photo] 预览图片保存失败，使用原始图片")
+                }
+            } else {
+                imageURLToUse = tempImageURL
+            }
+            videoURLToUse = simulatedVideoURL ?? livePhotoVideoURL
+        } else {
+            // 不勾选时的处理
             if let originalImage = originalLiveImage {
-                // 使用 LiveProcessor 处理图片
+                // 使用 LiveProcessor 处理图片，只添加水印
                 let processedImage = LiveProcessor.shared.processLivePhotoImage(
                     baseImage: originalImage,
-                    drawingImage: pinnedDrawingImage,
-                    makeupImage: makeupImage,
-                    scale: currentScale
+                    drawingImage: nil,
+                    makeupImage: nil,
+                    scale: currentScale,
+                    orientation: captureOrientation
                 )
                 
                 // 根据设备方向旋转图片
-                print("[保存Live Photo] 处理图片旋转")
-                print("当前设备方向：\(captureOrientation.rawValue)")
                 let rotatedImage = rotateImageForSaving(processedImage, orientation: captureOrientation)
                 
                 // 将处理后的图片保存为临时文件
@@ -640,43 +777,25 @@ class CaptureManager: ObservableObject {
                 if let imageData = rotatedImage.heicData() {
                     try? imageData.write(to: processedImageURL)
                     imageURLToUse = processedImageURL
-                    print("[保存Live Photo] 已保存旋转后的图片到：\(processedImageURL.path)")
+                    print("[保存Live Photo] 已保存带水印的图片到：\(processedImageURL.path)")
                 } else {
                     imageURLToUse = tempImageURL
                     print("[保存Live Photo] 图片处理失败，使用原始图片")
                 }
+                
+                // 直接使用预览视图中的视频，不再重新添加水印
+                videoURLToUse = livePhotoVideoURL
+                print("[保存Live Photo] 使用预览视图中的视频：\(String(describing: livePhotoVideoURL?.path))")
             } else {
                 imageURLToUse = tempImageURL
+                videoURLToUse = livePhotoVideoURL
             }
-            videoURLToUse = simulatedVideoURL ?? livePhotoVideoURL
-        } else {
-            // 使用原始文件
-            imageURLToUse = tempImageURL
-            videoURLToUse = livePhotoVideoURL
         }
         
-        print("[Live Photo保存] 使用的资源：")
-        print("- 图片URL：\(String(describing: imageURLToUse?.path))")
-        print("- 视频URL：\(String(describing: videoURLToUse?.path))")
-        
+        // 如果视频处理失败或不需要处理，使用原始资源继续保存
         guard let imageURL = imageURLToUse,
               let videoURL = videoURLToUse else {
             print("错误：缺少必要的Live Photo资源")
-            completion(false)
-            return
-        }
-        
-        // 检查文件是否存在
-        let fileManager = FileManager.default
-        let imageExists = fileManager.fileExists(atPath: imageURL.path)
-        let videoExists = fileManager.fileExists(atPath: videoURL.path)
-        
-        print("[Live Photo保存] 资源检查：")
-        print("- 图片文件存在：\(imageExists)")
-        print("- 视频文件存在：\(videoExists)")
-        
-        guard imageExists && videoExists else {
-            print("错误：Live Photo资源文件不存在")
             completion(false)
             return
         }
@@ -722,27 +841,52 @@ class CaptureManager: ObservableObject {
         tempVideoURL = nil
     }
     
-    // 更新绘画图片的方法
-    public func updatePinnedDrawingImage(_ image: UIImage?) {
-        pinnedDrawingImage = image
-        // 清除预览图片缓存
+    // 获取预览图片的方法
+    public func getPreviewImage(baseImage: UIImage) -> UIImage {
+        // 如果已经有缓存的预览图片，直接返回
+        if let cached = previewMixImage {
+            return cached
+        }
+        
+        // 生成新的预览图片
+        let newPreviewImage: UIImage
+        if isCheckmarkEnabled && (pinnedDrawingImage != nil || isMakeupViewActive) {
+            newPreviewImage = ImageProcessor.shared.createMixImage(
+                baseImage: baseImage,
+                drawingImage: pinnedDrawingImage,
+                makeupImage: isMakeupViewActive ? makeupImage : nil,
+                scale: captureScale,  // 使用拍摄时的缩放比例
+                orientation: captureOrientation
+            )
+        } else {
+            newPreviewImage = ImageProcessor.shared.addWatermark(to: baseImage, orientation: captureOrientation)
+        }
+        
+        // 缓存预览图片
+        previewMixImage = newPreviewImage
+        return newPreviewImage
+    }
+    
+    // 清除预览图片缓存的方法
+    public func clearPreviewCache() {
         previewMixImage = nil
     }
     
-    // 获取预览图片的方法
-    public func getPreviewImage(baseImage: UIImage) -> UIImage {
-        if isCheckmarkEnabled && (pinnedDrawingImage != nil || isMakeupViewActive) {
-            if previewMixImage == nil {
-                previewMixImage = ImageProcessor.shared.createPreviewImage(
-                    baseImage: baseImage,
-                    drawingImage: pinnedDrawingImage,
-                    makeupImage: isMakeupViewActive ? makeupImage : nil,
-                    scale: currentScale
-                )
-            }
-            return previewMixImage!
+    // 更新绘画图片的方法
+    public func updatePinnedDrawingImage(_ image: UIImage?) {
+        pinnedDrawingImage = image
+        clearPreviewCache()
+        
+        // 如果已经勾选了mix，立即更新预览图片
+        if isCheckmarkEnabled, let baseImage = capturedImage {
+            previewMixImage = ImageProcessor.shared.createMixImage(
+                baseImage: baseImage,
+                drawingImage: pinnedDrawingImage,
+                makeupImage: isMakeupViewActive ? makeupImage : nil,
+                scale: currentScale,
+                orientation: captureOrientation
+            )
         }
-        return baseImage
     }
     
     // 添加公开的图片处理方法
@@ -963,12 +1107,13 @@ class CaptureManager: ObservableObject {
                     
                     // 直接使用缓存的资源更新UI
                     if let simulatedImage = UIImage(contentsOfFile: imageURL.path) {
-                        // 处理图片，添加绘画和化妆效果
+                        // 处理图片，同时添加水印、绘画和化妆效果
                         let processedImage = LiveProcessor.shared.processLivePhotoImage(
                             baseImage: simulatedImage,
-                            drawingImage: pinnedDrawingImage,
-                            makeupImage: makeupImage,
-                            scale: currentScale
+                            drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
+                            makeupImage: isCheckmarkEnabled ? makeupImage : nil,
+                            scale: captureScale,  // 使用拍摄时的缩放比例
+                            orientation: self.captureOrientation
                         )
                         
                         // 处理视频
@@ -977,7 +1122,7 @@ class CaptureManager: ObservableObject {
                                 videoURL: videoURL,
                                 drawingImage: pinnedDrawingImage,
                                 makeupImage: makeupImage,
-                                scale: currentScale,
+                                scale: captureScale,  // 使用拍摄时的缩放比例
                                 orientation: self.captureOrientation,
                                 isMirrored: isMirrored,
                                 isFront: isFront,
@@ -1029,21 +1174,22 @@ class CaptureManager: ObservableObject {
                     self.cachedSimulatedImageURL = imageURL
                     self.cachedSimulatedVideoURL = videoURL
                     
-                    // 处理图片，添加绘画和化妆效果
+                    // 处理图片，同时添加水印、绘画和化妆效果
                     let processedImage = LiveProcessor.shared.processLivePhotoImage(
                         baseImage: originalImage,
-                        drawingImage: pinnedDrawingImage,
-                        makeupImage: makeupImage,
-                        scale: currentScale
+                        drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
+                        makeupImage: isCheckmarkEnabled ? makeupImage : nil,
+                        scale: captureScale,  // 使用拍摄时的缩放比例
+                        orientation: self.captureOrientation
                     )
                     
-                    // 处理视频
+                    // 处理视频，确保同时叠加水印、绘画和化妆效果
                     Task {
                         if let processedVideoURL = await LiveProcessor.shared.processLivePhotoVideo(
                             videoURL: videoURL,
-                            drawingImage: pinnedDrawingImage,
-                            makeupImage: makeupImage,
-                            scale: currentScale,
+                            drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
+                            makeupImage: isCheckmarkEnabled ? makeupImage : nil,
+                            scale: captureScale,  // 使用拍摄时的缩放比例
                             orientation: self.captureOrientation,
                             isMirrored: isMirrored,
                             isFront: isFront,
@@ -1088,8 +1234,28 @@ class CaptureManager: ObservableObject {
         } else {
             // 非Live Photo模式的处理
             if isCheckmarkEnabled {
+                // 清除预览缓存，强制重新生成预览图片
+                clearPreviewCache()
+                
+                // 如果有原始图片，重新生成预览图片
+                if let baseImage = capturedImage {
+                    previewMixImage = ImageProcessor.shared.createMixImage(
+                        baseImage: baseImage,
+                        drawingImage: pinnedDrawingImage,
+                        makeupImage: isMakeupViewActive ? makeupImage : nil,
+                        scale: captureScale,  // 使用拍摄时的缩放比例
+                        orientation: captureOrientation
+                    )
+                }
+                
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                }
+            } else {
+                // 取消勾选时，清除预览缓存并重新生成带水印的预览图片
+                clearPreviewCache()
+                if let baseImage = capturedImage {
+                    previewMixImage = ImageProcessor.shared.addWatermark(to: baseImage, orientation: captureOrientation)
                 }
             }
         }

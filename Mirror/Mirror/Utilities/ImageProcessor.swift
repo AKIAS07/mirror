@@ -4,7 +4,50 @@ import SwiftUI
 class ImageProcessor {
     static let shared = ImageProcessor()
     
-    private init() {}
+    // 添加水印缓存
+    private var watermarkCache: [String: UIImage] = [:]
+    private let cacheQueue = DispatchQueue(label: "com.mirror.watermarkCache")
+    
+    private init() {
+        // 预加载水印图片
+        preloadWatermarks()
+    }
+    
+    // 预加载水印图片
+    private func preloadWatermarks() {
+        if let watermarkA = UIImage(named: "mixlogoA") {
+            cacheQueue.sync {
+                watermarkCache["A_0"] = watermarkA
+                watermarkCache["A_180"] = watermarkA.rotated(by: 180)
+            }
+        }
+        
+        if let watermarkB = UIImage(named: "mixlogoB") {
+            cacheQueue.sync {
+                watermarkCache["B_0"] = watermarkB
+                watermarkCache["B_90"] = watermarkB.rotated(by: 90)
+                watermarkCache["B_-90"] = watermarkB.rotated(by: -90)
+            }
+        }
+    }
+    
+    // 获取缓存的水印图片
+    private func getCachedWatermark(for orientation: UIDeviceOrientation) -> UIImage? {
+        return cacheQueue.sync {
+            switch orientation {
+            case .portrait:
+                return watermarkCache["A_0"]
+            case .portraitUpsideDown:
+                return watermarkCache["A_180"]
+            case .landscapeLeft:
+                return watermarkCache["B_90"]
+            case .landscapeRight:
+                return watermarkCache["B_-90"]
+            default:
+                return watermarkCache["A_0"]
+            }
+        }
+    }
     
     // 临时方法：创建一个全屏黄色矩形图片用于测试
     func createTestMixImage(baseImage: UIImage) -> UIImage {
@@ -17,11 +60,70 @@ class ImageProcessor {
         return mixImage
     }
     
+    // 添加水印处理方法
+    func addWatermark(to image: UIImage, orientation: UIDeviceOrientation) -> UIImage {
+        // 从缓存获取已旋转的水印
+        guard let watermark = getCachedWatermark(for: orientation) else {
+            print("[水印处理] 无法获取水印图片")
+            return image
+        }
+        
+        return autoreleasepool { () -> UIImage in
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1.0
+            format.opaque = true
+            
+            let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+            return renderer.image { ctx in
+                // 绘制原始图片
+                image.draw(in: CGRect(origin: .zero, size: image.size))
+                
+                // 绘制水印
+                watermark.draw(in: CGRect(origin: .zero, size: image.size))
+            }
+        }
+    }
+    
+    // 添加 UIImage 扩展方法用于旋转图片
+    private func rotateImage(_ image: UIImage, by degrees: CGFloat) -> UIImage? {
+        let radians = degrees * .pi / 180
+        let rotatedSize = CGRect(origin: .zero, size: image.size)
+            .applying(CGAffineTransform(rotationAngle: CGFloat(radians)))
+            .integral.size
+        
+        UIGraphicsBeginImageContextWithOptions(rotatedSize, false, image.scale)
+        defer { UIGraphicsEndImageContext() }
+        
+        guard let context = UIGraphicsGetCurrentContext() else { return nil }
+        
+        // 移动原点到中心
+        context.translateBy(x: rotatedSize.width/2, y: rotatedSize.height/2)
+        // 旋转
+        context.rotate(by: radians)
+        // 绘制图片
+        image.draw(in: CGRect(
+            x: -image.size.width/2,
+            y: -image.size.height/2,
+            width: image.size.width,
+            height: image.size.height
+        ))
+        
+        return UIGraphicsGetImageFromCurrentImageContext()
+    }
+    
     // 优化的图像合成方法
-    func createMixImage(baseImage: UIImage, drawingImage: UIImage?, makeupImage: UIImage? = nil, scale: CGFloat = 1.0, isForVideo: Bool = false) -> UIImage {
-        // 如果没有绘画图片和化妆图片，直接返回原图
-        guard drawingImage != nil || makeupImage != nil else {
-            return baseImage
+    func createMixImage(
+        baseImage: UIImage,
+        drawingImage: UIImage?,
+        makeupImage: UIImage? = nil,
+        scale: CGFloat = 1.0,
+        isForVideo: Bool = false,
+        orientation: UIDeviceOrientation = .portrait,
+        watermark: UIImage? = nil
+    ) -> UIImage {
+        // 如果没有绘画图片和化妆图片，且没有传入水印，则使用默认水印
+        if drawingImage == nil && makeupImage == nil && watermark == nil {
+            return addWatermark(to: baseImage, orientation: orientation)
         }
         
         // 使用基础图片的原始尺寸
@@ -40,17 +142,13 @@ class ImageProcessor {
         print("是否用于视频：\(isForVideo)")
         print("------------------------")
         
-        // 使用autoreleasepool来管理临时对象的内存
         return autoreleasepool { () -> UIImage in
             let format = UIGraphicsImageRendererFormat()
-            format.scale = 1.0 // 使用1.0的scale以避免尺寸过大
+            format.scale = 1.0
             format.opaque = false
             
             let renderer = UIGraphicsImageRenderer(size: size, format: format)
             let mixImage = renderer.image { ctx in
-                // 确保绘制区域被裁剪
-                ctx.cgContext.setBlendMode(.normal)
-                
                 // 绘制基础图片
                 baseImage.draw(in: CGRect(origin: .zero, size: size))
                 
@@ -163,6 +261,15 @@ class ImageProcessor {
                     
                     // 绘制化妆图片
                     makeupImage.draw(in: makeupRect)
+                }
+                
+                // 添加水印
+                if let watermark = watermark {
+                    // 使用传入的已变换水印
+                    watermark.draw(in: CGRect(origin: .zero, size: size))
+                } else if let defaultWatermark = getCachedWatermark(for: orientation) {
+                    // 使用默认水印
+                    defaultWatermark.draw(in: CGRect(origin: .zero, size: size))
                 }
             }
             

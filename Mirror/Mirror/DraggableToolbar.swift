@@ -609,7 +609,10 @@ struct DraggableToolbar: View {
                                 identifier: identifier,
                                 orientation: orientationManager.currentOrientation,
                                 cameraManager: self.cameraManager,
-                                scale: self.currentScale  // 使用 currentScale 而不是 cameraManager.currentScale
+                                scale: self.currentScale,  // 使用 currentScale 而不是 cameraManager.currentScale
+                                isMirrored: self.cameraManager.isMirrored,
+                                isFront: self.cameraManager.isFront,
+                                isBack: !self.cameraManager.isFront
                             )
                             
                             print("------------------------")

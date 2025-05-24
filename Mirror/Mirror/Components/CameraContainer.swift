@@ -228,7 +228,10 @@ struct CameraContainer: View {
                                                             identifier: identifier,
                                                             orientation: self.deviceOrientation,
                                                             cameraManager: self.cameraManager,
-                                                            scale: self.currentScale
+                                                            scale: self.currentScale,
+                                                            isMirrored: self.cameraManager.isMirrored,
+                                                            isFront: self.cameraManager.isFront,
+                                                            isBack: !self.cameraManager.isFront
                                                         )
                                                         
                                                         // 隐藏控制区域
@@ -623,7 +626,10 @@ struct SystemCameraView: View {
                             identifier: identifier,
                             orientation: self.deviceOrientation,
                             cameraManager: self.cameraManager,
-                            scale: self.currentScale
+                            scale: self.currentScale,
+                            isMirrored: self.cameraManager.isMirrored,
+                            isFront: self.cameraManager.isFront,
+                            isBack: !self.cameraManager.isFront
                         )
                         
                         // 隐藏控制区域
