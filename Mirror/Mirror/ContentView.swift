@@ -656,6 +656,21 @@ struct ContentView: View {
                 print("主页面退出")
                 print("------------------------")
             }
+            // 添加 Live 模式切换提示弹窗
+            .alert(isPresented: $showLiveAlert) {
+                Alert(
+                    title: Text("提示"),
+                    message: Text(liveAlertMessage),
+                    primaryButton: .default(Text("关闭实况")) {
+                        // 关闭 Live 模式
+                        cameraManager.toggleSystemCamera()
+                        print("------------------------")
+                        print("用户确认关闭 Live 模式")
+                        print("------------------------")
+                    },
+                    secondaryButton: .cancel(Text("取消"))
+                )
+            }
         }
         .fullScreenCover(isPresented: $showingTwoOfMe) {
             handleTwoOfMeDismiss()
@@ -1081,13 +1096,14 @@ struct ContentView: View {
         )
     }
     
-    // 添加显示Live模式切换提示弹窗的函数
+    // 修改显示Live模式切换提示弹窗的函数
     private func showLiveModeSwitchAlert(mode: String) {
         print("------------------------")
-        print("Live模式下尝试切换到模式\(mode)，显示提示弹窗")
+        print("Live模式下尝试切换到模式\(mode)")
+        print("显示提示弹窗")
         print("------------------------")
         
-        liveAlertMessage = "Live模式下无法切换到模式\(mode)，请先关闭Live模式"
+        liveAlertMessage = "切换将关闭实况功能"
         showLiveAlert = true
     }
 }

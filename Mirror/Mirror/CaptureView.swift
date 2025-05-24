@@ -308,6 +308,11 @@ public struct CaptureActionsView: View {
                         .frame(width: screenBounds.width, height: screenBounds.height)
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
                         .allowsHitTesting(false)
+                        .onAppear {
+                            // 在预览视图首次显示时，将当前的 currentScale 保存到 constScale
+                            captureManager.constScale = captureManager.currentScale
+                            print("[预览初始化] 保存初始缩放比例：\(captureManager.constScale)")
+                        }
 
                     // 主要内容层
                     ZStack {
@@ -811,7 +816,7 @@ public struct CaptureActionsView: View {
                     }
                     
                     // 将进度条和遮罩层移到最顶层
-                    if isProcessingSimulation && captureManager.simulationProgress > 0 && captureManager.simulationProgress <= 1.0 {
+                    if isProcessingSimulation && captureManager.simulationProgress > 0 && captureManager.simulationProgress <= 1.0 && !captureManager.isResourcePreparing {
                         Color.white.opacity(0.5)
                             .frame(width: screenBounds.width, height: screenBounds.height)
                             .edgesIgnoringSafeArea(.all)
@@ -823,6 +828,29 @@ public struct CaptureActionsView: View {
                         )
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
                         .zIndex(201)
+                    }
+                    
+                    // 添加资源准备中的提示
+                    if captureManager.isResourcePreparing {
+                        Color.white.opacity(0.5)
+                            .frame(width: screenBounds.width, height: screenBounds.height)
+                            .edgesIgnoringSafeArea(.all)
+                            .zIndex(202)
+                        
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(1.5)
+                            
+                            Text("资源准备中...")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        .padding(20)
+                        .background(Color.black.opacity(0.6))
+                        .cornerRadius(12)
+                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .zIndex(203)
                     }
                 }
                 .ignoresSafeArea()

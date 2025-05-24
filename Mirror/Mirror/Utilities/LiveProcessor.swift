@@ -261,6 +261,18 @@ class LiveProcessor {
         isBack: Bool = false,
         progressHandler: ((Double) -> Void)? = nil
     ) async -> URL? {
+        // 设置视频处理状态为开始
+        await MainActor.run {
+            CaptureManager.shared.isVideoProcessing = true
+        }
+        
+        // 在函数结束时确保重置处理状态
+        defer {
+            Task { @MainActor in
+                CaptureManager.shared.isVideoProcessing = false
+            }
+        }
+        
         print("[视频处理] 开始处理视频")
         print("输入视频URL：\(videoURL.path)")
         print("设备方向：\(orientation.rawValue)")

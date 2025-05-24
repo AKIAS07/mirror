@@ -19,8 +19,8 @@ class CaptureManager: ObservableObject {
     @Published var tempImageURL: URL?
     @Published var tempVideoURL: URL?
     @Published var livePhotoIdentifier = ""
-    @Published var currentScale: CGFloat = 1.0
-    @Published var captureScale: CGFloat = 1.0  // 添加新属性：保存拍摄时的缩放比例
+    @Published var currentScale: CGFloat = 1.0  // 保存当前的缩放比例，会随视图缩放变化
+    @Published var constScale: CGFloat = 1.0    // 保存初始缩放比例，用于mix处理
     @Published var isCapturing = false
     @Published var showSaveSuccess = false
     @Published var isPlayingLivePhoto = false
@@ -40,6 +40,8 @@ class CaptureManager: ObservableObject {
     @Published var simulationProgress: Double = 0.0 // 添加模拟进度状态
     @Published var isSaving: Bool = false // 添加保存状态
     @Published var savingProgress: Double = 0.0 // 添加保存进度
+    @Published var isVideoProcessing: Bool = false  // 添加新状态：视频是否正在处理
+    @Published var isResourcePreparing: Bool = false  // 添加新状态：资源是否正在准备中
     
     // 添加水印相关属性
     private var watermarkImageA: UIImage? = UIImage(named: "mixlogoA")
@@ -49,6 +51,9 @@ class CaptureManager: ObservableObject {
     private var cachedSimulatedImageURL: URL?
     private var cachedSimulatedVideoURL: URL?
     private var isGeneratingSimulation = false
+    private var cachedMixImageURL: URL?  // 缓存第一次生成的mix图片URL
+    private var cachedMixVideoURL: URL?  // 缓存第一次生成的mix视频URL（用于Live Photo）
+    private var hasCachedMixResources: Bool = false  // 标记是否有缓存的mix资源
     
     // 添加水印开关状态监听
     private var watermarkObserver: NSObjectProtocol?
@@ -286,7 +291,7 @@ class CaptureManager: ObservableObject {
         
         self.capturedImage = processedImage
         self.currentScale = scale
-        self.captureScale = scale  // 保存拍摄时的缩放比例
+        self.constScale = scale  // 保存初始缩放比例
         self.currentIndicatorScale = scale
         self.isLivePhoto = false
         
@@ -369,7 +374,7 @@ class CaptureManager: ObservableObject {
             self.simulatedVideoURL = newVideoURL
             self.livePhotoVideoURL = newVideoURL
             self.currentScale = scale
-            self.captureScale = scale  // 保存拍摄时的缩放比例
+            self.constScale = scale  // 保存初始缩放比例
             self.currentIndicatorScale = scale
             
             print("[Live Photo预览] 使用复制的资源")
@@ -568,6 +573,17 @@ class CaptureManager: ObservableObject {
         cachedSimulatedImageURL = nil
         cachedSimulatedVideoURL = nil
         isGeneratingSimulation = false
+        
+        // 清理mix资源缓存
+        if let imageURL = cachedMixImageURL {
+            try? FileManager.default.removeItem(at: imageURL)
+        }
+        if let videoURL = cachedMixVideoURL {
+            try? FileManager.default.removeItem(at: videoURL)
+        }
+        cachedMixImageURL = nil
+        cachedMixVideoURL = nil
+        hasCachedMixResources = false
         
         // 重置状态
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -882,7 +898,7 @@ class CaptureManager: ObservableObject {
                 baseImage: baseImage,
                 drawingImage: pinnedDrawingImage,
                 makeupImage: isMakeupViewActive ? makeupImage : nil,
-                scale: captureScale,  // 使用拍摄时的缩放比例
+                scale: constScale,  // 使用固定的初始缩放比例
                 orientation: captureOrientation
             )
         } else {
@@ -1114,70 +1130,50 @@ class CaptureManager: ObservableObject {
     public func handleCheckmarkToggle(isMirrored: Bool, isFront: Bool, isBack: Bool) {
         if isLivePhoto {
             if isCheckmarkEnabled {
+                // 检查视频是否正在处理中
+                if isVideoProcessing {
+                    print("[勾选处理] 视频正在处理中，等待资源准备完成...")
+                    isResourcePreparing = true
+                    
+                    // 开始监测视频处理状态
+                    startMonitoringVideoProcessing(isMirrored: isMirrored, isFront: isFront, isBack: isBack)
+                    return
+                }
+                
                 // 避免重复生成
                 if isGeneratingSimulation {
                     print("[勾选处理] 正在生成模拟资源，请等待...")
                     return
                 }
                 
-                // 重置进度为0%
-                simulationProgress = 0.0
-                
-                // 如果已经有缓存的资源，直接使用
-                if let imageURL = cachedSimulatedImageURL,
-                   let videoURL = cachedSimulatedVideoURL,
+                // 检查是否有缓存的mix资源
+                if hasCachedMixResources,
+                   let imageURL = cachedMixImageURL,
+                   let videoURL = cachedMixVideoURL,
                    FileManager.default.fileExists(atPath: imageURL.path),
                    FileManager.default.fileExists(atPath: videoURL.path) {
-                    print("[勾选处理] 使用已缓存的模拟资源")
+                    print("[勾选处理] 使用已缓存的mix资源")
                     print("- 图片路径：\(imageURL.path)")
                     print("- 视频路径：\(videoURL.path)")
                     
                     // 直接使用缓存的资源更新UI
-                    if let simulatedImage = UIImage(contentsOfFile: imageURL.path) {
-                        // 处理图片，同时添加水印、绘画和化妆效果
-                        let processedImage = LiveProcessor.shared.processLivePhotoImage(
-                            baseImage: simulatedImage,
-                            drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
-                            makeupImage: isCheckmarkEnabled ? makeupImage : nil,
-                            scale: captureScale,  // 使用拍摄时的缩放比例
-                            orientation: self.captureOrientation
-                        )
-                        
-                        // 处理视频
-                        Task {
-                            if let processedVideoURL = await LiveProcessor.shared.processLivePhotoVideo(
-                                videoURL: videoURL,
-                                drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
-                                makeupImage: isCheckmarkEnabled ? makeupImage : nil,
-                                scale: captureScale,  // 使用拍摄时的缩放比例
-                                orientation: self.captureOrientation,
-                                isMirrored: isMirrored,
-                                isFront: isFront,
-                                isBack: isBack,
-                                progressHandler: { [weak self] progress in
-                                    self?.simulationProgress = progress
-                                }
-                            ) {
-                                let finalSimulatedImage = (self.captureOrientation.isLandscape || self.captureOrientation == .portraitUpsideDown) ? 
-                                    self.processImageForOrientation(processedImage) : processedImage
-                                
-                                // 在主线程更新UI
-                                await MainActor.run {
-                                    // 更新UI
-                                    self.capturedImage = finalSimulatedImage
-                                    self.simulatedVideoURL = processedVideoURL
-                                    self.livePhotoVideoURL = processedVideoURL
-                                    self.simulatedLivePhotoMode = true
-                                    self.isGeneratingSimulation = false
-                                    
-                                    // 发送完成通知
-                                    NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
-                                }
-                            }
+                    if let mixImage = UIImage(contentsOfFile: imageURL.path) {
+                        // 在主线程更新UI
+                        DispatchQueue.main.async {
+                            self.capturedImage = mixImage
+                            self.simulatedVideoURL = videoURL
+                            self.livePhotoVideoURL = videoURL
+                            self.simulatedLivePhotoMode = true
+                            
+                            // 发送完成通知
+                            NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
                         }
                     }
                     return
                 }
+                
+                // 重置进度为0%
+                simulationProgress = 0.0
                 
                 // 切换到模拟模式
                 if let originalImage = originalLiveImage,
@@ -1206,7 +1202,7 @@ class CaptureManager: ObservableObject {
                         baseImage: originalImage,
                         drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
                         makeupImage: isCheckmarkEnabled ? makeupImage : nil,
-                        scale: captureScale,  // 使用拍摄时的缩放比例
+                        scale: constScale,  // 使用固定的初始缩放比例
                         orientation: self.captureOrientation
                     )
                     
@@ -1216,7 +1212,7 @@ class CaptureManager: ObservableObject {
                             videoURL: videoURL,
                             drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
                             makeupImage: isCheckmarkEnabled ? makeupImage : nil,
-                            scale: captureScale,  // 使用拍摄时的缩放比例
+                            scale: constScale,
                             orientation: self.captureOrientation,
                             isMirrored: isMirrored,
                             isFront: isFront,
@@ -1225,6 +1221,18 @@ class CaptureManager: ObservableObject {
                                 self?.simulationProgress = progress
                             }
                         ) {
+                            // 保存处理后的资源到缓存
+                            // 将处理后的图片保存为文件
+                            let tempDir = FileManager.default.temporaryDirectory
+                            let mixImageURL = tempDir.appendingPathComponent("\(UUID().uuidString)_mix.heic")
+                            if let imageData = processedImage.heicData() {
+                                try? imageData.write(to: mixImageURL)
+                                self.cachedMixImageURL = mixImageURL
+                                self.cachedMixVideoURL = processedVideoURL
+                                self.hasCachedMixResources = true
+                                print("[勾选处理] 已缓存mix资源")
+                            }
+                            
                             // 在主线程更新UI
                             await MainActor.run {
                                 // 更新UI
@@ -1248,7 +1256,7 @@ class CaptureManager: ObservableObject {
                     }
                 }
             } else {
-                // 恢复原始图片和视频
+                // 取消勾选时不清除缓存，只恢复原始状态
                 if let originalImage = originalLiveImage {
                     print("[勾选处理] 恢复普通Live模式")
                     capturedImage = originalImage
@@ -1261,31 +1269,78 @@ class CaptureManager: ObservableObject {
         } else {
             // 非Live Photo模式的处理
             if isCheckmarkEnabled {
+                // 检查是否有缓存的mix图片
+                if hasCachedMixResources,
+                   let imageURL = cachedMixImageURL,
+                   FileManager.default.fileExists(atPath: imageURL.path) {
+                    print("[勾选处理] 使用已缓存的mix图片")
+                    if let mixImage = UIImage(contentsOfFile: imageURL.path) {
+                        previewMixImage = mixImage
+                        NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                        return
+                    }
+                }
+                
                 // 清除预览缓存，强制重新生成预览图片
                 clearPreviewCache()
                 
                 // 如果有原始图片，重新生成预览图片
                 if let baseImage = capturedImage {
-                    previewMixImage = ImageProcessor.shared.createMixImage(
+                    let mixImage = ImageProcessor.shared.createMixImage(
                         baseImage: baseImage,
                         drawingImage: pinnedDrawingImage,
                         makeupImage: isMakeupViewActive ? makeupImage : nil,
-                        scale: captureScale,  // 使用拍摄时的缩放比例
+                        scale: constScale,
                         orientation: captureOrientation
                     )
+                    
+                    // 保存处理后的图片到缓存
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let mixImageURL = tempDir.appendingPathComponent("\(UUID().uuidString)_mix.heic")
+                    if let imageData = mixImage.heicData() {
+                        try? imageData.write(to: mixImageURL)
+                        self.cachedMixImageURL = mixImageURL
+                        self.hasCachedMixResources = true
+                        print("[勾选处理] 已缓存mix图片")
+                    }
+                    
+                    previewMixImage = mixImage
                 }
                 
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
                 }
             } else {
-                // 取消勾选时，清除预览缓存并重新生成带水印的预览图片
+                // 取消勾选时不清除缓存，只恢复原始状态
                 clearPreviewCache()
                 if let baseImage = capturedImage {
                     previewMixImage = ImageProcessor.shared.addWatermark(to: baseImage, orientation: captureOrientation)
                 }
             }
         }
+    }
+    
+    // 添加监测视频处理状态的方法
+    private func startMonitoringVideoProcessing(isMirrored: Bool, isFront: Bool, isBack: Bool) {
+        // 创建一个定时器来检查视频处理状态
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            
+            // 检查视频是否处理完成
+            if !self.isVideoProcessing {
+                timer.invalidate()
+                self.isResourcePreparing = false
+                
+                // 视频处理完成后，自动开始mix处理
+                DispatchQueue.main.async {
+                    self.handleCheckmarkToggle(isMirrored: isMirrored, isFront: isFront, isBack: isBack)
+                }
+            }
+        }
+        timer.fire()
     }
 }
 
