@@ -85,6 +85,7 @@ struct ContentView: View {
     @StateObject private var permissionManager = PermissionManager.shared
     
     @StateObject private var proManager = ProManager.shared
+    @StateObject private var dayNightManager = DayNightManager.shared  // 添加昼夜模式管理器
     
     @State private var showLiveAlert = false
     @State private var liveAlertMessage = ""
@@ -99,6 +100,9 @@ struct ContentView: View {
     @State private var gridLineColor: Color = UserSettingsManager.shared.loadGridSettings().color
     @State private var gridLineOpacity: Double = UserSettingsManager.shared.loadGridSettings().opacity
 
+    @State private var isZoomExpanded = false  // 添加放缩状态变量
+    @State private var isDayMode = true  // 添加昼夜模式状态变量，默认为白天模式
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -334,6 +338,85 @@ struct ContentView: View {
                         )
                         .zIndex(3)  // 调整层级到工具栏下方
                     }
+                    
+                    // 添加左下角和右下角的按钮
+                    VStack {
+                        Spacer()
+                        HStack {
+                            // 左下角放缩按钮
+                            Button(action: {
+                                // 根据当前缩放状态执行相应操作
+                                if abs(currentScale - minScale) < 0.01 {
+                                    // 当前是全景模式，点击后放大到100%
+                                    currentScale = 1.0
+                                    baseScale = 1.0
+                                    isZoomExpanded = true
+                                    showScaleIndicator = true
+                                    currentIndicatorScale = 1.0
+                                    
+                                    // 延迟隐藏缩放提示
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                        showScaleIndicator = false
+                                    }
+                                    
+                                    // 记录缩放操作
+                                    ViewActionLogger.shared.logZoomAction(scale: 1.0)
+                                } else {
+                                    // 当前是100%或更大，点击后缩小到全景模式
+                                    currentScale = minScale
+                                    baseScale = minScale
+                                    isZoomExpanded = false
+                                    showScaleIndicator = true
+                                    currentIndicatorScale = minScale
+                                    
+                                    // 延迟隐藏缩放提示
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                        showScaleIndicator = false
+                                    }
+                                    
+                                    // 记录缩放操作
+                                    ViewActionLogger.shared.logZoomAction(scale: minScale)
+                                }
+                                
+                                // 触发震动反馈
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                            }) {
+                                Image(systemName: abs(currentScale - minScale) < 0.01 ? 
+                                    "arrow.down.left.and.arrow.up.right" : 
+                                    "arrow.down.forward.and.arrow.up.backward")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.black.opacity(0.6))
+                                    .clipShape(Circle())
+                            }
+                            .padding(.leading, 20)
+                            .padding(.bottom, 140)
+                            
+                            Spacer()
+                            
+                            // 右下角昼夜切换按钮
+                            Button(action: {
+                                // 切换昼夜模式
+                                dayNightManager.toggleMode()
+                                
+                                // 触发震动反馈
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                            }) {
+                                Image(systemName: dayNightManager.isDayMode ? "sun.min.fill" : "moon.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.black.opacity(0.6))
+                                    .clipShape(Circle())
+                            }
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 140)
+                        }
+                    }
+                    .zIndex(5)
                 } else {
                     CameraPermissionView()
                 }
@@ -486,6 +569,34 @@ struct ContentView: View {
                             print("------------------------")
                         }
                     }
+                
+                // 添加自动进入全景模式的通知监听
+                NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("AutoEnterPanoramaMode"),
+                    object: nil,
+                    queue: .main
+                ) { _ in
+                    print("------------------------")
+                    print("[夜晚模式] 自动切换到全景模式")
+                    print("当前缩放比例：\(currentScale)")
+                    print("目标缩放比例：\(minScale)")
+                    print("------------------------")
+                    
+                    // 自动切换到全景模式
+                    currentScale = minScale
+                    baseScale = minScale
+                    isZoomExpanded = false
+                    showScaleIndicator = true
+                    currentIndicatorScale = minScale
+                    
+                    // 延迟隐藏缩放提示
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showScaleIndicator = false
+                    }
+                    
+                    // 记录缩放操作
+                    ViewActionLogger.shared.logZoomAction(scale: minScale)
+                }
                 
                 UIDevice.current.beginGeneratingDeviceOrientationNotifications()
                 
@@ -978,28 +1089,6 @@ struct ContentView: View {
         
         liveAlertMessage = "Live模式下无法切换到模式\(mode)，请先关闭Live模式"
         showLiveAlert = true
-        
-        // 创建自定义弹窗
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootViewController = window.rootViewController {
-            
-            let alertController = UIAlertController(
-                title: "请先关闭live功能",
-                message: "",
-                preferredStyle: .alert
-            )
-            
-            alertController.addAction(UIAlertAction(title: "关闭", style: .default) { _ in
-                // 关闭Live模式
-                self.cameraManager.toggleSystemCamera()
-                print("用户选择关闭Live模式")
-            })
-            
-            alertController.addAction(UIAlertAction(title: "取消", style: .cancel))
-            
-            rootViewController.present(alertController, animated: true)
-        }
     }
 }
 

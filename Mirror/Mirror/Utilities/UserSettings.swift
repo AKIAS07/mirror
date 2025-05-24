@@ -45,6 +45,9 @@ class UserSettingsManager {
     static let shared = UserSettingsManager()
     private let defaults = UserDefaults.standard
     
+    // 添加缓存
+    private var cachedFlashSettings: (isEnabled: Bool, intensity: AppConfig.AnimationConfig.Flash.Intensity)?
+    
     private init() {}
     
     // MARK: - 配置管理
@@ -188,30 +191,42 @@ class UserSettingsManager {
     
     // 保存闪光灯设置
     func saveFlashSettings(isEnabled: Bool, intensity: AppConfig.AnimationConfig.Flash.Intensity) {
-        print("------------------------")
-        print("[闪光灯] 保存设置")
+        // 更新缓存
+        cachedFlashSettings = (isEnabled: isEnabled, intensity: intensity)
+        
+        // 保存到 UserDefaults
         defaults.set(isEnabled, forKey: UserSettingsKeys.flashEnabled)
         defaults.set(intensity.rawValue, forKey: UserSettingsKeys.flashIntensity)
-        defaults.synchronize()
+        
+        // 打印保存操作
+        print("------------------------")
+        print("[闪光灯] 保存设置")
         print("- 开启状态：\(isEnabled ? "开启" : "关闭")")
-        print("- 闪光强度：\(intensity.description)")
+        print("- 闪光强度：\(intensity)")
         print("------------------------")
     }
     
     // 加载闪光灯设置
     func loadFlashSettings() -> (isEnabled: Bool, intensity: AppConfig.AnimationConfig.Flash.Intensity) {
-        print("------------------------")
-        print("[闪光灯] 加载设置")
+        // 如果有缓存且未过期，直接返回缓存
+        if let cached = cachedFlashSettings {
+            return cached
+        }
         
         let isEnabled = defaults.bool(forKey: UserSettingsKeys.flashEnabled)
         let intensityRawValue = defaults.double(forKey: UserSettingsKeys.flashIntensity)
         let intensity = AppConfig.AnimationConfig.Flash.Intensity.allCases.first { $0.rawValue == intensityRawValue } ?? .medium
         
-        print("- 开启状态：\(isEnabled ? "开启" : "关闭")")
-        print("- 闪光强度：\(intensity.description)")
-        print("------------------------")
+        // 更新缓存
+        let settings = (isEnabled: isEnabled, intensity: intensity)
+        cachedFlashSettings = settings
         
-        return (isEnabled: isEnabled, intensity: intensity)
+        return settings
+    }
+    
+    // 添加清除缓存的方法
+    func clearFlashSettingsCache() {
+        cachedFlashSettings = nil
     }
     
     // MARK: - 网格设置

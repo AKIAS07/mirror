@@ -55,6 +55,8 @@ struct CameraContainer: View {
     // 添加最后一个有效方向状态
     @State private var lastValidOrientation: UIDeviceOrientation = .portrait
     
+    @StateObject private var dayNightManager = DayNightManager.shared
+    
     init(session: AVCaptureSession, 
          isMirrored: Bool, 
          isActive: Bool, 
@@ -137,7 +139,8 @@ struct CameraContainer: View {
                             showIconAnimation: $showIconAnimation,
                             isControlAreaVisible: $isControlAreaVisible,
                             cameraManager: cameraManager,
-                            captureManager: captureManager
+                            captureManager: captureManager,
+                            dayNightManager: dayNightManager
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .edgesIgnoringSafeArea(.all)
@@ -145,7 +148,8 @@ struct CameraContainer: View {
                     } else {
                         if let image = processedImage {
                             ZStack {
-                                Color.black
+                                // 使用 DayNightManager 的背景颜色
+                                dayNightManager.backgroundColor
                                     .edgesIgnoringSafeArea(.all)
                                 
                                 Image(uiImage: image)
@@ -532,11 +536,13 @@ struct SystemCameraView: View {
     @Binding var isControlAreaVisible: Bool
     let cameraManager: CameraManager
     let captureManager: CaptureManager
+    let dayNightManager: DayNightManager
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.black
+                // 使用 DayNightManager 的背景颜色
+                dayNightManager.backgroundColor
                     .edgesIgnoringSafeArea(.all)
                 
                 if let image = processedImage {

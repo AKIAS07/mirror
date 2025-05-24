@@ -759,10 +759,8 @@ struct DraggableToolbar: View {
                 nextScale = 1.0  // 100%
             }
             
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                currentScale = nextScale
-                baseScale = nextScale
-            }
+            currentScale = nextScale
+            baseScale = nextScale
             
             print("更新后缩放比例：\(Int(nextScale * 100))%")
             print("------------------------")

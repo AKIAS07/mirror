@@ -554,9 +554,9 @@ struct DrawingCanvasView: View {
                                             }
                                         }
                                     }) {
-                                        Image(systemName: "pin.circle.fill")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(.white)
+                                        Image(systemName: "pin.square.fill")
+                                            .font(.system(size: 35))
+                                            .foregroundColor(.yellow)
                                     }
                                     .disabled(lines.isEmpty || hasUnconfirmedShape)  // 添加禁用条件
                                     .opacity((lines.isEmpty || hasUnconfirmedShape) ? 0.5 : 1)
