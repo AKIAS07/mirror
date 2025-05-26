@@ -103,6 +103,8 @@ struct ContentView: View {
     @State private var isZoomExpanded = false  // 添加放缩状态变量
     @State private var isDayMode = true  // 添加昼夜模式状态变量，默认为白天模式
     
+    @ObservedObject private var styleManager = BorderLightStyleManager.shared
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -215,7 +217,7 @@ struct ContentView: View {
                                         .overlay(
                                             ZStack {
                                                 // 按钮布局
-                                                HStack(spacing: 60) {
+                                                HStack(spacing: 40) {
                                                     createLeftButton(geometry: geometry)
                                                     createMiddleButton(geometry: geometry)
                                                     createRightButton(geometry: geometry)
@@ -386,9 +388,9 @@ struct ContentView: View {
                                     "arrow.down.left.and.arrow.up.right" : 
                                     "arrow.down.forward.and.arrow.up.backward")
                                     .font(.system(size: 20))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(styleManager.iconColor)
                                     .frame(width: 44, height: 44)
-                                    .background(Color.black.opacity(0.6))
+                                    .background(Color.black.opacity(0.15))
                                     .clipShape(Circle())
                             }
                             .padding(.leading, 20)
@@ -407,9 +409,9 @@ struct ContentView: View {
                             }) {
                                 Image(systemName: dayNightManager.isDayMode ? "sun.min.fill" : "moon.fill")
                                     .font(.system(size: 20))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(styleManager.iconColor)
                                     .frame(width: 44, height: 44)
-                                    .background(Color.black.opacity(0.6))
+                                    .background(Color.black.opacity(0.15))
                                     .clipShape(Circle())
                             }
                             .padding(.trailing, 20)
@@ -879,7 +881,7 @@ struct ContentView: View {
                 ViewActionLogger.shared.logModeSwitch(toModeA: true)
                 
                 // 更新动画逻辑
-                leftAnimationPosition = CGPoint(x: geometry.size.width/2 - 100, y: geometry.size.height - 25 + dragVerticalOffset)
+                leftAnimationPosition = CGPoint(x: geometry.size.width/2 - 80, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
                     showLeftIconAnimation = true
                 }
@@ -1011,7 +1013,7 @@ struct ContentView: View {
                 ViewActionLogger.shared.logModeSwitch(toModeA: false)
                 
                 // 更新动画逻辑
-                rightAnimationPosition = CGPoint(x: geometry.size.width/2 + 100, y: geometry.size.height - 25 + dragVerticalOffset)
+                rightAnimationPosition = CGPoint(x: geometry.size.width/2 + 80, y: geometry.size.height - 25 + dragVerticalOffset)
                 withAnimation {
                     showRightIconAnimation = true
                 }

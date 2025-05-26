@@ -49,11 +49,11 @@ enum ToolbarButtonType: Int, CaseIterable {
         switch self {
         case .live: return "livephoto"
         case .flash: return "bolt.fill"  // 闪光灯图标
-        case .light: return "lightbulb"
+        case .light: return "lightbulb.fill"  // 修改为默认使用 lightbulb.fill
         case .capture: return "circle.fill"
         case .zoom: return "1.circle"
         case .color: return "paintpalette.fill"  // 调色板图标
-        case .camera: return "camera.rotate"
+        case .camera: return "arrow.trianglehead.2.clockwise.rotate.90.camera.fill"
         }
     }
     
@@ -271,6 +271,25 @@ struct DraggableToolbar: View {
                     ) { notification in
                         if let isEnabled = notification.userInfo?["isEnabled"] as? Bool {
                             isFlashEnabled = isEnabled
+                        }
+                    }
+                    
+                    // 添加夜晚模式下检查并开启灯光的监听器
+                    NotificationCenter.default.addObserver(
+                        forName: NSNotification.Name("CheckAndEnableLightInNightMode"),
+                        object: nil,
+                        queue: .main
+                    ) { _ in
+                        if !containerSelected {
+                            print("------------------------")
+                            print("[夜晚模式] 自动开启灯光")
+                            print("------------------------")
+                            
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                containerSelected = true
+                                UIScreen.main.brightness = 1.0
+                                isLighted = true
+                            }
                         }
                     }
                 }
@@ -563,7 +582,7 @@ struct DraggableToolbar: View {
                                 ZStack {
                                     Image(systemName: cameraManager.isUsingSystemCamera ? "livephoto" : "livephoto.slash")
                                         .font(.system(size: 22))
-                                        .foregroundColor(restartManager.isCameraActive ? (cameraManager.isUsingSystemCamera ? styleManager.iconColor : styleManager.iconColor.opacity(0.3)) : styleManager.iconColor.opacity(0.3))
+                                        .foregroundColor(restartManager.isCameraActive ? (cameraManager.isUsingSystemCamera ? styleManager.iconColor : styleManager.iconColor) : styleManager.iconColor.opacity(0.3))
                                         .frame(width: buttonType.size, height: buttonType.size)
                                     
                                     // 如果不是Pro会员，显示锁定图标
@@ -574,6 +593,11 @@ struct DraggableToolbar: View {
                                             .offset(y: -15)  // 将锁定图标向上偏移
                                     }
                                 }
+                            } else if buttonType == .light {
+                                Image(systemName: containerSelected ? "lightbulb.fill" : "lightbulb.slash.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
+                                    .frame(width: buttonType.size, height: buttonType.size)
                             } else {
                                 Image(systemName: buttonType.icon)
                                     .font(.system(size: 22))
@@ -847,7 +871,7 @@ struct DraggableToolbar: View {
                             ZStack {
                                 // 背景圆形
                                 Circle()
-                                    .fill(Color.black.opacity(0.15))
+                                    .fill(Color.black.opacity(buttonType == .drag ? 0 : 0.15))  // 为 drag 按钮设置更高的透明度
                                     .frame(width: 40, height: 40)
                                 
                                 // 图标
@@ -913,7 +937,7 @@ struct DraggableToolbar: View {
                             ZStack {
                                 // 背景圆形
                                 Circle()
-                                    .fill(Color.black.opacity(0.15))
+                                    .fill(Color.black.opacity(buttonType == .drag ? 0 : 0.15))  // 为 drag 按钮设置更高的透明度
                                     .frame(width: 40, height: 40)
                                 
                                 // 图标

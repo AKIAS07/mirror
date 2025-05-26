@@ -127,7 +127,13 @@ class DayNightManager: ObservableObject {
             print("------------------------")
         }
         
-        // 2. 自动切换到全景模式
+        // 2. 检查并开启灯光功能
+        NotificationCenter.default.post(
+            name: NSNotification.Name("CheckAndEnableLightInNightMode"),
+            object: nil
+        )
+        
+        // 3. 自动切换到全景模式
         NotificationCenter.default.post(
             name: NSNotification.Name("AutoEnterPanoramaMode"),
             object: nil
@@ -152,8 +158,8 @@ class DayNightManager: ObservableObject {
            let rootViewController = window.rootViewController {
             
             let alertController = UIAlertController(
-                title: "切换到夜晚模式",
-                message: "将有以下改动：\n• 增加背景补光\n• 拍照开启最强闪光",
+                title: "切换到夜间模式",
+                message: "将有以下改动：\n• 开启灯光并切换至全景模式\n• 增加背景补光\n• 拍照时自动开启最强闪光",
                 preferredStyle: .alert
             )
             
@@ -169,8 +175,17 @@ class DayNightManager: ObservableObject {
     
     // MARK: - 通知处理
     @objc private func handleBorderLightColorChanged(_ notification: Notification) {
+        // 只在夜晚模式下更新背景颜色
         if !isDayMode, let color = notification.userInfo?["color"] as? Color {
-            backgroundColor = color
+            print("------------------------")
+            print("[昼夜模式] 接收到边框灯颜色变化")
+            print("更新背景颜色")
+            print("------------------------")
+            
+            withAnimation(.easeInOut(duration: 0.3)) {
+                backgroundColor = color
+            }
+            
             // 发送背景颜色变化通知
             NotificationCenter.default.post(
                 name: NSNotification.Name("BackgroundColorChanged"),

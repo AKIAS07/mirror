@@ -669,9 +669,70 @@ class UserSettingsManager {
 // MARK: - Color 扩展
 extension Color {
     init(_ uiColor: UIColor) {
-        self.init(red: Double(uiColor.cgColor.components?[0] ?? 0),
-                 green: Double(uiColor.cgColor.components?[1] ?? 0),
-                 blue: Double(uiColor.cgColor.components?[2] ?? 0),
-                 opacity: Double(uiColor.cgColor.components?[3] ?? 1))
+        let components = uiColor.cgColor.components ?? [0, 0, 0, 1]
+        let count = uiColor.cgColor.numberOfComponents
+        
+        switch count {
+        case 1:
+            // 灰度颜色
+            self.init(
+                red: Double(components[0]),
+                green: Double(components[0]),
+                blue: Double(components[0]),
+                opacity: 1.0
+            )
+        case 2:
+            // 灰度颜色带透明度
+            self.init(
+                red: Double(components[0]),
+                green: Double(components[0]),
+                blue: Double(components[0]),
+                opacity: Double(components[1])
+            )
+        case 3:
+            // RGB 颜色
+            self.init(
+                red: Double(components[0]),
+                green: Double(components[1]),
+                blue: Double(components[2]),
+                opacity: 1.0
+            )
+        case 4:
+            // RGBA 颜色
+            self.init(
+                red: Double(components[0]),
+                green: Double(components[1]),
+                blue: Double(components[2]),
+                opacity: Double(components[3])
+            )
+        default:
+            // 默认返回白色
+            self.init(red: 1, green: 1, blue: 1, opacity: 1)
+        }
+    }
+    
+    // 添加一个辅助方法来安全地获取 UIColor
+    func toUIColor() -> UIColor {
+        let components = UIColor(self).cgColor.components ?? [1, 1, 1, 1]
+        let count = UIColor(self).cgColor.numberOfComponents
+        
+        switch count {
+        case 1:
+            return UIColor(white: CGFloat(components[0]), alpha: 1.0)
+        case 2:
+            return UIColor(white: CGFloat(components[0]), alpha: CGFloat(components[1]))
+        case 3:
+            return UIColor(red: CGFloat(components[0]),
+                         green: CGFloat(components[1]),
+                         blue: CGFloat(components[2]),
+                         alpha: 1.0)
+        case 4:
+            return UIColor(red: CGFloat(components[0]),
+                         green: CGFloat(components[1]),
+                         blue: CGFloat(components[2]),
+                         alpha: CGFloat(components[3]))
+        default:
+            return UIColor.white
+        }
     }
 } 

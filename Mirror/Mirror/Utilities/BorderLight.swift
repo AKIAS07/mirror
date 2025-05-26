@@ -12,6 +12,18 @@ class BorderLightStyleManager: ObservableObject {
             withAnimation(.easeInOut(duration: 0.3)) {
                 BorderStyle.selectedColor = selectedColor
             }
+            
+            // 发送边框灯颜色变化通知
+            NotificationCenter.default.post(
+                name: NSNotification.Name("BorderLightColorChanged"),
+                object: nil,
+                userInfo: ["color": selectedColor]
+            )
+            
+            print("------------------------")
+            print("[边框灯] 颜色已更新")
+            print("新颜色：\(selectedColor)")
+            print("------------------------")
         }
     }
     @Published var selectedWidth: CGFloat = 16.0 {  // 直接设置默认值为16.0

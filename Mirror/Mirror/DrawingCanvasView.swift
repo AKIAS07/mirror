@@ -556,7 +556,7 @@ struct DrawingCanvasView: View {
                                     }) {
                                         Image(systemName: "pin.square.fill")
                                             .font(.system(size: 35))
-                                            .foregroundColor(.yellow)
+                                            .foregroundColor(.blue)
                                     }
                                     .disabled(lines.isEmpty || hasUnconfirmedShape)  // 添加禁用条件
                                     .opacity((lines.isEmpty || hasUnconfirmedShape) ? 0.5 : 1)

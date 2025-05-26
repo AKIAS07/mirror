@@ -75,13 +75,9 @@ private struct ColorButton: View {
     
     // 添加颜色比较辅助方法
     private func compareColors(_ color1: Color, _ color2: Color) -> Bool {
-        // 如果是图片选项,直接比较图片名称
-        if option.image.hasPrefix("color") {
-            return option.image == styleManager.splitScreenIconImage
-        }
+        let uiColor1 = color1.toUIColor()
+        let uiColor2 = color2.toUIColor()
         
-        let uiColor1 = UIColor(color1)
-        let uiColor2 = UIColor(color2)
         var red1: CGFloat = 0, green1: CGFloat = 0, blue1: CGFloat = 0, alpha1: CGFloat = 0
         var red2: CGFloat = 0, green2: CGFloat = 0, blue2: CGFloat = 0, alpha2: CGFloat = 0
         
@@ -203,43 +199,173 @@ public struct SettingsPanel: View {
     // 保存初始状态
     @State private var initialState: SettingsState = SettingsState()
     
+    // 添加颜色比较函数
+    private func compareColors(_ color1: Color, _ color2: Color) -> Bool {
+        let uiColor1 = color1.toUIColor()
+        let uiColor2 = color2.toUIColor()
+        
+        var red1: CGFloat = 0, green1: CGFloat = 0, blue1: CGFloat = 0, alpha1: CGFloat = 0
+        var red2: CGFloat = 0, green2: CGFloat = 0, blue2: CGFloat = 0, alpha2: CGFloat = 0
+        
+        uiColor1.getRed(&red1, green: &green1, blue: &blue1, alpha: &alpha1)
+        uiColor2.getRed(&red2, green: &green2, blue: &blue2, alpha: &alpha2)
+        
+        let tolerance: CGFloat = 0.01
+        return abs(red1 - red2) < tolerance && 
+               abs(green1 - green2) < tolerance && 
+               abs(blue1 - blue2) < tolerance
+    }
+    
     public init(isPresented: Binding<Bool>) {
         self._isPresented = isPresented
     }
     
     // 保存当前设置状态的结构体
-    private struct SettingsState {
-        var borderLightColor: Color = UserSettingsManager.shared.loadBorderLightColor()  // 使用UserSettingsManager加载默认颜色
-        var borderLightWidth: CGFloat = BorderLightStyleManager.shared.selectedWidth
-        var isDefaultGesture: Bool = BorderLightStyleManager.shared.isDefaultGesture
-        var iconColor: Color = BorderLightStyleManager.shared.iconColor
-        var splitScreenIconColor: Color = BorderLightStyleManager.shared.splitScreenIconColor
-        var splitScreenIconImage: String = BorderLightStyleManager.shared.splitScreenIconImage
-        var isFlashEnabled: Bool = AppConfig.AnimationConfig.Flash.isEnabled
-        var flashIntensity: AppConfig.AnimationConfig.Flash.Intensity = AppConfig.AnimationConfig.Flash.intensity
-        var autoEnterTwoOfMe: Bool = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
-        // 添加网格设置的初始状态
-        var gridSpacing: CGFloat = UserSettingsManager.shared.loadGridSettings().spacing
-        var gridLineColor: Color = UserSettingsManager.shared.loadGridSettings().color
-        var gridLineOpacity: Double = UserSettingsManager.shared.loadGridSettings().opacity
-        var isWatermarkEnabled: Bool = UserSettingsManager.shared.loadWatermarkEnabled()
+    private struct SettingsState: CustomStringConvertible {
+        var borderLightColor: Color
+        var borderLightWidth: CGFloat
+        var isDefaultGesture: Bool
+        var iconColor: Color
+        var splitScreenIconColor: Color
+        var splitScreenIconImage: String
+        var isFlashEnabled: Bool
+        var flashIntensity: AppConfig.AnimationConfig.Flash.Intensity
+        var autoEnterTwoOfMe: Bool
+        var gridSpacing: CGFloat
+        var gridLineColor: Color
+        var gridLineOpacity: Double
+        var isWatermarkEnabled: Bool
+        
+        init() {
+            self.borderLightColor = BorderLightStyleManager.shared.selectedColor
+            self.borderLightWidth = BorderLightStyleManager.shared.selectedWidth
+            self.isDefaultGesture = BorderLightStyleManager.shared.isDefaultGesture
+            self.iconColor = BorderLightStyleManager.shared.iconColor
+            self.splitScreenIconColor = BorderLightStyleManager.shared.splitScreenIconColor
+            self.splitScreenIconImage = BorderLightStyleManager.shared.splitScreenIconImage
+            self.isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
+            self.flashIntensity = AppConfig.AnimationConfig.Flash.intensity
+            self.autoEnterTwoOfMe = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
+            
+            let gridSettings = UserSettingsManager.shared.loadGridSettings()
+            self.gridSpacing = gridSettings.spacing
+            self.gridLineColor = gridSettings.color
+            self.gridLineOpacity = gridSettings.opacity
+            
+            self.isWatermarkEnabled = UserSettingsManager.shared.loadWatermarkEnabled()
+            
+            print("------------------------")
+            print("[设置] 初始状态已保存")
+            print("边框灯颜色：\(self.borderLightColor)")
+            print("边框灯宽度：\(self.borderLightWidth)")
+            print("手势模式：\(self.isDefaultGesture ? "默认" : "交换")")
+            print("图标颜色：\(self.iconColor)")
+            print("分屏图标颜色：\(self.splitScreenIconColor)")
+            print("分屏图标：\(self.splitScreenIconImage)")
+            print("闪光灯：\(self.isFlashEnabled ? "开启" : "关闭")")
+            print("闪光强度：\(self.flashIntensity)")
+            print("自动进入双屏：\(self.autoEnterTwoOfMe ? "是" : "否")")
+            print("网格间距：\(self.gridSpacing)")
+            print("网格颜色：\(self.gridLineColor)")
+            print("网格透明度：\(self.gridLineOpacity)")
+            print("水印：\(self.isWatermarkEnabled ? "开启" : "关闭")")
+            print("------------------------")
+        }
+        
+        // 添加描述方法，方便调试
+        var description: String {
+            return """
+            边框灯颜色：\(borderLightColor)
+            边框灯宽度：\(borderLightWidth)
+            手势模式：\(isDefaultGesture ? "默认" : "交换")
+            图标颜色：\(iconColor)
+            分屏图标颜色：\(splitScreenIconColor)
+            分屏图标：\(splitScreenIconImage)
+            闪光灯：\(isFlashEnabled ? "开启" : "关闭")
+            闪光强度：\(flashIntensity)
+            自动进入双屏：\(autoEnterTwoOfMe ? "是" : "否")
+            网格间距：\(gridSpacing)
+            网格颜色：\(gridLineColor)
+            网格透明度：\(gridLineOpacity)
+            水印：\(isWatermarkEnabled ? "开启" : "关闭")
+            """
+        }
     }
     
     // 检查是否有未保存的更改
     private func checkForChanges() -> Bool {
-        return initialState.borderLightColor != styleManager.selectedColor ||
-               initialState.borderLightWidth != styleManager.selectedWidth ||
-               initialState.isDefaultGesture != styleManager.isDefaultGesture ||
-               initialState.iconColor != styleManager.iconColor ||
-               initialState.splitScreenIconColor != styleManager.splitScreenIconColor ||
-               initialState.splitScreenIconImage != styleManager.splitScreenIconImage ||
-               initialState.isFlashEnabled != isFlashEnabled ||
-               initialState.flashIntensity != flashIntensity ||
-               initialState.autoEnterTwoOfMe != autoEnterTwoOfMe ||
-               initialState.gridSpacing != gridSpacing ||
-               initialState.gridLineColor != gridLineColor ||
-               initialState.gridLineOpacity != gridLineOpacity ||
-               initialState.isWatermarkEnabled != isWatermarkEnabled
+        print("------------------------")
+        print("[设置] 检查更改状态")
+        print("初始状态：")
+        print(initialState)
+        print("\n当前状态：")
+        print("""
+            边框灯颜色：\(styleManager.selectedColor)
+            边框灯宽度：\(styleManager.selectedWidth)
+            手势模式：\(styleManager.isDefaultGesture ? "默认" : "交换")
+            图标颜色：\(styleManager.iconColor)
+            分屏图标颜色：\(styleManager.splitScreenIconColor)
+            分屏图标：\(styleManager.splitScreenIconImage)
+            闪光灯：\(isFlashEnabled ? "开启" : "关闭")
+            闪光强度：\(flashIntensity)
+            自动进入双屏：\(autoEnterTwoOfMe ? "是" : "否")
+            网格间距：\(gridSpacing)
+            网格颜色：\(gridLineColor)
+            网格透明度：\(gridLineOpacity)
+            水印：\(isWatermarkEnabled ? "开启" : "关闭")
+            """)
+        
+        var changes: [String] = []
+        
+        if !compareColors(initialState.borderLightColor, styleManager.selectedColor) {
+            changes.append("边框灯颜色")
+        }
+        if initialState.borderLightWidth != styleManager.selectedWidth {
+            changes.append("边框灯宽度")
+        }
+        if initialState.isDefaultGesture != styleManager.isDefaultGesture {
+            changes.append("手势模式")
+        }
+        if !compareColors(initialState.iconColor, styleManager.iconColor) {
+            changes.append("图标颜色")
+        }
+        if !compareColors(initialState.splitScreenIconColor, styleManager.splitScreenIconColor) {
+            changes.append("分屏图标颜色")
+        }
+        if initialState.splitScreenIconImage != styleManager.splitScreenIconImage {
+            changes.append("分屏图标")
+        }
+        if initialState.isFlashEnabled != isFlashEnabled {
+            changes.append("闪光灯状态")
+        }
+        if initialState.flashIntensity != flashIntensity {
+            changes.append("闪光强度")
+        }
+        if initialState.autoEnterTwoOfMe != autoEnterTwoOfMe {
+            changes.append("自动进入双屏")
+        }
+        if initialState.gridSpacing != gridSpacing {
+            changes.append("网格间距")
+        }
+        if !compareColors(initialState.gridLineColor, gridLineColor) {
+            changes.append("网格颜色")
+        }
+        if initialState.gridLineOpacity != gridLineOpacity {
+            changes.append("网格透明度")
+        }
+        if initialState.isWatermarkEnabled != isWatermarkEnabled {
+            changes.append("水印设置")
+        }
+        
+        let hasChanges = !changes.isEmpty
+        print("\n是否有未保存的更改：\(hasChanges)")
+        if hasChanges {
+            print("发现以下更改：")
+            changes.forEach { print("- \($0)已更改") }
+        }
+        print("------------------------")
+        
+        return hasChanges
     }
     
     // 保存设置
@@ -342,14 +468,9 @@ public struct SettingsPanel: View {
             // 半透明背景
             Color.black.opacity(0.5)
                 .edgesIgnoringSafeArea(.all)
+                .contentShape(Rectangle())
                 .onTapGesture {
-                    if checkForChanges() {
-                        showSaveAlert = true
-                    } else {
-                        withAnimation {
-                            isPresented = false
-                        }
-                    }
+                    handleClose()
                 }
             
             // 设置面板
@@ -377,15 +498,7 @@ public struct SettingsPanel: View {
                     }
                     .scaleEffect(0.9)
                     
-                    Button(action: {
-                        if checkForChanges() {
-                            showSaveAlert = true
-                        } else {
-                            withAnimation {
-                                isPresented = false
-                            }
-                        }
-                    }) {
+                    Button(action: handleClose) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 20))
                             .foregroundColor(.gray)
@@ -932,58 +1045,6 @@ public struct SettingsPanel: View {
                                 .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                                 .padding(.top, 12)
                             }
-                            
-                            // 添加更多应用栏目
-                            // VStack(spacing: 12) {
-                            //     Text("更多应用")
-                            //         .font(.headline)
-                            //         .foregroundColor(.gray)
-                            //         .padding(.top, 16)
-                                
-                            //     HStack(spacing: 24) {
-                            //         // 第一个应用
-                            //         Button(action: {
-                            //             if let url = URL(string: "https://apps.apple.com/app/idYYYYYYYYYY") {
-                            //                 UIApplication.shared.open(url)
-                            //             }
-                            //         }) {
-                            //             VStack(spacing: 4) {
-                            //                 Image("app-1-icon") // 替换为实际的应用图标
-                            //                     .resizable()
-                            //                     .frame(width: 50, height: 50)
-                            //                     .cornerRadius(12)
-                            //                     .overlay(
-                            //                         RoundedRectangle(cornerRadius: 12)
-                            //                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            //                     )
-                            //                 Text("敬请期待")
-                            //                     .font(.system(size: 12))
-                            //                     .foregroundColor(.gray)
-                            //             }
-                            //         }
-                                    
-                            //         // 第二个应用
-                            //         Button(action: {
-                            //             if let url = URL(string: "https://apps.apple.com/app/idZZZZZZZZZZ") {
-                            //                 UIApplication.shared.open(url)
-                            //             }
-                            //         }) {
-                            //             VStack(spacing: 4) {
-                            //                 Image("app-2-icon") // 替换为实际的应用图标
-                            //                     .resizable()
-                            //                     .frame(width: 50, height: 50)
-                            //                     .cornerRadius(12)
-                            //                     .overlay(
-                            //                         RoundedRectangle(cornerRadius: 12)
-                            //                             .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            //                     )
-                            //                 Text("敬请期待")
-                            //                     .font(.system(size: 12))
-                            //                     .foregroundColor(.gray)
-                            //             }
-                            //         }
-                            //     }
-                            // }
                         }
                         .padding(.top, SettingsTheme.buttonSpacing)
                         .padding(.bottom, SettingsTheme.buttonSpacing)
@@ -1076,26 +1137,69 @@ public struct SettingsPanel: View {
                     object: nil
                 )
             }
+            
+            // 保存提示弹窗
+            if showSaveAlert {
+                Color.black.opacity(0.3)
+                    .edgesIgnoringSafeArea(.all)
+                
+                VStack {
+                    VStack(spacing: 8) {
+                        Text("未保存的更改")
+                            .font(.headline)
+                        
+                        Text("您有未保存的更改，是否保存？")
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 8)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                    
+                    Divider()
+                    
+                    HStack {
+                        Button(action: {
+                            showSaveAlert = false
+                            restoreSettings()
+                            isPresented = false
+                        }) {
+                            Text("不保存")
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                        }
+                        
+                        Divider()
+                        
+                        Button(action: {
+                            showSaveAlert = false
+                            saveSettings()
+                            isPresented = false
+                        }) {
+                            Text("保存")
+                                .bold()
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .frame(height: 44)
+                }
+                .frame(width: 270)
+                .background(Color(UIColor.systemBackground))
+                .cornerRadius(14)
+            }
         }
         .transition(.opacity)
-        .alert(isPresented: $showSaveAlert) {
-            Alert(
-                title: Text("未保存的更改"),
-                message: Text("您有未保存的更改，是否保存？"),
-                primaryButton: .default(Text("保存")) {
-                    saveSettings()
-                    withAnimation {
-                        isPresented = false
-                    }
-                },
-                secondaryButton: .destructive(Text("不保存")) {
-                    // 调用恢复设置方法
-                    restoreSettings()
-                    withAnimation {
-                        isPresented = false
-                    }
-                }
-            )
+    }
+    
+    // 处理关闭操作
+    private func handleClose() {
+        if checkForChanges() {
+            showSaveAlert = true
+            print("------------------------")
+            print("[设置] 显示保存提示")
+            print("------------------------")
+        } else {
+            isPresented = false
         }
     }
 }

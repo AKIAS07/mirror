@@ -82,11 +82,18 @@ struct RestartCameraView: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: 20) {
-                    Image(systemName: "camera.circle.fill")
-                        .font(.system(size: 250))
-                        .foregroundColor(styleManager.iconColor.opacity(0.2))
-                        .rotationEffect(orientationManager.getRotationAngle(orientationManager.currentOrientation))
-                        .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                    ZStack {
+                        Image(systemName: "camera.circle.fill")
+                            .font(.system(size: 250))
+                            .foregroundColor(styleManager.iconColor.opacity(0.2))
+
+                        Image(systemName: "hand.tap.fill")
+                            .font(.system(size: 80))
+                            .foregroundColor(styleManager.iconColor.opacity(0.5))
+                            .offset(x: 60, y: 100)
+                    }
+                    .rotationEffect(orientationManager.getRotationAngle(orientationManager.currentOrientation))
+                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
                 }
                 .position(x: geometry.size.width/2, 
                          y: geometry.size.height/2 - geometry.safeAreaInsets.bottom/2)
