@@ -94,7 +94,12 @@ struct ContentView: View {
     @State private var showMakeupView = false
     
     // 添加参考格纹图显示状态
-    @State private var showReferenceGrid = false
+    @State private var showReferenceGrid = false {
+        didSet {
+            // 同步更新 CaptureManager 中的状态
+            captureManager.isGridEnabled = showReferenceGrid
+        }
+    }
     // 添加网格参数状态
     @State private var gridSpacing: CGFloat = UserSettingsManager.shared.loadGridSettings().spacing
     @State private var gridLineColor: Color = UserSettingsManager.shared.loadGridSettings().color
@@ -338,7 +343,18 @@ struct ContentView: View {
                             lineColor: gridLineColor,
                             lineOpacity: gridLineOpacity
                         )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)  // 添加frame
+                        .background(Color.clear)  // 添加透明背景
                         .zIndex(3)  // 调整层级到工具栏下方
+                        .onAppear {
+                            print("------------------------")
+                            print("[主视图] 显示参考网格")
+                            print("网格参数：")
+                            print("- 间距：\(gridSpacing)")
+                            print("- 颜色：\(gridLineColor)")
+                            print("- 透明度：\(gridLineOpacity)")
+                            print("------------------------")
+                        }
                     }
                     
                     // 添加左下角和右下角的按钮

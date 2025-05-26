@@ -438,4 +438,111 @@ class ImageProcessor {
         // 这里返回模拟数据,后续实现实际视频处理
         return (simulatedImage, nil)
     }
+    
+    // 修改网格叠加方法
+    func addGridToImage(_ image: UIImage, orientation: UIDeviceOrientation = .portrait, gridImage: UIImage? = nil) -> UIImage {
+        // 如果没有传入网格图片，直接返回原图
+        guard let gridImage = gridImage else {
+            print("------------------------")
+            print("[图片处理] 添加网格失败：未提供网格图片")
+            print("------------------------")
+            return image
+        }
+        
+        print("------------------------")
+        print("[图片处理] 添加网格")
+        print("原始图片尺寸：\(image.size.width) x \(image.size.height)")
+        print("网格图片尺寸：\(gridImage.size.width) x \(gridImage.size.height)")
+        
+        return autoreleasepool { () -> UIImage in
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1.0
+            format.opaque = true
+            
+            let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+            let result = renderer.image { ctx in
+                // 绘制原始图片
+                image.draw(in: CGRect(origin: .zero, size: image.size))
+                
+                // 计算网格缩放比例和绘制区域
+                let widthRatio = image.size.width / gridImage.size.width
+                let scaledGridHeight = gridImage.size.height * widthRatio
+                let y = (image.size.height - scaledGridHeight) / 2
+                
+                let drawRect = CGRect(
+                    x: 0,
+                    y: y,
+                    width: image.size.width,
+                    height: scaledGridHeight
+                )
+                
+                print("[图片处理] 网格绘制参数")
+                print("宽度比例：\(widthRatio)")
+                print("缩放后网格高度：\(scaledGridHeight)")
+                print("垂直偏移：\(y)")
+                print("绘制区域：\(drawRect)")
+                
+                // 绘制网格图片
+                gridImage.draw(in: drawRect)
+            }
+            
+            print("[图片处理] 完成")
+            print("最终图片尺寸：\(result.size.width) x \(result.size.height)")
+            print("------------------------")
+            
+            return result
+        }
+    }
+    
+    // 修改带网格的Mix图片生成方法
+    func createMixImageWithGrid(
+        baseImage: UIImage,
+        drawingImage: UIImage?,
+        makeupImage: UIImage? = nil,
+        scale: CGFloat = 1.0,
+        orientation: UIDeviceOrientation = .portrait
+    ) -> UIImage {
+        // 先生成普通的Mix图片
+        let mixImage = createMixImage(
+            baseImage: baseImage,
+            drawingImage: drawingImage,
+            makeupImage: makeupImage,
+            scale: scale,
+            orientation: orientation
+        )
+        
+        // 添加网格
+        return autoreleasepool { () -> UIImage in
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1.0
+            format.opaque = true
+            
+            let renderer = UIGraphicsImageRenderer(size: mixImage.size, format: format)
+            return renderer.image { ctx in
+                // 绘制Mix图片
+                mixImage.draw(in: CGRect(origin: .zero, size: mixImage.size))
+                
+                // 获取当前网格设置
+                let settings = UserSettingsManager.shared.loadGridSettings()
+                
+                // 生成并绘制网格
+                let gridImage = ReferenceGridView.generateGrid(
+                    size: CGSize(width: 393, height: 852),
+                    spacing: settings.spacing,
+                    color: settings.color,
+                    opacity: settings.opacity
+                )
+                
+                // 添加网格
+                let result = addGridToImage(
+                    mixImage,
+                    orientation: orientation,
+                    gridImage: gridImage
+                )
+                
+                // 绘制结果
+                result.draw(in: CGRect(origin: .zero, size: mixImage.size))
+            }
+        }
+    }
 } 

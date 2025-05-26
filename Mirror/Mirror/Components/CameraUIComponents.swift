@@ -89,7 +89,7 @@ struct RestartCameraView: View {
 
                         Image(systemName: "hand.tap.fill")
                             .font(.system(size: 80))
-                            .foregroundColor(styleManager.iconColor.opacity(0.5))
+                            .foregroundColor(styleManager.iconColor.opacity(0.2))
                             .offset(x: 60, y: 100)
                     }
                     .rotationEffect(orientationManager.getRotationAngle(orientationManager.currentOrientation))

@@ -708,70 +708,9 @@ public struct CaptureActionsView: View {
                     .frame(width: screenBounds.width, height: screenBounds.height)
                     
                     // 将关闭按钮移到最上层
-                    VStack {
+                    VStack(spacing: 20) {
                         HStack {
                             Spacer()
-                            // 添加勾选按钮
-                            if captureManager.shouldShowCheckmark {
-                                ZStack {
-                                    Button(action: {
-                                        // 触发震动反馈
-                                        let generator = UIImpactFeedbackGenerator(style: .light)
-                                        generator.prepare()
-                                        generator.impactOccurred()
-                                        
-                                        withAnimation {
-                                            captureManager.isCheckmarkEnabled.toggle()
-                                            if captureManager.isCheckmarkEnabled {
-                                                // 设置处理状态为true
-                                                isProcessingSimulation = true
-                                                // 勾选时的处理
-                                                captureManager.handleCheckmarkToggle(
-                                                    isMirrored: cameraManager.isMirrored,
-                                                    isFront: cameraManager.isFront,
-                                                    isBack: cameraManager.isBack
-                                                )
-                                            } else {
-                                                // 取消勾选时的处理
-                                                captureManager.handleCheckmarkToggle(
-                                                    isMirrored: cameraManager.isMirrored,
-                                                    isFront: cameraManager.isFront,
-                                                    isBack: cameraManager.isBack
-                                                )
-                                            }
-                                        }
-                                    }) {
-                                        Image(systemName: captureManager.isCheckmarkEnabled ? "checkmark.circle.fill" : "circle")
-                                            .font(.system(size: 20, weight: .medium))
-                                            .foregroundColor(.white)
-                                            .frame(width: 36, height: 36)
-                                            .background(Color.black.opacity(0.35))
-                                            .clipShape(Circle())
-                                    }
-                                    .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
-                                    .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                    .padding(.top, 80)
-                                    
-                                    // 添加加载指示器
-                                    if isProcessingSimulation {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                            .scaleEffect(1.2)
-                                            .frame(width: 36, height: 36)
-                                            .background(Color.black.opacity(0.35))
-                                            .clipShape(Circle())
-                                            .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
-                                            .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                            .padding(.top, 80)
-                                    }
-                                }
-                                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("SimulationComplete"))) { _ in
-                                    withAnimation {
-                                        isProcessingSimulation = false
-                                    }
-                                }
-                            }
-                            
                             Button(action: {
                                 print("关闭按钮被点击")
                                 // 触发震动反馈
@@ -800,6 +739,196 @@ public struct CaptureActionsView: View {
                             .padding(.top, 80)
                             Spacer()
                         }
+                        
+                        // Mix 勾选按钮
+                        if captureManager.shouldShowCheckmark {
+                            HStack {
+                                Spacer()
+                                ZStack {
+                                    Button(action: {
+                                        // 触发震动反馈
+                                        let generator = UIImpactFeedbackGenerator(style: .light)
+                                        generator.prepare()
+                                        generator.impactOccurred()
+                                        
+                                        withAnimation {
+                                            captureManager.isCheckmarkEnabled.toggle()
+                                            if captureManager.isCheckmarkEnabled {
+                                                // 设置处理状态为true
+                                                isProcessingSimulation = true
+                                                // 勾选时的处理
+                                                captureManager.handleCheckmarkToggle(
+                                                    isMirrored: cameraManager.isMirrored,
+                                                    isFront: cameraManager.isFront,
+                                                    isBack: cameraManager.isBack
+                                                )
+                                            } else {
+                                                // 取消勾选时的处理
+                                                captureManager.handleCheckmarkToggle(
+                                                    isMirrored: cameraManager.isMirrored,
+                                                    isFront: cameraManager.isFront,
+                                                    isBack: cameraManager.isBack
+                                                )
+                                            }
+                                        }
+                                    }) {
+                                        HStack(spacing: 12) {
+                                            // Mix 文字
+                                            Text("Mix")
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundColor(.white)
+                                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                                            
+                                            // 自定义勾选按钮
+                                            ZStack {
+                                                // 圆形背景
+                                                Circle()
+                                                    .fill(captureManager.isCheckmarkEnabled ? 
+                                                          Color.white : Color.white.opacity(0.2))
+                                                    .frame(width: 22, height: 22)
+                                                
+                                                // 勾选图标
+                                                if captureManager.isCheckmarkEnabled {
+                                                    Image(systemName: "checkmark")
+                                                        .font(.system(size: 12, weight: .bold))
+                                                        .foregroundColor(.black)
+                                                        .transition(.scale.combined(with: .opacity))
+                                                }
+                                            }
+                                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: captureManager.isCheckmarkEnabled)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .frame(height: 36)
+                                        .background(
+                                            ZStack {
+                                                // 渐变背景
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [
+                                                        Color.black.opacity(0.6),
+                                                        Color.black.opacity(0.4)
+                                                    ]),
+                                                    startPoint: .top,
+                                                    endPoint: .bottom
+                                                )
+                                                
+                                                // 边框
+                                                Capsule()
+                                                    .strokeBorder(
+                                                        LinearGradient(
+                                                            gradient: Gradient(colors: [
+                                                                Color.white.opacity(0.3),
+                                                                Color.white.opacity(0.1)
+                                                            ]),
+                                                            startPoint: .top,
+                                                            endPoint: .bottom
+                                                        ),
+                                                        lineWidth: 0.5
+                                                    )
+                                            }
+                                        )
+                                        .clipShape(Capsule())
+                                        // 添加轻微的发光效果
+                                        .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                    }
+                                }
+                                .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
+                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("SimulationComplete"))) { _ in
+                                    withAnimation {
+                                        isProcessingSimulation = false
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                        
+                        // Grid 勾选按钮
+                        if captureManager.shouldShowGridCheckmark {
+                            HStack {
+                                Spacer()
+                                ZStack {
+                                    Button(action: {
+                                        // 触发震动反馈
+                                        let generator = UIImpactFeedbackGenerator(style: .light)
+                                        generator.prepare()
+                                        generator.impactOccurred()
+                                        
+                                        withAnimation {
+                                            captureManager.isGridEnabled.toggle()
+                                            // 清除预览缓存，强制重新生成
+                                            captureManager.clearPreviewCache()
+                                            // 如果有图片，重新生成预览
+                                            if let baseImage = captureManager.capturedImage {
+                                                captureManager.previewMixImage = captureManager.getPreviewImage(baseImage: baseImage)
+                                            }
+                                        }
+                                    }) {
+                                        HStack(spacing: 12) {
+                                            // Grid 文字
+                                            Text("Grid")
+                                                .font(.system(size: 16, weight: .semibold))
+                                                .foregroundColor(.white)
+                                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                                            
+                                            // 自定义勾选按钮
+                                            ZStack {
+                                                // 圆形背景
+                                                Circle()
+                                                    .fill(captureManager.isGridEnabled ? 
+                                                          Color.white : Color.white.opacity(0.2))
+                                                    .frame(width: 22, height: 22)
+                                                
+                                                // 勾选图标
+                                                if captureManager.isGridEnabled {
+                                                    Image(systemName: "checkmark")
+                                                        .font(.system(size: 12, weight: .bold))
+                                                        .foregroundColor(.black)
+                                                        .transition(.scale.combined(with: .opacity))
+                                                }
+                                            }
+                                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: captureManager.isGridEnabled)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .frame(height: 36)
+                                        .background(
+                                            ZStack {
+                                                // 渐变背景
+                                                LinearGradient(
+                                                    gradient: Gradient(colors: [
+                                                        Color.black.opacity(0.6),
+                                                        Color.black.opacity(0.4)
+                                                    ]),
+                                                    startPoint: .top,
+                                                    endPoint: .bottom
+                                                )
+                                                
+                                                // 边框
+                                                Capsule()
+                                                    .strokeBorder(
+                                                        LinearGradient(
+                                                            gradient: Gradient(colors: [
+                                                                Color.white.opacity(0.3),
+                                                                Color.white.opacity(0.1)
+                                                            ]),
+                                                            startPoint: .top,
+                                                            endPoint: .bottom
+                                                        ),
+                                                        lineWidth: 0.5
+                                                    )
+                                            }
+                                        )
+                                        .clipShape(Capsule())
+                                        // 添加轻微的发光效果
+                                        .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                    }
+                                }
+                                .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
+                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                Spacer()
+                            }
+                            .padding(.top, 10)  // 添加一些间距
+                        }
+                        
                         Spacer()
                     }
                     .zIndex(99)
