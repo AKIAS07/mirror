@@ -292,9 +292,6 @@ struct DraggableToolbar: View {
                             }
                         }
                     }
-                    
-                    // 同步初始网格状态
-                    showReferenceGrid = captureManager.isGridEnabled
                 }
             }
         }
@@ -993,17 +990,9 @@ struct DraggableToolbar: View {
             print("------------------------")
             print("工具栏：点击参考图标按钮")
             print("切换参考格纹图显示状态：\(showReferenceGrid ? "隐藏" : "显示")")
-            // 获取当前网格设置
-            let settings = UserSettingsManager.shared.loadGridSettings()
-            print("当前网格设置：")
-            print("- 间距：\(settings.spacing)")
-            print("- 颜色：\(settings.color)")
-            print("- 透明度：\(settings.opacity)")
             print("------------------------")
             withAnimation(.easeInOut(duration: 0.2)) {
                 showReferenceGrid.toggle()
-                captureManager.showReferenceGrid = showReferenceGrid  // 同步更新 CaptureManager 中的状态
-                captureManager.isGridEnabled = showReferenceGrid  // 同步更新网格勾选状态
             }
             
         case .drag:

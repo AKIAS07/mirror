@@ -30,8 +30,6 @@ class CaptureManager: ObservableObject {
     @Published var dragOffset: CGSize = .zero  // 拖动偏移量
     @Published var lastDragOffset: CGSize = .zero  // 上次拖动的偏移量
     @Published var isCheckmarkEnabled: Bool = false  // 添加勾选状态
-    @Published var isGridEnabled: Bool = false  // 添加网格勾选状态
-    @Published var showReferenceGrid: Bool = false  // 添加网格功能开启状态
     @Published var isPinnedDrawingActive: Bool = false  // 添加固定绘画视图状态
     @Published var pinnedDrawingImage: UIImage? = nil  // 添加固定绘画图片
     @Published var isMakeupViewActive: Bool = false  // 添加化妆视图状态
@@ -60,22 +58,9 @@ class CaptureManager: ObservableObject {
     // 添加水印开关状态监听
     private var watermarkObserver: NSObjectProtocol?
     
-    // 添加预览图片状态枚举
-    private enum PreviewState {
-        case normal         // 普通状态（只有水印）
-        case mixOnly       // 只有mix效果
-        case gridOnly      // 只有网格效果
-        case mixAndGrid    // 同时有mix和网格效果
-    }
-    
     // 添加计算属性来判断是否应该显示勾选按钮
     var shouldShowCheckmark: Bool {
         return (isPinnedDrawingActive || isMakeupViewActive)
-    }
-    
-    // 修改计算属性来判断是否应该显示网格勾选按钮
-    var shouldShowGridCheckmark: Bool {
-        return showReferenceGrid  // 只有在网格功能开启时才显示网格勾选按钮
     }
     
     private let restartManager = ContentRestartManager.shared
@@ -85,10 +70,6 @@ class CaptureManager: ObservableObject {
     private var persistentDirectory: URL {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
-    
-    // 添加网格缓存属性
-    private var cachedGridImage: UIImage?
-    private var lastGridSettings: (spacing: CGFloat, color: Color, opacity: Double)?
     
     private init() {
         // 添加水印设置变化的监听
@@ -282,31 +263,63 @@ class CaptureManager: ObservableObject {
         }
     }
     
-    // 修改预览显示函数
-    public func showPreview(image: UIImage, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
+    // 显示预览
+    func showPreview(image: UIImage, scale: CGFloat = 1.0, orientation: UIDeviceOrientation = .portrait, cameraManager: CameraManager) {
         print("------------------------")
-        print("[预览管理] 显示预览")
-        print("缩放比例：\(scale)")
-        print("设备方向：\(orientationManager.getOrientationDescription(orientation))")
+        print("[预览显示] 开始")
+        print("传入方向：\(orientationManager.getOrientationDescription(orientation))")
+        print("当前设备方向：\(orientationManager.getOrientationDescription(orientationManager.currentOrientation))")
         
-        // 保存当前状态
-        self.capturedImage = image
+        // 使用当前实际的设备方向，而不是传入的方向
+        let actualOrientation = orientationManager.validOrientation
+        
+        // 先设置捕获方向，这样后续的旋转处理才能正确进行
+        self.captureOrientation = actualOrientation
+        
+        print("[预览显示] 设置捕获方向：\(orientationManager.getOrientationDescription(actualOrientation))")
+        
+        // 处理图片旋转（包括横屏和倒置竖屏）
+        let processedImage = (actualOrientation.isLandscape || actualOrientation == .portraitUpsideDown) ? 
+            rotateImageIfNeeded(image) : image
+        
+        print("[预览显示] 图片处理")
+        print("原始尺寸：\(image.size.width) x \(image.size.height)")
+        print("处理后尺寸：\(processedImage.size.width) x \(processedImage.size.height)")
+        
+        // 清除之前的预览图片缓存
+        previewMixImage = nil
+        
+        self.capturedImage = processedImage
         self.currentScale = scale
-        self.constScale = scale
-        self.captureOrientation = orientation
+        self.constScale = scale  // 保存初始缩放比例
+        self.currentIndicatorScale = scale
+        self.isLivePhoto = false
         
-        // 获取当前预览状态
-        let state = getPreviewState()
+        print("[预览显示] 最终方向：\(orientationManager.getOrientationDescription(actualOrientation))")
         
-        // 生成预览图片
-        previewMixImage = generatePreviewImage(baseImage: image, state: state)
+        // 锁定设备方向，防止旋转
+        orientationManager.lockOrientation()
         
-        // 显示预览
+        // 先显示预览和缩放指示器
         withAnimation {
-            isPreviewVisible = true
+            self.isPreviewVisible = true
+            self.showScaleIndicator = true
         }
         
-        print("预览状态：\(state)")
+        // 延迟隐藏缩放指示器
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation {
+                self.showScaleIndicator = false
+            }
+        }
+
+        // 延迟0.5秒后关闭摄像头
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            cameraManager.safelyStopSession()
+            self.restartManager.isCameraActive = false
+        }
+        
+        print("[预览显示] 完成")
         print("------------------------")
     }
     
@@ -598,6 +611,7 @@ class CaptureManager: ObservableObject {
         if isLivePhoto {
             if simulatedLivePhotoMode {
                 print("[模拟Live] 保存mix-live图片")
+                // 这里先使用模拟数据,后续实现实际处理
                 saveLivePhotoToPhotoLibrary(isMirrored: isMirrored, isFront: isFront, isBack: isBack) { success in
                     completion?(success)
                 }
@@ -606,6 +620,7 @@ class CaptureManager: ObservableObject {
                 isSaving = true
                 savingProgress = 0.0
                 
+                // 检查资源是否准备好
                 Task {
                     await checkAndSaveLivePhoto(isMirrored: isMirrored, isFront: isFront, isBack: isBack) { success in
                         DispatchQueue.main.async {
@@ -617,32 +632,23 @@ class CaptureManager: ObservableObject {
                 }
             }
         } else {
-            print("------------------------")
-            print("[保存图片] 开始")
-            
-            // 使用预览图片（如果有）或原始图片
+            // 使用预览图片（如果有）或重新生成
             var imageToSave: UIImage
-            if let previewImage = previewMixImage {
-                print("[保存图片] 使用预览图片")
-                imageToSave = previewImage
-            } else if let baseImage = capturedImage {
-                print("[保存图片] 预览图片不存在，重新生成")
-                // 确定当前状态
-                let state: PreviewState
-                if isCheckmarkEnabled && isGridEnabled {
-                    state = .mixAndGrid
-                } else if isCheckmarkEnabled {
-                    state = .mixOnly
-                } else if isGridEnabled {
-                    state = .gridOnly
+            if isCheckmarkEnabled {
+                if let previewMix = previewMixImage {
+                    imageToSave = previewMix
                 } else {
-                    state = .normal
+                    // 如果没有预览图片，则重新生成
+                    imageToSave = ImageProcessor.shared.createMixImage(
+                        baseImage: capturedImage!,
+                        drawingImage: pinnedDrawingImage,
+                        makeupImage: isMakeupViewActive ? makeupImage : nil,
+                        scale: currentScale,
+                        orientation: captureOrientation
+                    )
                 }
-                imageToSave = generatePreviewImage(baseImage: baseImage, state: state)
             } else {
-                print("[保存图片] 错误：没有可用的图片")
-                completion?(false)
-                return
+                imageToSave = ImageProcessor.shared.addWatermark(to: capturedImage!, orientation: captureOrientation)
             }
             
             // 根据设备方向旋转图片
@@ -652,9 +658,6 @@ class CaptureManager: ObservableObject {
             saveImageToPhotoLibrary(imageToSave) { success in
                 completion?(success)
             }
-            
-            print("[保存图片] 完成")
-            print("------------------------")
         }
     }
     
@@ -881,142 +884,35 @@ class CaptureManager: ObservableObject {
         tempVideoURL = nil
     }
     
-    // 修改预览状态判断函数
-    private func getPreviewState() -> PreviewState {
-        if isCheckmarkEnabled && isGridEnabled {
-            return .mixAndGrid
-        } else if isCheckmarkEnabled {
-            return .mixOnly
-        } else if isGridEnabled {
-            return .gridOnly
-        } else {
-            return .normal
-        }
-    }
-    
-    // 修改预览图片管理函数
-    private func generatePreviewImage(baseImage: UIImage, state: PreviewState) -> UIImage {
-        print("------------------------")
-        print("[预览管理] 生成预览图片")
-        print("状态：\(String(describing: state))")
-        print("基础图片尺寸：\(baseImage.size.width) x \(baseImage.size.height)")
-        
-        // 添加水印的基础图片（所有状态都需要）
-        let watermarkedImage = ImageProcessor.shared.addWatermark(to: baseImage, orientation: captureOrientation)
-        
-        // 根据不同状态处理图片
-        switch state {
-        case .normal:
-            print("[预览管理] 使用普通模式（只有水印）")
-            return watermarkedImage
-            
-        case .mixOnly:
-            print("[预览管理] 使用Mix模式")
-            return ImageProcessor.shared.createMixImage(
-                baseImage: baseImage,
-                drawingImage: pinnedDrawingImage,
-                makeupImage: isMakeupViewActive ? makeupImage : nil,
-                scale: constScale,
-                orientation: captureOrientation
-            )
-            
-        case .gridOnly, .mixAndGrid:
-            print("[预览管理] 使用\(state == .gridOnly ? "Grid" : "Mix+Grid")模式")
-            
-            // 获取当前网格设置
-            let settings = UserSettingsManager.shared.loadGridSettings()
-            
-            // 检查是否需要重新生成网格图片
-            let needRegenerateGrid = cachedGridImage == nil ||
-                lastGridSettings?.spacing != settings.spacing ||
-                lastGridSettings?.color != settings.color ||
-                lastGridSettings?.opacity != settings.opacity
-            
-            // 获取或生成网格图片
-            let gridImage: UIImage
-            if needRegenerateGrid {
-                print("[预览管理] 生成新的网格图片")
-                gridImage = ReferenceGridView.generateGrid(
-                    size: CGSize(width: 393, height: 852),  // 使用标准预览尺寸
-                    spacing: settings.spacing,
-                    color: settings.color,
-                    opacity: settings.opacity
-                )
-                
-                // 缓存网格图片和设置
-                cachedGridImage = gridImage
-                lastGridSettings = (settings.spacing, settings.color, settings.opacity)
-                
-                print("[预览管理] 网格图片已缓存")
-            } else {
-                print("[预览管理] 使用缓存的网格图片")
-                gridImage = cachedGridImage!
-            }
-            
-            // 根据状态决定是否先添加mix效果
-            let baseImageForGrid = state == .gridOnly ? watermarkedImage :
-                ImageProcessor.shared.createMixImage(
-                    baseImage: baseImage,
-                    drawingImage: pinnedDrawingImage,
-                    makeupImage: isMakeupViewActive ? makeupImage : nil,
-                    scale: constScale,
-                    orientation: captureOrientation
-                )
-            
-            // 添加网格
-            return ImageProcessor.shared.addGridToImage(
-                baseImageForGrid,
-                orientation: captureOrientation,
-                gridImage: gridImage
-            )
-        }
-    }
-    
-    // 修改获取预览图片的方法
+    // 获取预览图片的方法
     public func getPreviewImage(baseImage: UIImage) -> UIImage {
         // 如果已经有缓存的预览图片，直接返回
         if let cached = previewMixImage {
             return cached
         }
         
-        print("------------------------")
-        print("[预览图片] 开始生成")
-        
-        // 确定当前状态
-        let state: PreviewState
-        if isCheckmarkEnabled && isGridEnabled {
-            state = .mixAndGrid
-        } else if isCheckmarkEnabled {
-            state = .mixOnly
-        } else if isGridEnabled {
-            state = .gridOnly
+        // 生成新的预览图片
+        let newPreviewImage: UIImage
+        if isCheckmarkEnabled && (pinnedDrawingImage != nil || isMakeupViewActive) {
+            newPreviewImage = ImageProcessor.shared.createMixImage(
+                baseImage: baseImage,
+                drawingImage: pinnedDrawingImage,
+                makeupImage: isMakeupViewActive ? makeupImage : nil,
+                scale: constScale,  // 使用固定的初始缩放比例
+                orientation: captureOrientation
+            )
         } else {
-            state = .normal
+            newPreviewImage = ImageProcessor.shared.addWatermark(to: baseImage, orientation: captureOrientation)
         }
-        
-        // 生成预览图片
-        let newPreviewImage = generatePreviewImage(baseImage: baseImage, state: state)
-        
-        print("[预览图片] 生成完成")
-        print("最终图片尺寸：\(newPreviewImage.size.width) x \(newPreviewImage.size.height)")
-        print("------------------------")
         
         // 缓存预览图片
         previewMixImage = newPreviewImage
         return newPreviewImage
     }
     
-    // 修改清除预览缓存的方法
+    // 清除预览图片缓存的方法
     public func clearPreviewCache() {
         previewMixImage = nil
-        // 不清除网格缓存，因为网格设置没有改变时可以继续使用
-    }
-    
-    // 添加清除网格缓存的方法
-    public func clearGridCache() {
-        cachedGridImage = nil
-        lastGridSettings = nil
-        print("[网格缓存] 已清除网格缓存")
     }
     
     // 更新绘画图片的方法
@@ -1392,39 +1288,54 @@ class CaptureManager: ObservableObject {
             }
         } else {
             // 非Live Photo模式的处理
-            print("------------------------")
-            print("[勾选处理] 普通照片模式")
-            print("Mix勾选状态：\(isCheckmarkEnabled)")
-            print("Grid勾选状态：\(isGridEnabled)")
-            
-            // 清除预览缓存，强制重新生成预览图片
-            clearPreviewCache()
-            
-            // 如果有原始图片，重新生成预览图片
-            if let baseImage = capturedImage {
-                // 确定当前状态
-                let state: PreviewState
-                if isCheckmarkEnabled && isGridEnabled {
-                    print("[勾选处理] 使用Mix+Grid模式")
-                    state = .mixAndGrid
-                } else if isCheckmarkEnabled {
-                    print("[勾选处理] 使用Mix模式")
-                    state = .mixOnly
-                } else if isGridEnabled {
-                    print("[勾选处理] 使用Grid模式")
-                    state = .gridOnly
-                } else {
-                    print("[勾选处理] 使用普通模式")
-                    state = .normal
+            if isCheckmarkEnabled {
+                // 检查是否有缓存的mix图片
+                if hasCachedMixResources,
+                   let imageURL = cachedMixImageURL,
+                   FileManager.default.fileExists(atPath: imageURL.path) {
+                    print("[勾选处理] 使用已缓存的mix图片")
+                    if let mixImage = UIImage(contentsOfFile: imageURL.path) {
+                        previewMixImage = mixImage
+                        NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                        return
+                    }
                 }
                 
-                // 生成新的预览图片
-                previewMixImage = generatePreviewImage(baseImage: baseImage, state: state)
-            }
-            
-            // 发送完成通知
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                // 清除预览缓存，强制重新生成预览图片
+                clearPreviewCache()
+                
+                // 如果有原始图片，重新生成预览图片
+                if let baseImage = capturedImage {
+                    let mixImage = ImageProcessor.shared.createMixImage(
+                        baseImage: baseImage,
+                        drawingImage: pinnedDrawingImage,
+                        makeupImage: isMakeupViewActive ? makeupImage : nil,
+                        scale: constScale,
+                        orientation: captureOrientation
+                    )
+                    
+                    // 保存处理后的图片到缓存
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let mixImageURL = tempDir.appendingPathComponent("\(UUID().uuidString)_mix.heic")
+                    if let imageData = mixImage.heicData() {
+                        try? imageData.write(to: mixImageURL)
+                        self.cachedMixImageURL = mixImageURL
+                        self.hasCachedMixResources = true
+                        print("[勾选处理] 已缓存mix图片")
+                    }
+                    
+                    previewMixImage = mixImage
+                }
+                
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: Notification.Name("SimulationComplete"), object: nil)
+                }
+            } else {
+                // 取消勾选时不清除缓存，只恢复原始状态
+                clearPreviewCache()
+                if let baseImage = capturedImage {
+                    previewMixImage = ImageProcessor.shared.addWatermark(to: baseImage, orientation: captureOrientation)
+                }
             }
         }
     }

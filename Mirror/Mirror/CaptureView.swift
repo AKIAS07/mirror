@@ -830,63 +830,28 @@ public struct CaptureActionsView: View {
                                         // 添加轻微的发光效果
                                         .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
                                     }
-                                }
-                                .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
-                                .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("SimulationComplete"))) { _ in
-                                    withAnimation {
-                                        isProcessingSimulation = false
-                                    }
-                                }
-                                Spacer()
-                            }
-                        }
-                        
-                        // Grid 勾选按钮
-                        if captureManager.shouldShowGridCheckmark {
-                            HStack {
-                                Spacer()
-                                ZStack {
-                                    Button(action: {
-                                        // 触发震动反馈
-                                        let generator = UIImpactFeedbackGenerator(style: .light)
-                                        generator.prepare()
-                                        generator.impactOccurred()
-                                        
-                                        withAnimation {
-                                            captureManager.isGridEnabled.toggle()
-                                            // 清除预览缓存，强制重新生成
-                                            captureManager.clearPreviewCache()
-                                            // 如果有图片，重新生成预览
-                                            if let baseImage = captureManager.capturedImage {
-                                                captureManager.previewMixImage = captureManager.getPreviewImage(baseImage: baseImage)
-                                            }
-                                        }
-                                    }) {
+                                    
+                                    // 添加加载指示器
+                                    if isProcessingSimulation {
                                         HStack(spacing: 12) {
-                                            // Grid 文字
-                                            Text("Grid")
+                                            // Mix 文字
+                                            Text("Mix")
                                                 .font(.system(size: 16, weight: .semibold))
                                                 .foregroundColor(.white)
                                                 .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                                             
-                                            // 自定义勾选按钮
+                                            // 加载动画
                                             ZStack {
                                                 // 圆形背景
                                                 Circle()
-                                                    .fill(captureManager.isGridEnabled ? 
-                                                          Color.white : Color.white.opacity(0.2))
+                                                    .fill(Color.white.opacity(0.2))
                                                     .frame(width: 22, height: 22)
                                                 
-                                                // 勾选图标
-                                                if captureManager.isGridEnabled {
-                                                    Image(systemName: "checkmark")
-                                                        .font(.system(size: 12, weight: .bold))
-                                                        .foregroundColor(.black)
-                                                        .transition(.scale.combined(with: .opacity))
-                                                }
+                                                // 自定义加载动画
+                                                ProgressView()
+                                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                                    .scaleEffect(0.7)
                                             }
-                                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: captureManager.isGridEnabled)
                                         }
                                         .padding(.horizontal, 16)
                                         .frame(height: 36)
@@ -924,9 +889,13 @@ public struct CaptureActionsView: View {
                                 }
                                 .rotationEffect(getRotationAngle(for: orientationManager.currentOrientation))
                                 .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
+                                .onReceive(NotificationCenter.default.publisher(for: Notification.Name("SimulationComplete"))) { _ in
+                                    withAnimation {
+                                        isProcessingSimulation = false
+                                    }
+                                }
                                 Spacer()
                             }
-                            .padding(.top, 10)  // 添加一些间距
                         }
                         
                         Spacer()
