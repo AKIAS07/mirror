@@ -34,7 +34,7 @@ struct CircleButton: View {
                         .foregroundColor(.white)
                 }
             }
-            .opacity(isDisabled ? 0.5 : 1.0)
+            .opacity(isDisabled ? 1.0 : 0.8)
             .rotationEffect(getRotationAngle(deviceOrientation))
             .animation(.easeInOut(duration: 0.3), value: deviceOrientation)
         }

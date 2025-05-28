@@ -151,6 +151,20 @@ class DayNightManager: ObservableObject {
         }
     }
     
+    // 切换到白天模式
+    func switchToDayMode() {
+        if !isDayMode {
+            isDayMode = true
+        }
+    }
+    
+    // 切换到夜晚模式
+    func switchToNightMode() {
+        if isDayMode {
+            showSystemAlert()
+        }
+    }
+    
     // 显示系统确认弹窗
     private func showSystemAlert() {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,

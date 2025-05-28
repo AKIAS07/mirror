@@ -724,7 +724,7 @@ public struct SettingsPanel: View {
                                             .frame(width: 35, alignment: .trailing)
                                     }
                                     
-                                    Slider(value: $gridSpacing, in: 30...100, step: 10)
+                                    Slider(value: $gridSpacing, in: 5...100, step: 10)
                                         .accentColor(.blue)
                                         .onChange(of: gridSpacing) { newValue in
                                             // 只发送通知更新预览，不保存设置

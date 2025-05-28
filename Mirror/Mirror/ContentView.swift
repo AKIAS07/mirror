@@ -102,6 +102,7 @@ struct ContentView: View {
 
     @State private var isZoomExpanded = false  // 添加放缩状态变量
     @State private var isDayMode = true  // 添加昼夜模式状态变量，默认为白天模式
+    @State private var isRCircleEnabled = false  // 添加 r.circle.fill 按钮状态
     
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
@@ -346,52 +347,72 @@ struct ContentView: View {
                         Spacer()
                         HStack {
                             // 左下角放缩按钮
-                            Button(action: {
-                                // 根据当前缩放状态执行相应操作
-                                if abs(currentScale - minScale) < 0.01 {
-                                    // 当前是全景模式，点击后放大到100%
-                                    currentScale = 1.0
-                                    baseScale = 1.0
-                                    isZoomExpanded = true
-                                    showScaleIndicator = true
-                                    currentIndicatorScale = 1.0
+                            VStack(spacing: 10) {
+                                // r.circle.fill 按钮
+                                Button(action: {
+                                    // 触发震动反馈
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
                                     
-                                    // 延迟隐藏缩放提示
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                        showScaleIndicator = false
-                                    }
-                                    
-                                    // 记录缩放操作
-                                    ViewActionLogger.shared.logZoomAction(scale: 1.0)
-                                } else {
-                                    // 当前是100%或更大，点击后缩小到全景模式
-                                    currentScale = minScale
-                                    baseScale = minScale
-                                    isZoomExpanded = false
-                                    showScaleIndicator = true
-                                    currentIndicatorScale = minScale
-                                    
-                                    // 延迟隐藏缩放提示
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                        showScaleIndicator = false
-                                    }
-                                    
-                                    // 记录缩放操作
-                                    ViewActionLogger.shared.logZoomAction(scale: minScale)
+                                    // 切换状态
+                                    isRCircleEnabled.toggle()
+                                }) {
+                                    Image(systemName: isRCircleEnabled ? "r.circle.fill" : "r.circle")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(styleManager.iconColor)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.black.opacity(0.15))
+                                        .clipShape(Circle())
                                 }
                                 
-                                // 触发震动反馈
-                                let generator = UIImpactFeedbackGenerator(style: .medium)
-                                generator.impactOccurred()
-                            }) {
-                                Image(systemName: abs(currentScale - minScale) < 0.01 ? 
-                                    "arrow.down.left.and.arrow.up.right" : 
-                                    "arrow.down.forward.and.arrow.up.backward")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(styleManager.iconColor)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.black.opacity(0.15))
-                                    .clipShape(Circle())
+                                // 放缩按钮
+                                Button(action: {
+                                    // 根据当前缩放状态执行相应操作
+                                    if abs(currentScale - minScale) < 0.01 {
+                                        // 当前是全景模式，点击后放大到100%
+                                        currentScale = 1.0
+                                        baseScale = 1.0
+                                        isZoomExpanded = true
+                                        showScaleIndicator = true
+                                        currentIndicatorScale = 1.0
+                                        
+                                        // 延迟隐藏缩放提示
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                            showScaleIndicator = false
+                                        }
+                                        
+                                        // 记录缩放操作
+                                        ViewActionLogger.shared.logZoomAction(scale: 1.0)
+                                    } else {
+                                        // 当前是100%或更大，点击后缩小到全景模式
+                                        currentScale = minScale
+                                        baseScale = minScale
+                                        isZoomExpanded = false
+                                        showScaleIndicator = true
+                                        currentIndicatorScale = minScale
+                                        
+                                        // 延迟隐藏缩放提示
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                            showScaleIndicator = false
+                                        }
+                                        
+                                        // 记录缩放操作
+                                        ViewActionLogger.shared.logZoomAction(scale: minScale)
+                                    }
+                                    
+                                    // 触发震动反馈
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                }) {
+                                    Image(systemName: abs(currentScale - minScale) < 0.01 ? 
+                                        "arrow.down.left.and.arrow.up.right" : 
+                                        "arrow.down.forward.and.arrow.up.backward")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(styleManager.iconColor)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.black.opacity(0.15))
+                                        .clipShape(Circle())
+                                }
                             }
                             .padding(.leading, 20)
                             .padding(.bottom, 140)
@@ -399,20 +420,40 @@ struct ContentView: View {
                             Spacer()
                             
                             // 右下角昼夜切换按钮
-                            Button(action: {
-                                // 切换昼夜模式
-                                dayNightManager.toggleMode()
+                            VStack(spacing: 10) {
+                                // 白天模式按钮
+                                Button(action: {
+                                    // 触发震动反馈
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                    
+                                    // 切换到白天模式
+                                    dayNightManager.switchToDayMode()
+                                }) {
+                                    Image(systemName: "sun.min.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(dayNightManager.isDayMode ? styleManager.iconColor : styleManager.iconColor.opacity(0.5))
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.black.opacity(0.15))
+                                        .clipShape(Circle())
+                                }
                                 
-                                // 触发震动反馈
-                                let generator = UIImpactFeedbackGenerator(style: .medium)
-                                generator.impactOccurred()
-                            }) {
-                                Image(systemName: dayNightManager.isDayMode ? "sun.min.fill" : "moon.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(styleManager.iconColor)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.black.opacity(0.15))
-                                    .clipShape(Circle())
+                                // 夜晚模式按钮
+                                Button(action: {
+                                    // 触发震动反馈
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                    
+                                    // 切换到夜晚模式
+                                    dayNightManager.switchToNightMode()
+                                }) {
+                                    Image(systemName: "moon.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(!dayNightManager.isDayMode ? styleManager.iconColor : styleManager.iconColor.opacity(0.5))
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.black.opacity(0.15))
+                                        .clipShape(Circle())
+                                }
                             }
                             .padding(.trailing, 20)
                             .padding(.bottom, 140)
