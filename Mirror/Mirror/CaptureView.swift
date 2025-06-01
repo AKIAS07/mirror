@@ -949,6 +949,29 @@ public struct CaptureActionsView: View {
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
                         .zIndex(203)
                     }
+                    
+                    // 添加视频加载提示
+                    if captureManager.isVideoLoading {
+                        Color.white.opacity(0.5)
+                            .frame(width: screenBounds.width, height: screenBounds.height)
+                            .edgesIgnoringSafeArea(.all)
+                            .zIndex(204)
+                        
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(1.5)
+                            
+                            Text("加载中...")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        .padding(20)
+                        .background(Color.black.opacity(0.6))
+                        .cornerRadius(12)
+                        .position(x: screenBounds.width/2, y: screenBounds.height/2)
+                        .zIndex(205)
+                    }
                 }
                 .ignoresSafeArea()
             }

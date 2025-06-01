@@ -305,6 +305,10 @@ class ImageProcessor {
                 // 如果传入了网格图片，添加网格
                 if let gridImage = gridImage {
                     gridImage.draw(in: CGRect(origin: .zero, size: size))
+                } else if RealModeController.shared.isRealModeEnabled,
+                          let defaultGridImage = RealModeController.shared.getReferenceGridImage() {
+                    // 如果没有传入网格图片但真实模式开启，使用默认网格
+                    defaultGridImage.draw(in: CGRect(origin: .zero, size: size))
                 }
             }
             

@@ -42,6 +42,7 @@ class CaptureManager: ObservableObject {
     @Published var savingProgress: Double = 0.0 // 添加保存进度
     @Published var isVideoProcessing: Bool = false  // 添加新状态：视频是否正在处理
     @Published var isResourcePreparing: Bool = false  // 添加新状态：资源是否正在准备中
+    @Published var isVideoLoading: Bool = false  // 添加新状态：视频是否正在加载中
     
     // 添加用于视图显示的资源路径
     @Published var viewImageURL: URL?
@@ -334,6 +335,9 @@ class CaptureManager: ObservableObject {
         print("设备方向：\(orientation.rawValue)")
         print("缩放比例：\(scale)")
         
+        // 设置加载状态为true
+        self.isVideoLoading = true
+        
         // 保存原始视频URL
         self.originalVideoURL = videoURL
         self.livePhotoVideoURL = videoURL  // 设置 livePhotoVideoURL 为原始视频URL
@@ -417,7 +421,14 @@ class CaptureManager: ObservableObject {
                         self.processedVideoURL = processedVideo
                         self.viewMovURL = processedVideo  // 更新播放源
                         self.livePhotoVideoURL = processedVideo  // 同时更新 livePhotoVideoURL
+                        // 处理完成后，设置加载状态为false
+                        self.isVideoLoading = false
                         print("[Live Photo预览] 视频处理完成，更新播放源：\(processedVideo.path)")
+                    }
+                } else {
+                    await MainActor.run {
+                        // 处理失败时也需要设置加载状态为false
+                        self.isVideoLoading = false
                     }
                 }
             }
@@ -536,6 +547,7 @@ class CaptureManager: ObservableObject {
             self.isPreviewVisible = false
             self.isPlayingLivePhoto = false
             self.showScaleIndicator = false
+            self.isVideoLoading = false  // 重置视频加载状态
             // 重置拖动状态
             self.dragOffset = .zero
             self.lastDragOffset = .zero
