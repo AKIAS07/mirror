@@ -241,6 +241,12 @@ class LiveProcessor {
                         watermark.draw(in: CGRect(origin: .zero, size: size))
                     }
                 }
+                
+                // 如果真实模式开启，添加网格
+                if RealModeController.shared.isRealModeEnabled,
+                   let gridImage = RealModeController.shared.getReferenceGridImage() {
+                    gridImage.draw(in: CGRect(origin: .zero, size: size))
+                }
             }
             
             print("[图片处理] 图片处理完成")
@@ -309,6 +315,15 @@ class LiveProcessor {
             orientation: orientation
         ) : nil
         
+        // 处理网格图片的变换
+        let transformedGridImage = RealModeController.shared.isRealModeEnabled ? processImageTransformation(
+            image: RealModeController.shared.getReferenceGridImage(),
+            isMirrored: isMirrored,
+            isFront: isFront,
+            isBack: isBack,
+            orientation: orientation
+        ) : nil
+
         let asset = AVAsset(url: videoURL)
         
         // 创建输出URL
@@ -462,7 +477,8 @@ class LiveProcessor {
                             scale: scale,
                             isForVideo: true,
                             orientation: orientation,
-                            watermark: isWatermarkEnabled ? transformedWatermark : nil
+                            watermark: isWatermarkEnabled ? transformedWatermark : nil,
+                            gridImage: RealModeController.shared.isRealModeEnabled ? transformedGridImage : nil
                         )
                         
                         // 创建新的像素缓冲区

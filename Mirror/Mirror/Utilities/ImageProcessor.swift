@@ -65,12 +65,28 @@ class ImageProcessor {
         // 检查水印开关状态
         let isWatermarkEnabled = UserSettingsManager.shared.loadWatermarkEnabled()
         if !isWatermarkEnabled {
+            // 如果水印关闭但真实模式开启，仍然需要添加网格
+            if RealModeController.shared.isRealModeEnabled,
+               let gridImage = RealModeController.shared.getReferenceGridImage() {
+                return autoreleasepool { () -> UIImage in
+                    let format = UIGraphicsImageRendererFormat()
+                    format.scale = 1.0
+                    format.opaque = true
+                    
+                    let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+                    return renderer.image { ctx in
+                        // 绘制原始图片
+                        image.draw(in: CGRect(origin: .zero, size: image.size))
+                        // 绘制网格
+                        gridImage.draw(in: CGRect(origin: .zero, size: image.size))
+                    }
+                }
+            }
             return image
         }
         
-        // 从缓存获取已旋转的水印
+        // 获取水印图片
         guard let watermark = getCachedWatermark(for: orientation) else {
-            print("[水印处理] 无法获取水印图片")
             return image
         }
         
@@ -83,9 +99,13 @@ class ImageProcessor {
             return renderer.image { ctx in
                 // 绘制原始图片
                 image.draw(in: CGRect(origin: .zero, size: image.size))
-                
                 // 绘制水印
                 watermark.draw(in: CGRect(origin: .zero, size: image.size))
+                // 如果真实模式开启，绘制网格
+                if RealModeController.shared.isRealModeEnabled,
+                   let gridImage = RealModeController.shared.getReferenceGridImage() {
+                    gridImage.draw(in: CGRect(origin: .zero, size: image.size))
+                }
             }
         }
     }
@@ -125,10 +145,11 @@ class ImageProcessor {
         scale: CGFloat = 1.0,
         isForVideo: Bool = false,
         orientation: UIDeviceOrientation = .portrait,
-        watermark: UIImage? = nil
+        watermark: UIImage? = nil,
+        gridImage: UIImage? = nil
     ) -> UIImage {
         // 如果没有绘画图片和化妆图片，且没有传入水印，则使用默认水印
-        if drawingImage == nil && makeupImage == nil && watermark == nil {
+        if drawingImage == nil && makeupImage == nil && watermark == nil && gridImage == nil {
             return addWatermark(to: baseImage, orientation: orientation)
         }
         
@@ -279,6 +300,11 @@ class ImageProcessor {
                         // 使用默认水印
                         defaultWatermark.draw(in: CGRect(origin: .zero, size: size))
                     }
+                }
+                
+                // 如果传入了网格图片，添加网格
+                if let gridImage = gridImage {
+                    gridImage.draw(in: CGRect(origin: .zero, size: size))
                 }
             }
             

@@ -86,6 +86,7 @@ struct ContentView: View {
     
     @StateObject private var proManager = ProManager.shared
     @StateObject private var dayNightManager = DayNightManager.shared  // 添加昼夜模式管理器
+    @StateObject private var realModeController = RealModeController.shared  // 添加真实模式控制器
     
     @State private var showLiveAlert = false
     @State private var liveAlertMessage = ""
@@ -354,10 +355,10 @@ struct ContentView: View {
                                     let generator = UIImpactFeedbackGenerator(style: .medium)
                                     generator.impactOccurred()
                                     
-                                    // 切换状态
-                                    isRCircleEnabled.toggle()
+                                    // 使用 RealModeController 切换状态
+                                    realModeController.toggleRealMode()
                                 }) {
-                                    Image(systemName: isRCircleEnabled ? "r.circle.fill" : "r.circle")
+                                    Image(systemName: realModeController.isRealModeEnabled ? "r.circle.fill" : "r.circle")
                                         .font(.system(size: 20))
                                         .foregroundColor(styleManager.iconColor)
                                         .frame(width: 44, height: 44)

@@ -259,6 +259,9 @@ struct DraggableToolbar: View {
                     }
                 }
                 .onAppear {
+                    // 设置网格显示状态的绑定
+                    RealModeController.shared.setReferenceGridBinding($showReferenceGrid)
+                    
                     // 加载闪光灯设置
                     let flashSettings = UserSettingsManager.shared.loadFlashSettings()
                     isFlashEnabled = flashSettings.isEnabled

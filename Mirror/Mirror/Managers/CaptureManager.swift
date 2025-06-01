@@ -43,6 +43,10 @@ class CaptureManager: ObservableObject {
     @Published var isVideoProcessing: Bool = false  // 添加新状态：视频是否正在处理
     @Published var isResourcePreparing: Bool = false  // 添加新状态：资源是否正在准备中
     
+    // 添加用于视图显示的资源路径
+    @Published var viewImageURL: URL?
+    @Published var viewMovURL: URL?
+    
     // 添加水印相关属性
     private var watermarkImageA: UIImage? = UIImage(named: "mixlogoA")
     private var watermarkImageB: UIImage? = UIImage(named: "mixlogoB")
@@ -332,6 +336,7 @@ class CaptureManager: ObservableObject {
         
         // 保存原始视频URL
         self.originalVideoURL = videoURL
+        self.livePhotoVideoURL = videoURL  // 设置 livePhotoVideoURL 为原始视频URL
         
         // 使用当前实际的设备方向，而不是传入的方向
         let actualOrientation = orientationManager.validOrientation
@@ -361,7 +366,7 @@ class CaptureManager: ObservableObject {
                 print("[Live Photo预览] 资源复制失败")
                 simulatedLivePhotoMode = false
                 self.capturedImage = processedImage
-                self.livePhotoVideoURL = videoURL
+                self.viewMovURL = videoURL
                 return
             }
             
@@ -371,8 +376,8 @@ class CaptureManager: ObservableObject {
             
             // 更新UI
             self.capturedImage = processedImage
+            self.viewMovURL = newVideoURL
             self.simulatedVideoURL = newVideoURL
-            self.livePhotoVideoURL = newVideoURL
             self.currentScale = scale
             self.constScale = scale  // 保存初始缩放比例
             self.currentIndicatorScale = scale
@@ -391,7 +396,7 @@ class CaptureManager: ObservableObject {
                 orientation: actualOrientation
             )
             self.capturedImage = processedWithWatermark
-            self.livePhotoVideoURL = videoURL
+            self.viewMovURL = videoURL
             
             // 处理视频，根据水印开关状态添加变换后的水印
             Task {
@@ -410,7 +415,8 @@ class CaptureManager: ObservableObject {
                 ) {
                     await MainActor.run {
                         self.processedVideoURL = processedVideo
-                        self.livePhotoVideoURL = processedVideo  // 立即更新播放源
+                        self.viewMovURL = processedVideo  // 更新播放源
+                        self.livePhotoVideoURL = processedVideo  // 同时更新 livePhotoVideoURL
                         print("[Live Photo预览] 视频处理完成，更新播放源：\(processedVideo.path)")
                     }
                 }
@@ -456,7 +462,7 @@ class CaptureManager: ObservableObject {
             
             print("[Live Photo预览] 状态更新：")
             print("- isLivePhoto：\(self.isLivePhoto)")
-            print("- livePhotoVideoURL：\(String(describing: self.livePhotoVideoURL))")
+            print("- viewMovURL：\(String(describing: self.viewMovURL))")
             print("- isPlayingLivePhoto：\(self.isPlayingLivePhoto)")
             
             // 添加方向更新监听
@@ -535,7 +541,6 @@ class CaptureManager: ObservableObject {
             self.lastDragOffset = .zero
             self.isCheckmarkEnabled = false  // 重置勾选状态
             self.previewMixImage = nil  // 清除预览图片缓存
-            // 注意：不再在这里清理绘画相关状态
         }
         
         // 解锁设备方向
@@ -589,7 +594,8 @@ class CaptureManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             self.capturedImage = nil
             self.originalLiveImage = nil  // 清除原始 Live Photo 图片
-            self.livePhotoVideoURL = nil
+            self.viewMovURL = nil
+            self.viewImageURL = nil
             self.tempImageURL = nil
             self.tempVideoURL = nil
             self.livePhotoIdentifier = ""
@@ -826,12 +832,12 @@ class CaptureManager: ObservableObject {
                     print("[保存Live Photo] 图片处理失败，使用原始图片")
                 }
                 
-                // 直接使用预览视图中的视频，不再重新添加水印
-                videoURLToUse = livePhotoVideoURL
-                print("[保存Live Photo] 使用预览视图中的视频：\(String(describing: livePhotoVideoURL?.path))")
+                // 使用处理后的视频URL，如果没有则使用原始视频URL
+                videoURLToUse = processedVideoURL ?? viewMovURL ?? livePhotoVideoURL
+                print("[保存Live Photo] 使用视频：\(String(describing: videoURLToUse?.path))")
             } else {
                 imageURLToUse = tempImageURL
-                videoURLToUse = livePhotoVideoURL
+                videoURLToUse = processedVideoURL ?? viewMovURL ?? livePhotoVideoURL
             }
         }
         
@@ -839,6 +845,11 @@ class CaptureManager: ObservableObject {
         guard let imageURL = imageURLToUse,
               let videoURL = videoURLToUse else {
             print("错误：缺少必要的Live Photo资源")
+            print("图片URL：\(String(describing: imageURLToUse))")
+            print("视频URL：\(String(describing: videoURLToUse))")
+            print("processedVideoURL：\(String(describing: processedVideoURL))")
+            print("viewMovURL：\(String(describing: viewMovURL))")
+            print("livePhotoVideoURL：\(String(describing: livePhotoVideoURL))")
             completion(false)
             return
         }
@@ -1161,8 +1172,8 @@ class CaptureManager: ObservableObject {
                         // 在主线程更新UI
                         DispatchQueue.main.async {
                             self.capturedImage = mixImage
+                            self.viewMovURL = videoURL
                             self.simulatedVideoURL = videoURL
-                            self.livePhotoVideoURL = videoURL
                             self.simulatedLivePhotoMode = true
                             
                             // 发送完成通知
@@ -1202,7 +1213,7 @@ class CaptureManager: ObservableObject {
                         baseImage: originalImage,
                         drawingImage: isCheckmarkEnabled ? pinnedDrawingImage : nil,
                         makeupImage: isCheckmarkEnabled ? makeupImage : nil,
-                        scale: constScale,  // 使用固定的初始缩放比例
+                        scale: constScale,
                         orientation: self.captureOrientation
                     )
                     
@@ -1237,8 +1248,8 @@ class CaptureManager: ObservableObject {
                             await MainActor.run {
                                 // 更新UI
                                 self.capturedImage = processedImage
+                                self.viewMovURL = processedVideoURL
                                 self.simulatedVideoURL = processedVideoURL
-                                self.livePhotoVideoURL = processedVideoURL
                                 self.simulatedLivePhotoMode = true
                                 self.isGeneratingSimulation = false
                                 
@@ -1274,16 +1285,16 @@ class CaptureManager: ObservableObject {
                     // 恢复到原始处理后的视频
                     if let processedVideo = processedVideoURL {
                         print("- 恢复到原始处理后的视频：\(processedVideo.path)")
-                        livePhotoVideoURL = processedVideo
+                        viewMovURL = processedVideo
                     } else if let originalVideo = originalVideoURL {
                         print("- 恢复到原始视频：\(originalVideo.path)")
-                        livePhotoVideoURL = originalVideo
+                        viewMovURL = originalVideo
                     }
                     
                     simulatedLivePhotoMode = false
                     
                     print("[勾选处理] 资源恢复完成")
-                    print("- 当前视频URL：\(String(describing: livePhotoVideoURL?.path))")
+                    print("- 当前视频URL：\(String(describing: viewMovURL?.path))")
                 }
             }
         } else {

@@ -286,7 +286,7 @@ public struct CaptureActionsView: View {
     
     // 使用普通的 State 来跟踪长按状态
     @State private var isLongPressed = false
-    @State private var isScalingFrom60Percent = false  // 添加新状态跟踪是否从60%开始缩放
+    @State private var isScalingFrom60Percent = false
     
     // 添加缩放相关状态
     @State private var showScaleIndicator = false
@@ -309,7 +309,6 @@ public struct CaptureActionsView: View {
                         .position(x: screenBounds.width/2, y: screenBounds.height/2)
                         .allowsHitTesting(false)
                         .onAppear {
-                            // 在预览视图首次显示时，将当前的 currentScale 保存到 constScale
                             captureManager.constScale = captureManager.currentScale
                             print("[预览初始化] 保存初始缩放比例：\(captureManager.constScale)")
                         }
@@ -329,7 +328,7 @@ public struct CaptureActionsView: View {
                                         // Live Photo模式
                                         if captureManager.isCheckmarkEnabled {
                                             // 勾选状态 - 显示模拟的黄色图片
-                                            Image(uiImage: image)  // 此时image已经是黄色的模拟图片
+                                            Image(uiImage: image)
                                                 .resizable()
                                                 .aspectRatio(contentMode: .fill)
                                                 .frame(width: displayWidth, height: displayHeight)
@@ -364,14 +363,14 @@ public struct CaptureActionsView: View {
                         }
                         
                         // Live Photo播放视图
-                        if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && captureManager.isPlayingLivePhoto {
+                        if captureManager.isLivePhoto && captureManager.viewMovURL != nil && captureManager.isPlayingLivePhoto {
                             ZStack {
                                 let isLandscape = captureManager.captureOrientation.isLandscape
                                 let displayWidth = isLandscape ? screenBounds.height : screenBounds.width
                                 let displayHeight = isLandscape ? screenBounds.width : screenBounds.height
                                 
                                 // 使用LivePhotoPlayerView播放视频
-                                if let videoURL = captureManager.isCheckmarkEnabled ? captureManager.simulatedVideoURL : (captureManager.processedVideoURL ?? captureManager.livePhotoVideoURL) {
+                                if let videoURL = captureManager.viewMovURL {
                                     LivePhotoPlayerView(
                                         videoURL: videoURL,
                                         isPlaying: $captureManager.isPlayingLivePhoto,
@@ -582,10 +581,10 @@ public struct CaptureActionsView: View {
                                     .onEnded { _ in
                                         print("[长按手势] 开始")
                                         print("[长按手势] Live Photo状态：\(captureManager.isLivePhoto)")
-                                        print("[长按手势] 视频URL：\(String(describing: captureManager.livePhotoVideoURL))")
+                                        print("[长按手势] 视频URL：\(String(describing: captureManager.viewMovURL))")
                                         print("[长按手势] 当前播放状态：\(captureManager.isPlayingLivePhoto)")
                                         
-                                        if captureManager.isLivePhoto && captureManager.livePhotoVideoURL != nil && !captureManager.isPlayingLivePhoto {
+                                        if captureManager.isLivePhoto && captureManager.viewMovURL != nil && !captureManager.isPlayingLivePhoto {
                                             isLongPressed = true
                                             // 触发震动反馈
                                             let generator = UIImpactFeedbackGenerator(style: .medium)
