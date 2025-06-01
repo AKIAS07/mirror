@@ -180,37 +180,19 @@ class ImageUploader: ObservableObject {
         hideTimer?.invalidate()
         hideTimer = nil
         
-        // 检查相册权限
-        PHPhotoLibrary.requestAuthorization { status in
+        // 使用 PermissionManager 检查权限
+        PermissionManager.shared.checkPhotoLibraryPermission { [weak self] granted in
+            guard let self = self else { return }
+            
             DispatchQueue.main.async {
-                switch status {
-                case .authorized, .limited:
+                if granted {
                     self.startImageProcessing()
                     self.showImagePicker = true
-                    print("------------------------")
-                    print("[图片选择器] 开启")
-                    print("目标区域：\(screenID == .original ? "Original" : "Mirrored")屏幕")
-                    print("------------------------")
-                    
-                case .denied, .restricted:
-                    print("------------------------")
-                    print("[相册权限] 已拒绝或受限")
-                    print("------------------------")
-                    self.permissionAlertType = .settings
+                } else {
+                    // 显示权限弹窗
+                    let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+                    self.permissionAlertType = status == .notDetermined ? .initial : .settings
                     self.showPermissionAlert = true
-                    
-                case .notDetermined:
-                    print("------------------------")
-                    print("[相册权限] 未确定")
-                    print("------------------------")
-                    self.permissionAlertType = .initial
-                    self.showPermissionAlert = true
-                    
-                @unknown default:
-                    print("------------------------")
-                    print("[相册权限] 未知状态")
-                    print("------------------------")
-                    self.hideRectangle()
                 }
             }
         }

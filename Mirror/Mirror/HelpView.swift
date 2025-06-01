@@ -256,18 +256,10 @@ public struct HelpPanel: View {
                                 
                                 // 基本操作
                                 VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
-                                    Text("屏幕操作功能")
+                                    Text("拍摄功能")
                                         .font(.headline)
                                         .foregroundColor(SettingsTheme.titleColor)
                                         .frame(maxWidth: .infinity, alignment: .center)
-
-                                    HStack(spacing: 4) {
-                                        ProLabel(text: "Pro")
-                                        Text("手势可切换）")
-                                            .font(.subheadline)
-                                            .foregroundColor(SettingsTheme.subtitleColor)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .center)
 
                                     VStack(alignment: .leading, spacing: 5) {
 
@@ -280,11 +272,20 @@ public struct HelpPanel: View {
                                             systemImage: "circle.fill"
                                         )
                                         LabeledHighlightRow(
+                                            highlightText: "实况",
+                                            description: HStack(spacing: 4) {
+                                                Text("实况模式")
+                                            },
+                                            proLabel: true,
+                                            systemImage: "livephoto"
+                                        )
+                                        LabeledHighlightRow(
                                             highlightText: "闪光",
                                             description: HStack(spacing: 4) {
                                                 Text("拍照时闪光")
                                             },
-                                            proLabel: true
+                                            proLabel: true,
+                                            systemImage: "bolt.fill"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "单击/",
@@ -292,15 +293,22 @@ public struct HelpPanel: View {
                                                 Text("边灯 开启/关闭")
                                             },
                                             freeLabel: true,
-                                            systemImage: "lightbulb"
+                                            systemImage: "lightbulb.fill"
                                         )
                                         LabeledHighlightRow(
-                                            highlightText: "实况",
+                                            highlightText: "双指/100",
                                             description: HStack(spacing: 4) {
-                                                Text("实况模式")
+                                                Text("缩放画面")
                                             },
-                                            proLabel: true,
-                                            systemImage: "livephoto"
+                                            freeLabel: true
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "光色",
+                                            description: HStack(spacing: 4) {
+                                                Text("灯光三色切换")
+                                            },
+                                            freeLabel: true,
+                                            systemImage: "circle.fill"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "翻转",
@@ -310,12 +318,47 @@ public struct HelpPanel: View {
                                             freeLabel: true,
                                             systemImage: "camera.rotate"
                                         )
+                                        
+                                    }
+                                    .font(.body)
+                                }
+                                .padding(SettingsTheme.padding)
+                                .background(SettingsTheme.backgroundColor)
+                                .cornerRadius(12)
+                                .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                                .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+
+                                //辅助功能
+                                VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                                    Text("辅助功能")
+                                        .font(.headline)
+                                        .foregroundColor(SettingsTheme.titleColor)
+                                        .frame(maxWidth: .infinity, alignment: .center)
+                                    
+                                    VStack(alignment: .leading, spacing: 5) {
                                         LabeledHighlightRow(
-                                            highlightText: "双指/100",
+                                            highlightText: "上传",
                                             description: HStack(spacing: 4) {
-                                                Text("缩放画面")
+                                                Text("上传AR贴纸")
                                             },
-                                            freeLabel: true
+                                            proLabel: true,
+                                            systemImage: "plus.circle"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "绘画",
+                                            description: HStack(spacing: 4) {
+                                                Text("绘画AR贴纸")
+                                            },
+                                            freeLabel: true,
+                                            systemImage: "pencil.tip.crop.circle"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "网格",
+                                            description: HStack(spacing: 4) {
+                                                Text("开启参考网格")
+                                            },
+                                            freeLabel: true,
+                                            systemImage: "ruler"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "关闭",
@@ -326,12 +369,11 @@ public struct HelpPanel: View {
                                             systemImage: "xmark.circle"
                                         )
                                         LabeledHighlightRow(
-                                            highlightText: "参考",
+                                            highlightText: "AR-Mix",
                                             description: HStack(spacing: 4) {
-                                                Text("添加参考图片")
+                                                Text("图片AR融合功能")
                                             },
-                                            proLabel: true,
-                                            systemImage: "plus.circle"
+                                            freeLabel: true
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "下载",
@@ -340,6 +382,55 @@ public struct HelpPanel: View {
                                             },
                                             freeLabel: true,
                                             systemImage: "square.and.arrow.down"
+                                        )
+                                    }
+                                    .font(.body)
+                                }
+                                .padding(SettingsTheme.padding)
+                                .background(SettingsTheme.backgroundColor)
+                                .cornerRadius(12)
+                                .shadow(color: SettingsTheme.shadowColor, radius: SettingsTheme.shadowRadius, x: SettingsTheme.shadowX, y: SettingsTheme.shadowY)
+                                .frame(width: isLandscape ? SettingsLayoutConfig.panelHeight - SettingsTheme.padding * 2 : nil)
+
+                                // 模式
+                                VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
+                                    Text("模式切换")
+                                        .font(.headline)
+                                        .foregroundColor(SettingsTheme.titleColor)
+                                        .frame(maxWidth: .infinity, alignment: .center)
+                                    
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        LabeledHighlightRow(
+                                            highlightText: "白天模式",
+                                            description: HStack(spacing: 4) {
+                                                Text("普通模式")
+                                            },
+                                            freeLabel: true,
+                                            systemImage: "sun.min.fill"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "夜晚模式",
+                                            description: HStack(spacing: 4) {
+                                                Text("夜晚拍摄更清晰")
+                                            },
+                                            proLabel: true,
+                                            systemImage: "moon.fill"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "Real模式",
+                                            description: HStack(spacing: 4) {
+                                                Text("拍摄照片带网格")
+                                            },
+                                            proLabel: true,
+                                            systemImage: "r.circle"
+                                        )
+                                        LabeledHighlightRow(
+                                            highlightText: "视图模式",
+                                            description: HStack(spacing: 4) {
+                                                Text("拍摄模式/镜子模式切换")
+                                            },
+                                            freeLabel: true,
+                                            systemImage: "arrow.down.left.and.arrow.up.right"
                                         )
                                     }
                                     .font(.body)
@@ -434,13 +525,7 @@ public struct HelpPanel: View {
                                         .foregroundColor(SettingsTheme.titleColor)
                                         .frame(maxWidth: .infinity, alignment: .center)
 
-                                    HStack(spacing: 4) {
-                                        ProLabel(text: "Pro")
-                                        Text("手势可切换")
-                                            .font(.subheadline)
-                                            .foregroundColor(SettingsTheme.subtitleColor)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .center)
+
 
                                     VStack(alignment: .leading, spacing: 5) {
                                         LabeledHighlightRow(
@@ -485,13 +570,6 @@ public struct HelpPanel: View {
                                         .foregroundColor(SettingsTheme.titleColor)
                                         .frame(maxWidth: .infinity, alignment: .center)
                                     
-                                    HStack(spacing: 4) {
-                                        ProLabel(text: "Pro")
-                                        Text("手势可切换")
-                                            .font(.subheadline)
-                                            .foregroundColor(SettingsTheme.subtitleColor)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .center)
                                     
                                     VStack(alignment: .leading, spacing: 5) {
                                         LabeledHighlightRow(

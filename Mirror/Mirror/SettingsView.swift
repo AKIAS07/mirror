@@ -220,78 +220,6 @@ public struct SettingsPanel: View {
         self._isPresented = isPresented
     }
     
-    // 保存当前设置状态的结构体
-    private struct SettingsState: CustomStringConvertible {
-        var borderLightColor: Color
-        var borderLightWidth: CGFloat
-        var isDefaultGesture: Bool
-        var iconColor: Color
-        var splitScreenIconColor: Color
-        var splitScreenIconImage: String
-        var isFlashEnabled: Bool
-        var flashIntensity: AppConfig.AnimationConfig.Flash.Intensity
-        var autoEnterTwoOfMe: Bool
-        var gridSpacing: CGFloat
-        var gridLineColor: Color
-        var gridLineOpacity: Double
-        var isWatermarkEnabled: Bool
-        
-        init() {
-            self.borderLightColor = BorderLightStyleManager.shared.selectedColor
-            self.borderLightWidth = BorderLightStyleManager.shared.selectedWidth
-            self.isDefaultGesture = BorderLightStyleManager.shared.isDefaultGesture
-            self.iconColor = BorderLightStyleManager.shared.iconColor
-            self.splitScreenIconColor = BorderLightStyleManager.shared.splitScreenIconColor
-            self.splitScreenIconImage = BorderLightStyleManager.shared.splitScreenIconImage
-            self.isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
-            self.flashIntensity = AppConfig.AnimationConfig.Flash.intensity
-            self.autoEnterTwoOfMe = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
-            
-            let gridSettings = UserSettingsManager.shared.loadGridSettings()
-            self.gridSpacing = gridSettings.spacing
-            self.gridLineColor = gridSettings.color
-            self.gridLineOpacity = gridSettings.opacity
-            
-            self.isWatermarkEnabled = UserSettingsManager.shared.loadWatermarkEnabled()
-            
-            print("------------------------")
-            print("[设置] 初始状态已保存")
-            print("边框灯颜色：\(self.borderLightColor)")
-            print("边框灯宽度：\(self.borderLightWidth)")
-            print("手势模式：\(self.isDefaultGesture ? "默认" : "交换")")
-            print("图标颜色：\(self.iconColor)")
-            print("分屏图标颜色：\(self.splitScreenIconColor)")
-            print("分屏图标：\(self.splitScreenIconImage)")
-            print("闪光灯：\(self.isFlashEnabled ? "开启" : "关闭")")
-            print("闪光强度：\(self.flashIntensity)")
-            print("自动进入双屏：\(self.autoEnterTwoOfMe ? "是" : "否")")
-            print("网格间距：\(self.gridSpacing)")
-            print("网格颜色：\(self.gridLineColor)")
-            print("网格透明度：\(self.gridLineOpacity)")
-            print("水印：\(self.isWatermarkEnabled ? "开启" : "关闭")")
-            print("------------------------")
-        }
-        
-        // 添加描述方法，方便调试
-        var description: String {
-            return """
-            边框灯颜色：\(borderLightColor)
-            边框灯宽度：\(borderLightWidth)
-            手势模式：\(isDefaultGesture ? "默认" : "交换")
-            图标颜色：\(iconColor)
-            分屏图标颜色：\(splitScreenIconColor)
-            分屏图标：\(splitScreenIconImage)
-            闪光灯：\(isFlashEnabled ? "开启" : "关闭")
-            闪光强度：\(flashIntensity)
-            自动进入双屏：\(autoEnterTwoOfMe ? "是" : "否")
-            网格间距：\(gridSpacing)
-            网格颜色：\(gridLineColor)
-            网格透明度：\(gridLineOpacity)
-            水印：\(isWatermarkEnabled ? "开启" : "关闭")
-            """
-        }
-    }
-    
     // 检查是否有未保存的更改
     private func checkForChanges() -> Bool {
         print("------------------------")
@@ -366,6 +294,18 @@ public struct SettingsPanel: View {
         print("------------------------")
         
         return hasChanges
+    }
+    
+    // 处理关闭操作
+    private func handleClose() {
+        if checkForChanges() {
+            showSaveAlert = true
+            print("------------------------")
+            print("[设置] 显示保存提示")
+            print("------------------------")
+        } else {
+            isPresented = false
+        }
     }
     
     // 保存设置
@@ -627,7 +567,7 @@ public struct SettingsPanel: View {
                             ZStack {
                                 HStack {
                                     Spacer()
-                                    Text("闪光设置")
+                                    Text(" 闪光设置")
                                         .font(.headline)
                                         .foregroundColor(SettingsTheme.titleColor)
                                     Spacer()
@@ -695,7 +635,7 @@ public struct SettingsPanel: View {
                         VStack(alignment: .leading, spacing: SettingsTheme.contentSpacing) {
                             HStack {
                                 Spacer()
-                                Text("参数设置")
+                                Text("网格设置")
                                     .font(.headline)
                                     .foregroundColor(SettingsTheme.titleColor)
                                 Spacer()
@@ -1190,19 +1130,80 @@ public struct SettingsPanel: View {
         }
         .transition(.opacity)
     }
+}
     
-    // 处理关闭操作
-    private func handleClose() {
-        if checkForChanges() {
-            showSaveAlert = true
+    // 保存当前设置状态的结构体
+    private struct SettingsState: CustomStringConvertible {
+        var borderLightColor: Color
+        var borderLightWidth: CGFloat
+        var isDefaultGesture: Bool
+        var iconColor: Color
+        var splitScreenIconColor: Color
+        var splitScreenIconImage: String
+        var isFlashEnabled: Bool
+        var flashIntensity: AppConfig.AnimationConfig.Flash.Intensity
+        var autoEnterTwoOfMe: Bool
+        var gridSpacing: CGFloat
+        var gridLineColor: Color
+        var gridLineOpacity: Double
+        var isWatermarkEnabled: Bool
+        
+        init() {
+            self.borderLightColor = BorderLightStyleManager.shared.selectedColor
+            self.borderLightWidth = BorderLightStyleManager.shared.selectedWidth
+            self.isDefaultGesture = BorderLightStyleManager.shared.isDefaultGesture
+            self.iconColor = BorderLightStyleManager.shared.iconColor
+            self.splitScreenIconColor = BorderLightStyleManager.shared.splitScreenIconColor
+            self.splitScreenIconImage = BorderLightStyleManager.shared.splitScreenIconImage
+            self.isFlashEnabled = AppConfig.AnimationConfig.Flash.isEnabled
+            self.flashIntensity = AppConfig.AnimationConfig.Flash.intensity
+            self.autoEnterTwoOfMe = UserSettingsManager.shared.loadAutoEnterTwoOfMe()
+            
+            let gridSettings = UserSettingsManager.shared.loadGridSettings()
+            self.gridSpacing = gridSettings.spacing
+            self.gridLineColor = gridSettings.color
+            self.gridLineOpacity = gridSettings.opacity
+            
+            self.isWatermarkEnabled = UserSettingsManager.shared.loadWatermarkEnabled()
+            
             print("------------------------")
-            print("[设置] 显示保存提示")
+            print("[设置] 初始状态已保存")
+            print("边框灯颜色：\(self.borderLightColor)")
+            print("边框灯宽度：\(self.borderLightWidth)")
+            print("手势模式：\(self.isDefaultGesture ? "默认" : "交换")")
+            print("图标颜色：\(self.iconColor)")
+            print("分屏图标颜色：\(self.splitScreenIconColor)")
+            print("分屏图标：\(self.splitScreenIconImage)")
+            print("闪光灯：\(self.isFlashEnabled ? "开启" : "关闭")")
+            print("闪光强度：\(self.flashIntensity)")
+            print("自动进入双屏：\(self.autoEnterTwoOfMe ? "是" : "否")")
+            print("网格间距：\(self.gridSpacing)")
+            print("网格颜色：\(self.gridLineColor)")
+            print("网格透明度：\(self.gridLineOpacity)")
+            print("水印：\(self.isWatermarkEnabled ? "开启" : "关闭")")
             print("------------------------")
-        } else {
-            isPresented = false
+        }
+        
+        // 添加描述方法，方便调试
+        var description: String {
+            return """
+            边框灯颜色：\(borderLightColor)
+            边框灯宽度：\(borderLightWidth)
+            手势模式：\(isDefaultGesture ? "默认" : "交换")
+            图标颜色：\(iconColor)
+            分屏图标颜色：\(splitScreenIconColor)
+            分屏图标：\(splitScreenIconImage)
+            闪光灯：\(isFlashEnabled ? "开启" : "关闭")
+            闪光强度：\(flashIntensity)
+            自动进入双屏：\(autoEnterTwoOfMe ? "是" : "否")
+            网格间距：\(gridSpacing)
+            网格颜色：\(gridLineColor)
+            网格透明度：\(gridLineOpacity)
+            水印：\(isWatermarkEnabled ? "开启" : "关闭")
+            """
         }
     }
-}
+
 
 // 预览
 #Preview {

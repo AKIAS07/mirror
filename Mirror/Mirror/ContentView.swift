@@ -550,10 +550,6 @@ struct ContentView: View {
                     HelpPanel(isPresented: $showHelp)
                         .zIndex(8)  // 提高层级
                 }
-                
-                // 添加全局权限管理视图，确保在最上层
-                PermissionManagerView()
-                    .zIndex(1000)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onAppear {
@@ -715,27 +711,37 @@ struct ContentView: View {
                     secondaryButton: .cancel(Text("取消"))
                 )
             }
-        }
-        .fullScreenCover(isPresented: $showingTwoOfMe) {
-            handleTwoOfMeDismiss()
-        } content: {
-            TwoOfMeScreens()
-                .transition(.asymmetric(
-                    insertion: .move(edge: .trailing),
-                    removal: .opacity.combined(with: .move(edge: .leading))
-                ))
-                .animation(.easeInOut(duration: 0.3), value: showingTwoOfMe)
-        }
-        .sheet(isPresented: $proManager.showProUpgradeSheet) {
-            ProUpgradeView(
-                dismiss: { proManager.showProUpgradeSheet = false },
-                onDismiss: {
-                    if proManager.isFromMiddleButton {
-                        handleEnterTwoOfMe()
+            .fullScreenCover(isPresented: $showingTwoOfMe) {
+                handleTwoOfMeDismiss()
+            } content: {
+                TwoOfMeScreens()
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing),
+                        removal: .opacity.combined(with: .move(edge: .leading))
+                    ))
+                    .animation(.easeInOut(duration: 0.3), value: showingTwoOfMe)
+            }
+            .sheet(isPresented: $proManager.showProUpgradeSheet) {
+                ProUpgradeView(
+                    dismiss: { proManager.showProUpgradeSheet = false },
+                    onDismiss: {
+                        if proManager.isFromMiddleButton {
+                            handleEnterTwoOfMe()
+                        }
                     }
-                }
+                )
+            }
+            // 添加权限管理视图作为 overlay
+            .overlay(
+                PermissionManagerView()
+                    .zIndex(1000)
             )
         }
+        // 在最外层添加权限管理视图
+        .overlay(
+            PermissionManagerView()
+                .zIndex(1000)
+        )
     }
     
     private func handleTwoOfMeDismiss() {

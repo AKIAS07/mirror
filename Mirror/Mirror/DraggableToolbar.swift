@@ -80,9 +80,9 @@ enum UtilityButtonType: Int, CaseIterable {
     var icon: String {
         switch self {
         case .add: return "plus.circle"
+        case .brush: return "pencil.tip.crop.circle"  // 使用画笔图标
         case .reference: return "ruler"  // 使用尺子图标
         case .drag: return "icon-star"  // 修改为使用自定义图标
-        case .brush: return "pencil.tip.crop.circle"  // 使用画笔图标
         case .close: return "xmark.circle"
         }
     }
@@ -564,10 +564,20 @@ struct DraggableToolbar: View {
                                     .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
                                     .frame(width: buttonType.size, height: buttonType.size)
                             } else if buttonType == .flash {
-                                Image(systemName: isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
-                                    .frame(width: buttonType.size, height: buttonType.size)
+                                ZStack {
+                                    Image(systemName: isFlashEnabled ? "bolt.fill" : "bolt.slash.fill")
+                                        .font(.system(size: 22))
+                                        .foregroundColor(restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3))
+                                        .frame(width: buttonType.size, height: buttonType.size)
+                                    
+                                    // 如果不是Pro会员，显示锁定图标
+                                    if !proManager.isPro {
+                                        Image(systemName: "lock.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(styleManager.iconColor.opacity(0.8))
+                                            .offset(y: -15)  // 将锁定图标向上偏移
+                                    }
+                                }
                             } else if buttonType == .color {
                                 ZStack {
                                     // 背景圆形
@@ -796,6 +806,15 @@ struct DraggableToolbar: View {
             print("工具栏：点击闪光灯按钮")
             print("当前状态：\(isFlashEnabled ? "开启" : "关闭")")
             print("------------------------")
+            
+            // 检查是否为Pro会员
+            if !proManager.isPro {
+                proManager.showProUpgrade()
+                print("------------------------")
+                print("[闪光功能] 需要Pro版本")
+                print("------------------------")
+                return
+            }
             
             withAnimation(.easeInOut(duration: 0.2)) {
                 isFlashEnabled.toggle()

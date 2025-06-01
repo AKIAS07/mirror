@@ -117,6 +117,60 @@ class ProManager: ObservableObject {
             print("------------------------")
         }
     }
+    
+    // 添加检查真实模式功能控制
+    var isRealModeEnabled: Bool {
+        return isPro
+    }
+    
+    // 添加检查夜晚模式功能控制
+    var isNightModeEnabled: Bool {
+        return isPro
+    }
+    
+    // 添加真实模式功能检查方法
+    func checkRealModeAccess(completion: @escaping () -> Void) {
+        if isRealModeEnabled {
+            completion()
+        } else {
+            showProUpgrade()
+            print("------------------------")
+            print("[真实模式] 功能已禁用")
+            print("原因：需要Pro版本")
+            print("------------------------")
+        }
+    }
+    
+    // 添加夜晚模式功能检查方法
+    func checkNightModeAccess(completion: @escaping () -> Void) {
+        if isNightModeEnabled {
+            completion()
+        } else {
+            showProUpgrade()
+            print("------------------------")
+            print("[夜晚模式] 功能已禁用")
+            print("原因：需要Pro版本")
+            print("------------------------")
+        }
+    }
+    
+    // 添加闪光功能控制
+    var isFlashEnabled: Bool {
+        return isPro
+    }
+    
+    // 添加闪光功能检查方法
+    func checkFlashAccess(completion: @escaping () -> Void) {
+        if isFlashEnabled {
+            completion()
+        } else {
+            showProUpgrade()
+            print("------------------------")
+            print("[闪光功能] 功能已禁用")
+            print("原因：需要Pro版本")
+            print("------------------------")
+        }
+    }
 }
 
 // 添加设置类型枚举

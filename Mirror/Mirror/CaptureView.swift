@@ -773,7 +773,7 @@ public struct CaptureActionsView: View {
                                     }) {
                                         HStack(spacing: 12) {
                                             // Mix 文字
-                                            Text("Mix")
+                                            Text("AR-Mix")
                                                 .font(.system(size: 16, weight: .semibold))
                                                 .foregroundColor(.white)
                                                 .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
@@ -1047,8 +1047,31 @@ struct LivePhotoPlayerView: UIViewControllerRepresentable {
         playerViewController.showsPlaybackControls = false
         playerViewController.videoGravity = .resizeAspectFill
         
-        // 设置视频源
-        let playerItem = AVPlayerItem(url: videoURL)
+        // 设置播放器静音
+        player.volume = 0.0
+        player.isMuted = true
+        
+        // 配置音频会话
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: .mixWithOthers)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("[LivePhotoPlayerView] 音频会话配置错误: \(error)")
+        }
+        
+        // 设置视频源并禁用音频轨道
+        let asset = AVAsset(url: videoURL)
+        let playerItem = AVPlayerItem(asset: asset)
+        
+        // 禁用音频轨道
+        let audioTracks = asset.tracks(withMediaType: .audio)
+        for track in audioTracks {
+            let assetTrack = track
+            if let audioTrack = playerItem.tracks.first(where: { $0.assetTrack == assetTrack }) {
+                audioTrack.isEnabled = false
+            }
+        }
+        
         player.replaceCurrentItem(with: playerItem)
         
         // 监听播放器状态

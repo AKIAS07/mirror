@@ -161,6 +161,7 @@ class DayNightManager: ObservableObject {
     // 切换到夜晚模式
     func switchToNightMode() {
         if isDayMode {
+            // 先显示功能说明弹窗
             showSystemAlert()
         }
     }
@@ -172,13 +173,16 @@ class DayNightManager: ObservableObject {
            let rootViewController = window.rootViewController {
             
             let alertController = UIAlertController(
-                title: "切换到夜间模式",
-                message: "将有以下改动：\n• 开启灯光并切换至全景模式\n• 增加背景补光\n• 拍照时自动开启最强闪光",
+                title: "切换到'夜晚模式'",
+                message: "• 增加背景补光\n• 自动开启最强闪光\n• 自动开启边灯/拍摄模式",
                 preferredStyle: .alert
             )
             
             alertController.addAction(UIAlertAction(title: "确认", style: .default) { [weak self] _ in
-                self?.isDayMode = false
+                // 确认后检查是否为Pro用户
+                ProManager.shared.checkNightModeAccess { [weak self] in
+                    self?.isDayMode = false
+                }
             })
             
             alertController.addAction(UIAlertAction(title: "取消", style: .cancel))

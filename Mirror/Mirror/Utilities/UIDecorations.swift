@@ -188,12 +188,12 @@ struct ScaleIndicatorView: View {
     private var scaleText: String {
         // 如果是最小比例，显示小屏模式
         if isMinScale {
-            return "全景模式"
+            return "拍摄模式"
         }
         
         // 如果是 100%，显示全屏模式
         if abs(scale - 1.0) < 0.01 {
-            return "全屏模式"
+            return "镜子模式"
         }
         
         let scalePercentage = Int(scale * 100)

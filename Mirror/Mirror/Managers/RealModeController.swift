@@ -17,6 +17,7 @@ class RealModeController: ObservableObject {
     
     func toggleRealMode() {
         if !isRealModeEnabled {
+            // 先显示功能说明弹窗
             showSystemAlert()
         } else {
             isRealModeEnabled = false
@@ -50,7 +51,6 @@ class RealModeController: ObservableObject {
         
         // 计算裁剪区域（居中）
         let y = (originalHeight - cropHeight) / 2
-        let cropRect = CGRect(x: 0, y: y, width: originalWidth, height: cropHeight)
         
         // 使用 Core Graphics 进行裁剪
         return autoreleasepool {
@@ -75,21 +75,24 @@ class RealModeController: ObservableObject {
            let rootViewController = window.rootViewController {
             
             let alertController = UIAlertController(
-                title: "切换到真实模式",
-                message: "将有以下改动：\n• 开启参考网格\n• xxx\n• xxx",
+                title: "切换到'Real模式'",
+                message: "• 自动开启参考网格\n• 拍摄照片保留网格",
                 preferredStyle: .alert
             )
             
             alertController.addAction(UIAlertAction(title: "确认", style: .default) { [weak self] _ in
-                self?.isRealModeEnabled = true
-                
-                // 检查并开启网格功能
-                if let showReferenceGrid = self?.showReferenceGrid {
-                    if !showReferenceGrid.wrappedValue {
-                        print("------------------------")
-                        print("[真实模式] 自动开启参考网格")
-                        print("------------------------")
-                        showReferenceGrid.wrappedValue = true
+                // 确认后检查是否为Pro用户
+                ProManager.shared.checkRealModeAccess { [weak self] in
+                    self?.isRealModeEnabled = true
+                    
+                    // 检查并开启网格功能
+                    if let showReferenceGrid = self?.showReferenceGrid {
+                        if !showReferenceGrid.wrappedValue {
+                            print("------------------------")
+                            print("[真实模式] 自动开启参考网格")
+                            print("------------------------")
+                            showReferenceGrid.wrappedValue = true
+                        }
                     }
                 }
             })
