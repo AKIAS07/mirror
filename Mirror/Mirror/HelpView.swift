@@ -211,25 +211,28 @@ public struct HelpPanel: View {
                                     
                                     VStack(alignment: .leading, spacing: 5) {
                                         LabeledHighlightRow(
-                                            highlightText: "左侧按钮",
+                                            highlightText: "左侧",
                                             description: HStack(spacing: 4) {
                                                 Text("正常镜")
                                             },
-                                            freeLabel: true
+                                            freeLabel: true,
+                                            systemImage: "icon-bf-white-left"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "右侧按钮",
                                             description: HStack(spacing: 4) {
                                                 Text("翻转镜")
                                             },
-                                            freeLabel: true
+                                            freeLabel: true,
+                                            systemImage: "icon-bf-white-right"
                                         )
                                         LabeledHighlightRow(
-                                            highlightText: "中间按钮",
+                                            highlightText: "中间",
                                             description: HStack(spacing: 4) {
                                                 Text("双屏模式")
                                             },
-                                            freeLabel: true
+                                            freeLabel: true,
+                                            systemImage: "icon-bf-color-1"
                                         )
                                         LabeledHighlightRow(
                                             highlightText: "设置",

@@ -910,8 +910,32 @@ class DrawingRenderer {
                         path.lineJoinStyle = .round
                         
                         path.move(to: start)
-                        for point in line.points.dropFirst() {
-                            path.addLine(to: point)
+                        
+                        // 使用贝塞尔曲线进行平滑处理
+                        if line.points.count > 2 {
+                            for i in 0..<line.points.count - 1 {
+                                let current = line.points[i]
+                                let next = line.points[i + 1]
+                                let mid = CGPoint(
+                                    x: (current.x + next.x) / 2,
+                                    y: (current.y + next.y) / 2
+                                )
+                                
+                                if i == 0 {
+                                    path.move(to: current)
+                                }
+                                
+                                path.addQuadCurve(to: mid, controlPoint: current)
+                                
+                                if i == line.points.count - 2 {
+                                    path.addLine(to: next)
+                                }
+                            }
+                        } else {
+                            // 点数较少时直接连线
+                            for point in line.points.dropFirst() {
+                                path.addLine(to: point)
+                            }
                         }
                         
                         if line.settings.isEraser {

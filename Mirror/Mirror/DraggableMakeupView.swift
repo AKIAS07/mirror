@@ -37,10 +37,13 @@ struct DraggableMakeupView: View {
     @State private var isEditing: Bool = false
     @State private var showImageEditor = false
     @StateObject private var permissionManager = PermissionManager.shared
-    @StateObject private var proManager = ProManager.shared  // 添加 ProManager 引用
-    @State private var isSimplifiedMode: Bool = false  // 添加简化模式状态
-    @StateObject private var restartManager = ContentRestartManager.shared  // 添加 RestartManager 引用
-    let cameraManager: CameraManager  // 添加 CameraManager 引用
+    @StateObject private var proManager = ProManager.shared
+    @State private var isSimplifiedMode: Bool = false
+    @StateObject private var restartManager = ContentRestartManager.shared
+    let cameraManager: CameraManager
+    
+    // 添加方向提示回调
+    var onShowOrientationAlert: (() -> Void)?
     
     // 使用DeviceOrientationManager替代原有的设备方向控制
     @StateObject private var orientationManager = DeviceOrientationManager.shared
@@ -443,7 +446,8 @@ struct DraggableMakeupView: View {
                                     if orientationManager.validOrientation == .portrait {
                                         checkAndRequestPhotoAccess()
                                     } else {
-                                        showOrientationAlert = true
+                                        // 调用回调而不是直接显示弹窗
+                                        onShowOrientationAlert?()
                                     }
                                 } else {
                                     print("------------------------")
@@ -473,13 +477,6 @@ struct DraggableMakeupView: View {
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .background(isSimplifiedMode ? Color.clear : Color.black.opacity(0.4))
-                            .alert(isPresented: $showOrientationAlert) {
-                                Alert(
-                                    title: Text("提示"),
-                                    message: Text("请先将设备调整至竖屏"),
-                                    dismissButton: .default(Text("确定"))
-                                )
-                            }
                         }
                     }
                     .frame(width: totalWidth, height: centerAreaHeight)

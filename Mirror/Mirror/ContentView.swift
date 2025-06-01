@@ -107,6 +107,9 @@ struct ContentView: View {
     
     @ObservedObject private var styleManager = BorderLightStyleManager.shared
     
+    // 添加化妆视图方向提示状态
+    @State private var showMakeupOrientationAlert = false
+    
     var body: some View {
         GeometryReader { geometry in
             
@@ -535,8 +538,14 @@ struct ContentView: View {
                 
                 // 将化妆视图移到弹窗之前
                 if showMakeupView {
-                    DraggableMakeupView(isVisible: $showMakeupView, cameraManager: cameraManager)
-                        .zIndex(6)  // 降低层级
+                    DraggableMakeupView(
+                        isVisible: $showMakeupView,
+                        cameraManager: cameraManager,
+                        onShowOrientationAlert: {
+                            showMakeupOrientationAlert = true
+                        }
+                    )
+                    .zIndex(6)
                 }
                 
                 // 添加设置面板
@@ -736,6 +745,14 @@ struct ContentView: View {
                 PermissionManagerView()
                     .zIndex(1000)
             )
+            // 添加化妆视图方向提示弹窗
+            .alert(isPresented: $showMakeupOrientationAlert) {
+                Alert(
+                    title: Text("提示"),
+                    message: Text("请先将设备调整至竖屏"),
+                    dismissButton: .default(Text("确定"))
+                )
+            }
         }
         // 在最外层添加权限管理视图
         .overlay(
