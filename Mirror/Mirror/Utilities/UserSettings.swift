@@ -31,6 +31,7 @@ private enum UserSettingsKeys {
     static let gridLineColor = "gridLineColor"
     static let gridLineOpacity = "gridLineOpacity"
     static let watermarkEnabled = "watermarkEnabled"  // 添加水印开关键
+    static let drawingTemplates = "drawingTemplates"  // 添加模板存储键
 }
 
 // 添加默认白光颜色常量

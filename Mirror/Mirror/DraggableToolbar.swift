@@ -180,6 +180,9 @@ struct DraggableToolbar: View {
     // 添加工具条显示状态
     @State private var shouldHideToolbar: Bool = false
     
+    // 添加绘画工具状态
+    @State private var isDrawingActive: Bool = false
+    
     // 修改工具栏尺寸常量
     private let toolbarHeight: CGFloat = 60
     private let toolbarWidth: CGFloat = UIScreen.main.bounds.width
@@ -259,6 +262,39 @@ struct DraggableToolbar: View {
                     }
                 }
                 .onAppear {
+                    NotificationCenter.default.post(name: NSNotification.Name("HideToolbars"), object: nil)
+                    
+                    NotificationCenter.default.addObserver(
+                        forName: NSNotification.Name("HideToolbars"),
+                        object: nil,
+                        queue: .main
+                    ) { _ in
+                        withAnimation {
+                            shouldHideToolbar = true
+                        }
+                    }
+                    
+                    NotificationCenter.default.addObserver(
+                        forName: NSNotification.Name("ShowToolbars"),
+                        object: nil,
+                        queue: .main
+                    ) { _ in
+                        withAnimation {
+                            shouldHideToolbar = false
+                        }
+                    }
+
+                    // 添加退出绘画模式的通知监听
+                    NotificationCenter.default.addObserver(
+                        forName: NSNotification.Name("ExitDrawingMode"),
+                        object: nil,
+                        queue: .main
+                    ) { _ in
+                        withAnimation {
+                            isDrawingActive = false
+                        }
+                    }
+                    
                     // 设置网格显示状态的绑定
                     RealModeController.shared.setReferenceGridBinding($showReferenceGrid)
                     
@@ -963,26 +999,42 @@ struct DraggableToolbar: View {
                                     .frame(width: 40, height: 40)
                                 
                                 // 图标
-                            if buttonType.isSystemIcon {
-                                Image(systemName: buttonType.icon)
+                                if buttonType.isSystemIcon {
+                                    Image(systemName: buttonType.icon)
                                         .font(.system(size: 22))
-                                    .foregroundColor(buttonType == .add && !isAddButtonEnabled ? styleManager.iconColor.opacity(0.3) : (restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3)))
-                                    .frame(width: buttonType.size, height: buttonType.size)
-                            } else {
-                                Image(buttonType.icon)
-                                    .resizable()
-                                    .renderingMode(.template)
-                                    .scaledToFit()
-                                    .foregroundColor(buttonType == .add && !isAddButtonEnabled ? styleManager.iconColor.opacity(0.3) : (restartManager.isCameraActive ? styleManager.iconColor : styleManager.iconColor.opacity(0.3)))
-                                    .frame(width: buttonType.size, height: buttonType.size)
+                                        .foregroundColor(
+                                            buttonType == .brush && isDrawingActive ? 
+                                                styleManager.iconColor.opacity(0.3) : 
+                                                (buttonType == .add && !isAddButtonEnabled ? 
+                                                    styleManager.iconColor.opacity(0.3) : 
+                                                    (restartManager.isCameraActive ? 
+                                                        styleManager.iconColor : 
+                                                        styleManager.iconColor.opacity(0.3)))
+                                        )
+                                        .frame(width: buttonType.size, height: buttonType.size)
+                                } else {
+                                    Image(buttonType.icon)
+                                        .resizable()
+                                        .renderingMode(.template)
+                                        .scaledToFit()
+                                        .foregroundColor(
+                                            buttonType == .brush && isDrawingActive ? 
+                                                styleManager.iconColor.opacity(0.3) : 
+                                                (buttonType == .add && !isAddButtonEnabled ? 
+                                                    styleManager.iconColor.opacity(0.3) : 
+                                                    (restartManager.isCameraActive ? 
+                                                        styleManager.iconColor : 
+                                                        styleManager.iconColor.opacity(0.3)))
+                                        )
+                                        .frame(width: buttonType.size, height: buttonType.size)
+                                }
                             }
-                        }
                         }
                         .frame(width: 40, height: 40)  // 统一按钮容器大小
                         .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
                         .rotationEffect(getRotationAngle(orientationManager.currentOrientation))
                         .animation(.easeInOut(duration: 0.3), value: orientationManager.currentOrientation)
-                        .disabled(!restartManager.isCameraActive || (buttonType == .add && !isAddButtonEnabled))
+                        .disabled(!restartManager.isCameraActive || (buttonType == .add && !isAddButtonEnabled) || (buttonType == .brush && isDrawingActive))
                         .scaleEffect(isDragging ? 0.95 : 1.0)
                     }
                 }
@@ -1032,6 +1084,7 @@ struct DraggableToolbar: View {
                 print("------------------------")
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showDrawingCanvas = true
+                    isDrawingActive = true  // 设置绘画工具为活动状态
                     // 检查并移动工具条位置
                     moveToRightBottomForDrawing()
                 }

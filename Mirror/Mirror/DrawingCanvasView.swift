@@ -1,5 +1,13 @@
 import SwiftUI
 import UIKit
+import Foundation
+
+// 导入自定义类型
+@_exported import Foundation
+
+// 确保所有自定义类型都可见
+typealias Template = DrawingTemplate
+typealias TemplateManager = DrawingTemplateManager
 
 // 文字输入弹窗视图
 struct TextInputDialog: View {
@@ -8,13 +16,25 @@ struct TextInputDialog: View {
     let onConfirm: (String, CustomTextAlignment) -> Void
     @State private var selectedAlignment: CustomTextAlignment = .center
     
+    // 添加懒加载的TextEditor
+    private let textEditor: TextEditor
+    
+    init(isPresented: Binding<Bool>, text: Binding<String>, onConfirm: @escaping (String, CustomTextAlignment) -> Void) {
+        self._isPresented = isPresented
+        self._text = text
+        self.onConfirm = onConfirm
+        // 预初始化TextEditor
+        self.textEditor = TextEditor(text: text)
+    }
+    
     var body: some View {
         VStack(spacing: 10) {
             Text("请输入文字")
                 .font(.headline)
                 .padding(.top, 8)
             
-            TextEditor(text: $text)
+            // 使用预初始化的TextEditor
+            textEditor
                 .frame(height: 60)
                 .frame(width: 180)
                 .overlay(
@@ -24,47 +44,59 @@ struct TextInputDialog: View {
                 .padding(.horizontal, 8)
             
             // 对齐方式按钮组
-            HStack(spacing: 15) {
-                Button(action: { selectedAlignment = CustomTextAlignment.left }) {
-                    Image(systemName: "text.alignleft")
-                        .foregroundColor(selectedAlignment == CustomTextAlignment.left ? .blue : .gray)
-                }
-                
-                Button(action: { selectedAlignment = CustomTextAlignment.center }) {
-                    Image(systemName: "text.aligncenter")
-                        .foregroundColor(selectedAlignment == CustomTextAlignment.center ? .blue : .gray)
-                }
-                
-                Button(action: { selectedAlignment = CustomTextAlignment.right }) {
-                    Image(systemName: "text.alignright")
-                        .foregroundColor(selectedAlignment == CustomTextAlignment.right ? .blue : .gray)
-                }
-            }
-            .font(.system(size: 20))
-            .padding(.vertical, 4)
+            alignmentButtons
             
-            HStack(spacing: 12) {
-                Button("取消") {
-                    isPresented = false
-                }
-                .foregroundColor(.red)
-                .font(.system(size: 14))
-                
-                Spacer()
-                
-                Button("确认") {
-                    onConfirm(text, selectedAlignment)
-                    isPresented = false
-                }
-                .foregroundColor(.blue)
-                .font(.system(size: 14))
-            }
-            .padding(.horizontal, 8)
+            // 操作按钮
+            actionButtons
         }
         .padding(8)
         .background(Color.white)
         .cornerRadius(12)
         .shadow(radius: 8)
+    }
+    
+    // 抽取对齐方式按钮组为单独的视图
+    private var alignmentButtons: some View {
+        HStack(spacing: 15) {
+            ForEach([CustomTextAlignment.left, .center, .right], id: \.self) { alignment in
+                Button(action: { selectedAlignment = alignment }) {
+                    Image(systemName: getAlignmentIcon(alignment))
+                        .foregroundColor(selectedAlignment == alignment ? .blue : .gray)
+                }
+            }
+        }
+        .font(.system(size: 20))
+        .padding(.vertical, 4)
+    }
+    
+    // 抽取操作按钮为单独的视图
+    private var actionButtons: some View {
+        HStack(spacing: 12) {
+            Button("取消") {
+                isPresented = false
+            }
+            .foregroundColor(.red)
+            .font(.system(size: 14))
+            
+            Spacer()
+            
+            Button("确认") {
+                onConfirm(text, selectedAlignment)
+                isPresented = false
+            }
+            .foregroundColor(.blue)
+            .font(.system(size: 14))
+        }
+        .padding(.horizontal, 8)
+    }
+    
+    // 获取对齐方式图标
+    private func getAlignmentIcon(_ alignment: CustomTextAlignment) -> String {
+        switch alignment {
+        case .left: return "text.alignleft"
+        case .center: return "text.aligncenter"
+        case .right: return "text.alignright"
+        }
     }
 }
 
@@ -293,6 +325,13 @@ struct DrawingCanvasView: View {
     @State private var inputText = ""
     @State private var textInputPosition: CGPoint = .zero
     
+    // 添加模板相关状态
+    @State private var showTemplateView = false
+    @State private var selectedTemplate: DrawingTemplate? = nil
+    @State private var showSaveTemplateAlert = false
+    @State private var showOverrideTemplateAlert = false
+    @ObservedObject private var templateManager = DrawingTemplateManager.shared
+    
     @Binding var isVisible: Bool
     @Binding var isPinned: Bool
     @State private var lines: [Line] = []
@@ -449,6 +488,25 @@ struct DrawingCanvasView: View {
             var updatedLine = lines[lastIndex]
             updatedLine.isConfirmed = true
             lines[lastIndex] = updatedLine
+        }
+    }
+    
+    // 添加退出绘画的通知名称
+    private static let exitDrawingNotification = NSNotification.Name("ExitDrawingMode")
+
+    private func handleExitDrawing() {
+        withAnimation {
+            isVisible = false
+            lines.removeAll()
+            currentLine = nil
+            pinnedImage = nil
+            isPinned = false
+            // 更新 CaptureManager 中的状态
+            CaptureManager.shared.updatePinnedDrawingImage(nil)
+            CaptureManager.shared.isPinnedDrawingActive = false
+            NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
+            // 发送退出绘画模式的通知
+            NotificationCenter.default.post(name: DrawingCanvasView.exitDrawingNotification, object: nil)
         }
     }
     
@@ -610,6 +668,7 @@ struct DrawingCanvasView: View {
                                             withAnimation {
                                                 pinnedImage = image
                                                 isPinned = true
+                                                selectedTemplate = nil
                                                 // 更新CaptureManager中的绘画图片
                                                 CaptureManager.shared.updatePinnedDrawingImage(image)
                                             }
@@ -692,7 +751,7 @@ struct DrawingCanvasView: View {
                                                 textInputPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height/2)
                                                 showTextInput = true
                                             }) {
-                                                Image(systemName: "text.bubble")
+                                                Image(systemName: "textformat")
                                                     .font(.system(size: 24))
                                                     .foregroundColor(.white)
                                             }
@@ -701,12 +760,14 @@ struct DrawingCanvasView: View {
                                             
                                             // 模板选择按钮
                                             Button(action: {
-                                                // TODO: 实现模板选择功能
+                                                showTemplateView = true
                                             }) {
-                                                Image(systemName: "square.on.square")
+                                                Image(systemName: "heart.square.fill")
                                                     .font(.system(size: 24))
                                                     .foregroundColor(.white)
                                             }
+                                            .disabled(hasUnconfirmedShape)
+                                            .opacity(hasUnconfirmedShape ? 0.5 : 1)
                                         }
                                         .padding(.trailing, 8)
                                     }
@@ -752,20 +813,40 @@ struct DrawingCanvasView: View {
                                     .transition(.opacity)
                                 }
                             }
-                        } else {
-                            // 固定模式下的关闭按钮
-                            HStack {
-                                Spacer()
-                                Button(action: {
-                                    showDeleteAlert = true  // 显示删除确认弹窗
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.white)
-                                }
-                                .padding()
+                            
+                            // 添加模板选择视图
+                            if showTemplateView {
+                                Color.black.opacity(0.3)
+                                    .edgesIgnoringSafeArea(.all)
+                                    .overlay(
+                                        DrawingTemplateView(
+                                            isPresented: $showTemplateView,
+                                            onTemplateSelected: { template in
+                                                if let image = template.image {
+                                                    // 清空当前画布
+                                                    lines.removeAll()
+                                                    currentLine = nil
+                                                    
+                                                    // 设置模板图片并执行pin
+                                                    pinnedImage = image
+                                                    isPinned = true
+                                                    selectedTemplate = template
+                                                    
+                                                    // 更新CaptureManager中的状态
+                                                    CaptureManager.shared.updatePinnedDrawingImage(image)
+                                                    CaptureManager.shared.isPinnedDrawingActive = true
+                                                    
+                                                    // 发送显示工具栏的通知
+                                                    NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
+                                                }
+                                            }
+                                        )
+                                        .position(x: geometry.size.width/2, y: geometry.size.height/3 - 50)
+                                    )
                             }
-                            .padding(.top, 40)
+                        } else {
+                            // 固定模式下的工具栏
+                            pinnedToolbar(geometry)
                         }
                         
                         Spacer()
@@ -774,94 +855,33 @@ struct DrawingCanvasView: View {
                 
                 // 修改提示视图
                 if showSizeAlert {
-                    Text(sizeAlertMessage)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.black.opacity(0.7))
-                        .cornerRadius(8)
-                        .transition(.opacity)
+                    sizeAlertView
                 }
             }
         }
         .ignoresSafeArea()
-        // 添加文字输入弹窗
-        .overlay(
-            Group {
-                if showTextInput {
-                    Color.black.opacity(0.3)
-                        .edgesIgnoringSafeArea(.all)
-                        .overlay(
-                            TextInputDialog(
-                                isPresented: $showTextInput,
-                                text: $inputText,
-                                onConfirm: { text, alignment in
-                                    // 创建文字形状
-                                    var line = Line(points: [textInputPosition], settings: brushSettings)
-                                    line.isShape = true
-                                    
-                                    // 计算文本行数
-                                    let textLines = text.components(separatedBy: "\n")
-                                    let maxCharsPerLine = 9 // 每行最大字符数
-                                    
-                                    // 计算实际需要的行数
-                                    var totalLines = 0
-                                    for textLine in textLines {
-                                        if textLine.isEmpty {
-                                            totalLines += 1
-                                        } else {
-                                            let chars = textLine.count
-                                            let linesForThisText = (chars + maxCharsPerLine - 1) / maxCharsPerLine
-                                            totalLines += linesForThisText
-                                        }
-                                    }
-                                    
-                                    // 计算合适的矩形尺寸
-                                    let charWidth: CGFloat = 10 // 每个字符的估计宽度
-                                    let lineHeight: CGFloat = 10 // 每行的估计高度
-                                    let horizontalPadding: CGFloat = 10 // 左右边距
-                                    let verticalPadding: CGFloat = 8 // 上下边距
-                                    
-                                    let width = charWidth * CGFloat(maxCharsPerLine) + horizontalPadding * 2
-                                    let height = lineHeight * CGFloat(totalLines) + verticalPadding * 2
-                                    
-                                    // 创建边界矩形
-                                    let rectX = textInputPosition.x - width/2
-                                    let rectY = textInputPosition.y - height/2
-                                    line.boundingRect = CGRect(x: rectX, y: rectY, width: width, height: height)
-                                    
-                                    line.settings.shapeType = .text(text)
-                                    line.settings.shapeDrawingMode = .stroke
-                                    line.settings.opacity = 1.0
-                                    line.settings.textAlignment = alignment
-                                    line.isConfirmed = false
-                                    lines.append(line)
-                                    inputText = ""
-                                    
-                                    // 切换到形状工具以便编辑
-                                    currentTool = .shape
-                                }
-                            )
-                            .frame(width: 250)  // 减小宽度
-                            .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height / 4)  // 移动到屏幕上方 1/4 处
-                        )
-                }
+        .overlay(textInputOverlay)
+        .alert("保存为模板", isPresented: $showSaveTemplateAlert) {
+            Button("取消", role: .cancel) { }
+            Button("确定") {
+                saveNewTemplate()
             }
-        )
+        } message: {
+            Text("是否将此绘画作品加入模板？")
+        }
+        .alert("覆盖模板", isPresented: $showOverrideTemplateAlert) {
+            Button("取消", role: .cancel) { }
+            Button("确定", role: .destructive) {
+                saveAsTemplate(at: templateManager.templates.count - 1)
+            }
+        } message: {
+            Text("所有模板位置已满，继续操作将覆盖最后一个模板，是否继续？")
+        }
         // 添加确认弹窗
         .alert("确认退出", isPresented: $showExitAlert) {
             Button("取消", role: .cancel) { }
             Button("确定", role: .destructive) {
-                withAnimation {
-                    isVisible = false
-                    lines.removeAll()
-                    currentLine = nil
-                    pinnedImage = nil
-                    isPinned = false
-                    // 更新 CaptureManager 中的状态
-                    CaptureManager.shared.updatePinnedDrawingImage(nil)
-                    CaptureManager.shared.isPinnedDrawingActive = false
-                    NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
-                }
+                handleExitDrawing()
             }
         } message: {
             Text("确定退出绘画模式吗？")
@@ -870,15 +890,7 @@ struct DrawingCanvasView: View {
         .alert("确认删除", isPresented: $showDeleteAlert) {
             Button("取消", role: .cancel) { }
             Button("确定", role: .destructive) {
-                withAnimation {
-                    isVisible = false
-                    isPinned = false
-                    pinnedImage = nil
-                    // 更新 CaptureManager 中的状态
-                    CaptureManager.shared.updatePinnedDrawingImage(nil)
-                    CaptureManager.shared.isPinnedDrawingActive = false
-                    NotificationCenter.default.post(name: NSNotification.Name("ShowToolbars"), object: nil)
-                }
+                handleExitDrawing()
             }
         } message: {
             Text("此操作将删除绘画作品")
@@ -921,6 +933,172 @@ struct DrawingCanvasView: View {
             // 清理定时器
             alertTimer?.invalidate()
             alertTimer = nil
+        }
+    }
+    
+    // MARK: - 子视图
+    
+    // 固定模式下的工具栏
+    private func pinnedToolbar(_ geometry: GeometryProxy) -> some View {
+        HStack(spacing: 4) {  // 减小spacing值
+            Spacer()
+            
+            // 保存按钮
+            saveButton
+            
+            // 关闭按钮
+            closeButton
+        }
+        .padding(.top, 40)
+        .padding(.trailing, 10)  // 添加右侧padding
+    }
+    
+    // 保存按钮
+    private var saveButton: some View {
+        Button(action: handleSaveButtonTap) {
+            Image(systemName: "square.and.arrow.down.on.square.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 4)  // 减小水平padding
+    }
+    
+    // 关闭按钮
+    private var closeButton: some View {
+        Button(action: {
+            showDeleteAlert = true
+        }) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 4)  // 减小水平padding
+    }
+    
+    // 大小提示视图
+    private var sizeAlertView: some View {
+        Text(sizeAlertMessage)
+            .foregroundColor(.white)
+            .padding()
+            .background(Color.black.opacity(0.7))
+            .cornerRadius(8)
+            .transition(.opacity)
+    }
+    
+    // 文字输入覆盖层
+    private var textInputOverlay: some View {
+        Group {
+            if showTextInput {
+                Color.black.opacity(0.3)
+                    .edgesIgnoringSafeArea(.all)
+                    .overlay(
+                        TextInputDialog(
+                            isPresented: $showTextInput,
+                            text: $inputText,
+                            onConfirm: { text, alignment in
+                                handleTextInput(text: text, alignment: alignment)
+                            }
+                        )
+                        .frame(width: 250)
+                        .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height / 4)
+                    )
+            }
+        }
+    }
+    
+    // MARK: - 辅助方法
+    
+    // 处理保存按钮点击
+    private func handleSaveButtonTap() {
+        // 检查是否是从模板应用的
+        if selectedTemplate != nil {
+            showAlert("已经是模板啦")
+            return
+        }
+        
+        // 检查是否有可用的模板位置
+        if !templateManager.hasAvailableSlot {
+            showAlert("模板位置已满！")
+            return
+        }
+        
+        showSaveTemplateAlert = true
+    }
+    
+    // 保存新模板
+    private func saveNewTemplate() {
+        if let index = templateManager.templates.firstIndex(where: { $0.image == nil }) {
+            saveAsTemplate(at: index)
+        }
+    }
+    
+    // 处理文字输入
+    private func handleTextInput(text: String, alignment: CustomTextAlignment) {
+        var line = Line(points: [textInputPosition], settings: brushSettings)
+        line.isShape = true
+        
+        // 计算文本行数和尺寸
+        let textLines = text.components(separatedBy: "\n")
+        let maxCharsPerLine = 9
+        let totalLines = calculateTotalLines(textLines: textLines, maxCharsPerLine: maxCharsPerLine)
+        
+        // 创建边界矩形
+        let rect = calculateTextRect(totalLines: totalLines, maxCharsPerLine: maxCharsPerLine)
+        line.boundingRect = rect
+        
+        // 设置文本属性
+        line.settings.shapeType = .text(text)
+        line.settings.shapeDrawingMode = .stroke
+        line.settings.opacity = 1.0
+        line.settings.textAlignment = alignment
+        line.isConfirmed = false
+        
+        // 添加到线条数组
+        lines.append(line)
+        inputText = ""
+        
+        // 切换到形状工具
+        currentTool = .shape
+    }
+    
+    // 计算总行数
+    private func calculateTotalLines(textLines: [String], maxCharsPerLine: Int) -> Int {
+        var totalLines = 0
+        for textLine in textLines {
+            if textLine.isEmpty {
+                totalLines += 1
+            } else {
+                let chars = textLine.count
+                let linesForThisText = (chars + maxCharsPerLine - 1) / maxCharsPerLine
+                totalLines += linesForThisText
+            }
+        }
+        return totalLines
+    }
+    
+    // 计算文本矩形
+    private func calculateTextRect(totalLines: Int, maxCharsPerLine: Int) -> CGRect {
+        let charWidth: CGFloat = 10
+        let lineHeight: CGFloat = 10
+        let horizontalPadding: CGFloat = 10
+        let verticalPadding: CGFloat = 8
+        
+        let width = charWidth * CGFloat(maxCharsPerLine) + horizontalPadding * 2
+        let height = lineHeight * CGFloat(totalLines) + verticalPadding * 2
+        
+        return CGRect(
+            x: textInputPosition.x - width/2,
+            y: textInputPosition.y - height/2,
+            width: width,
+            height: height
+        )
+    }
+    
+    // 保存为模板
+    private func saveAsTemplate(at index: Int) {
+        if let image = DrawingRenderer.renderDrawingToImage(lines: lines, size: UIScreen.main.bounds.size) {
+            templateManager.saveTemplateAt(image: image, index: index)
+            showAlert("保存模板成功")
         }
     }
     

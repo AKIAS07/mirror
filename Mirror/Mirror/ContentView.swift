@@ -361,9 +361,9 @@ struct ContentView: View {
                                     // 使用 RealModeController 切换状态
                                     realModeController.toggleRealMode()
                                 }) {
-                                    Image(systemName: realModeController.isRealModeEnabled ? "r.circle.fill" : "r.circle")
+                                    Image(systemName: "r.circle.fill" )
                                         .font(.system(size: 20))
-                                        .foregroundColor(styleManager.iconColor)
+                                        .foregroundColor(realModeController.isRealModeEnabled ? styleManager.iconColor : styleManager.iconColor.opacity(0.5))
                                         .frame(width: 44, height: 44)
                                         .background(Color.black.opacity(0.15))
                                         .clipShape(Circle())
