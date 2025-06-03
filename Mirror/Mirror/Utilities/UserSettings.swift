@@ -275,15 +275,15 @@ class UserSettingsManager {
             }
         }
         
-        print("- 网格间距：\(spacing == 0 ? 15 : spacing)")
+        print("- 网格间距：\(spacing == 0 ? 5 : spacing)")
         print("- 线条颜色：\(color)")
-        print("- 线条透明度：\(opacity == 0 ? 0.2 : opacity)")
+        print("- 线条透明度：\(opacity == 0 ? 0.1 : opacity)")
         print("------------------------")
         
         return (
-            spacing: spacing == 0 ? 15 : spacing,
+            spacing: spacing == 0 ? 5 : spacing,
             color: color,
-            opacity: opacity == 0 ? 0.2 : opacity
+            opacity: opacity == 0 ? 0.1 : opacity
         )
     }
     

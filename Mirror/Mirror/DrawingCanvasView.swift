@@ -1,6 +1,73 @@
 import SwiftUI
 import UIKit
 
+// 文字输入弹窗视图
+struct TextInputDialog: View {
+    @Binding var isPresented: Bool
+    @Binding var text: String
+    let onConfirm: (String, CustomTextAlignment) -> Void
+    @State private var selectedAlignment: CustomTextAlignment = .center
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            Text("请输入文字")
+                .font(.headline)
+                .padding(.top, 8)
+            
+            TextEditor(text: $text)
+                .frame(height: 60)
+                .frame(width: 180)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.gray, lineWidth: 1)
+                )
+                .padding(.horizontal, 8)
+            
+            // 对齐方式按钮组
+            HStack(spacing: 15) {
+                Button(action: { selectedAlignment = CustomTextAlignment.left }) {
+                    Image(systemName: "text.alignleft")
+                        .foregroundColor(selectedAlignment == CustomTextAlignment.left ? .blue : .gray)
+                }
+                
+                Button(action: { selectedAlignment = CustomTextAlignment.center }) {
+                    Image(systemName: "text.aligncenter")
+                        .foregroundColor(selectedAlignment == CustomTextAlignment.center ? .blue : .gray)
+                }
+                
+                Button(action: { selectedAlignment = CustomTextAlignment.right }) {
+                    Image(systemName: "text.alignright")
+                        .foregroundColor(selectedAlignment == CustomTextAlignment.right ? .blue : .gray)
+                }
+            }
+            .font(.system(size: 20))
+            .padding(.vertical, 4)
+            
+            HStack(spacing: 12) {
+                Button("取消") {
+                    isPresented = false
+                }
+                .foregroundColor(.red)
+                .font(.system(size: 14))
+                
+                Spacer()
+                
+                Button("确认") {
+                    onConfirm(text, selectedAlignment)
+                    isPresented = false
+                }
+                .foregroundColor(.blue)
+                .font(.system(size: 14))
+            }
+            .padding(.horizontal, 8)
+        }
+        .padding(8)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(radius: 8)
+    }
+}
+
 // 预设颜色选择器视图
 struct ColorPickerView: View {
     @Binding var selectedColor: Color
@@ -77,21 +144,6 @@ struct ColorPickerView: View {
     }
 }
 
-// 形状类型枚举
-enum ShapeType {
-    case rectangle
-    case circle
-    case heart
-    case cross
-    case star
-}
-
-// 形状绘制模式
-enum ShapeDrawingMode {
-    case stroke
-    case fill
-}
-
 // 形状选择器视图
 struct ShapePickerView: View {
     @Binding var selectedShape: ShapeType
@@ -107,6 +159,52 @@ struct ShapePickerView: View {
         (.cross, "plus"),
         (.star, "icon-star")
     ]
+    
+    private func shapeButton(shape: (ShapeType, String)) -> some View {
+        Button(action: {
+            if canSelectShape {
+                selectedShape = shape.0
+                withAnimation {
+                    isExpanded = false
+                }
+            }
+        }) {
+            Group {
+                if shape.0 == .star {
+                    Image("icon-star")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 20, height: 20)
+                } else {
+                    Image(systemName: shape.1)
+                        .font(.system(size: 20))
+                }
+            }
+            .foregroundColor(.white)
+            .frame(width: 32, height: 32)
+            .background(selectedShape == shape.0 ? Color.white.opacity(0.3) : Color.clear)
+            .cornerRadius(8)
+            .scaleEffect(selectedShape == shape.0 ? 1.2 : 1.0)
+        }
+        .disabled(!canSelectShape)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedShape)
+    }
+    
+    private func modeButton(mode: ShapeDrawingMode) -> some View {
+        Button(action: {
+            if canSelectShape {
+                selectedMode = mode
+            }
+        }) {
+            Image(systemName: mode == .stroke ? "rectangle" : "rectangle.fill")
+                .font(.system(size: 20))
+                .foregroundColor(selectedMode == mode ? .blue : .white)
+                .frame(width: 32, height: 32)
+                .background(selectedMode == mode ? Color.white.opacity(0.3) : Color.clear)
+                .cornerRadius(8)
+        }
+        .disabled(!canSelectShape)
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -129,36 +227,7 @@ struct ShapePickerView: View {
                 // 形状选择
                 HStack(spacing: 16) {
                     ForEach(shapes, id: \.0) { shape in
-                        Button(action: {
-                            if canSelectShape {
-                                selectedShape = shape.0
-                                withAnimation {
-                                    isExpanded = false
-                                }
-                            }
-                        }) {
-                            if shape.0 == .star {
-                                Image("icon-star")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 20, height: 20)
-                                    .foregroundColor(.white)  // 始终保持白色
-                                    .frame(width: 32, height: 32)
-                                    .background(selectedShape == shape.0 ? Color.white.opacity(0.3) : Color.clear)
-                                    .cornerRadius(8)
-                                    .scaleEffect(selectedShape == shape.0 ? 1.2 : 1.0)
-                            } else {
-                                Image(systemName: shape.1)
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.white)  // 始终保持白色
-                                    .frame(width: 32, height: 32)
-                                    .background(selectedShape == shape.0 ? Color.white.opacity(0.3) : Color.clear)
-                                    .cornerRadius(8)
-                                    .scaleEffect(selectedShape == shape.0 ? 1.2 : 1.0)
-                            }
-                        }
-                        .disabled(!canSelectShape)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedShape)
+                        shapeButton(shape: shape)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -167,33 +236,8 @@ struct ShapePickerView: View {
                 
                 // 绘制模式选择
                 HStack(spacing: 16) {
-                    Button(action: {
-                        if canSelectShape {
-                            selectedMode = .stroke
-                        }
-                    }) {
-                        Image(systemName: "rectangle")
-                            .font(.system(size: 20))
-                            .foregroundColor(selectedMode == .stroke ? .blue : .white)
-                            .frame(width: 32, height: 32)
-                            .background(selectedMode == .stroke ? Color.white.opacity(0.3) : Color.clear)
-                            .cornerRadius(8)
-                    }
-                    .disabled(!canSelectShape)
-                    
-                    Button(action: {
-                        if canSelectShape {
-                            selectedMode = .fill
-                        }
-                    }) {
-                        Image(systemName: "rectangle.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(selectedMode == .fill ? .blue : .white)
-                            .frame(width: 32, height: 32)
-                            .background(selectedMode == .fill ? Color.white.opacity(0.3) : Color.clear)
-                            .cornerRadius(8)
-                    }
-                    .disabled(!canSelectShape)
+                    modeButton(mode: .stroke)
+                    modeButton(mode: .fill)
                 }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 8)
@@ -213,8 +257,9 @@ struct BrushSettings {
     var lineWidth: CGFloat = 10
     var opacity: Double = 0.5
     var isEraser: Bool = false
-    var shapeType: ShapeType = .rectangle  // 修改默认形状为矩形
+    var shapeType: ShapeType = .rectangle
     var shapeDrawingMode: ShapeDrawingMode = .fill
+    var textAlignment: CustomTextAlignment = CustomTextAlignment.center
 }
 
 // 绘画线条结构体
@@ -242,6 +287,11 @@ struct DrawingCanvasView: View {
     // 修改提示信息状态
     @State private var showSizeAlert = false
     @State private var sizeAlertMessage = ""
+    
+    // 添加文字输入相关状态
+    @State private var showTextInput = false
+    @State private var inputText = ""
+    @State private var textInputPosition: CGPoint = .zero
     
     @Binding var isVisible: Bool
     @Binding var isPinned: Bool
@@ -310,6 +360,98 @@ struct DrawingCanvasView: View {
         }
     }
     
+    // 添加手势状态处理函数
+    private func handleDragging(_ translation: CGPoint) {
+        if let lastIndex = lines.indices.last,
+           lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
+            var updatedLine = lines[lastIndex]
+            updatedLine.position.x += translation.x
+            updatedLine.position.y += translation.y
+            lines[lastIndex] = updatedLine
+        }
+    }
+    
+    private func handleScaling(_ scale: CGFloat) {
+        if let lastIndex = lines.indices.last,
+           lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
+            var updatedLine = lines[lastIndex]
+            if let rect = updatedLine.boundingRect {
+                let newScale = updatedLine.scale * scale
+                switch ShapeSizeValidator.validateRect(rect, scale: newScale) {
+                case .success:
+                    let worldCenterX = rect.midX * updatedLine.scale + updatedLine.position.x
+                    let worldCenterY = rect.midY * updatedLine.scale + updatedLine.position.y
+                    
+                    updatedLine.scale = newScale
+                    updatedLine.position.x = worldCenterX - (rect.midX * newScale)
+                    updatedLine.position.y = worldCenterY - (rect.midY * newScale)
+                    
+                    lines[lastIndex] = updatedLine
+                case .failure(let error):
+                    showAlert(error.rawValue)
+                }
+            }
+        }
+    }
+    
+    private func handleResizing(edge: ResizeEdge, translation: CGPoint) {
+        if let lastIndex = lines.indices.last,
+           lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
+            var updatedLine = lines[lastIndex]
+            if var rect = updatedLine.boundingRect {
+                // 保存原始中心点
+                let originalCenterX = rect.midX * updatedLine.scale + updatedLine.position.x
+                let originalCenterY = rect.midY * updatedLine.scale + updatedLine.position.y
+                
+                // 根据拉伸边缘调整矩形
+                switch edge {
+                case .top:
+                    let heightChange = -translation.y / updatedLine.scale
+                    rect = CGRect(x: rect.minX, y: rect.minY - heightChange,
+                                width: rect.width, height: rect.height + heightChange)
+                case .bottom:
+                    let heightChange = translation.y / updatedLine.scale
+                    rect = CGRect(x: rect.minX, y: rect.minY,
+                                width: rect.width, height: rect.height + heightChange)
+                case .left:
+                    let widthChange = -translation.x / updatedLine.scale
+                    rect = CGRect(x: rect.minX - widthChange, y: rect.minY,
+                                width: rect.width + widthChange, height: rect.height)
+                case .right:
+                    let widthChange = translation.x / updatedLine.scale
+                    rect = CGRect(x: rect.minX, y: rect.minY,
+                                width: rect.width + widthChange, height: rect.height)
+                }
+                
+                // 验证新的尺寸
+                switch ShapeSizeValidator.validateRect(rect) {
+                case .success:
+                    // 计算新的中心点
+                    let newCenterX = rect.midX * updatedLine.scale
+                    let newCenterY = rect.midY * updatedLine.scale
+                    
+                    // 调整位置以保持中心点不变
+                    updatedLine.position.x = originalCenterX - newCenterX
+                    updatedLine.position.y = originalCenterY - newCenterY
+                    updatedLine.boundingRect = rect
+                    
+                    lines[lastIndex] = updatedLine
+                case .failure(let error):
+                    showAlert(error.rawValue)
+                }
+            }
+        }
+    }
+    
+    private func handleTapping() {
+        if let lastIndex = lines.indices.last,
+           lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
+            var updatedLine = lines[lastIndex]
+            updatedLine.isConfirmed = true
+            lines[lastIndex] = updatedLine
+        }
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -335,100 +477,19 @@ struct DrawingCanvasView: View {
                             
                             switch state {
                             case .dragging(let translation):
-                                if let lastIndex = lines.indices.last,
-                                   lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
-                                    var updatedLine = lines[lastIndex]
-                                    updatedLine.position.x += translation.x
-                                    updatedLine.position.y += translation.y
-                                    lines[lastIndex] = updatedLine
-                                }
-                                
+                                handleDragging(translation)
                             case .scaling(let scale):
-                                if let lastIndex = lines.indices.last,
-                                   lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
-                                    var updatedLine = lines[lastIndex]
-                                    if let rect = updatedLine.boundingRect {
-                                        let newScale = updatedLine.scale * scale
-                                        switch ShapeSizeValidator.validateRect(rect, scale: newScale) {
-                                        case .success:
-                                            let worldCenterX = rect.midX * updatedLine.scale + updatedLine.position.x
-                                            let worldCenterY = rect.midY * updatedLine.scale + updatedLine.position.y
-                                            
-                                            updatedLine.scale = newScale
-                                            updatedLine.position.x = worldCenterX - (rect.midX * newScale)
-                                            updatedLine.position.y = worldCenterY - (rect.midY * newScale)
-                                            
-                                            lines[lastIndex] = updatedLine
-                                        case .failure(let error):
-                                            showAlert(error.rawValue)
-                                        }
-                                    }
-                                }
-                                
+                                handleScaling(scale)
                             case .resizing(let edge, let translation):
-                                if let lastIndex = lines.indices.last,
-                                   lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
-                                    var updatedLine = lines[lastIndex]
-                                    if var rect = updatedLine.boundingRect {
-                                        // 保存原始中心点
-                                        let originalCenterX = rect.midX * updatedLine.scale + updatedLine.position.x
-                                        let originalCenterY = rect.midY * updatedLine.scale + updatedLine.position.y
-                                        
-                                        // 根据拉伸边缘调整矩形
-                                        switch edge {
-                                        case .top:
-                                            let heightChange = -translation.y / updatedLine.scale
-                                            rect = CGRect(x: rect.minX, y: rect.minY - heightChange,
-                                                        width: rect.width, height: rect.height + heightChange)
-                                        case .bottom:
-                                            let heightChange = translation.y / updatedLine.scale
-                                            rect = CGRect(x: rect.minX, y: rect.minY,
-                                                        width: rect.width, height: rect.height + heightChange)
-                                        case .left:
-                                            let widthChange = -translation.x / updatedLine.scale
-                                            rect = CGRect(x: rect.minX - widthChange, y: rect.minY,
-                                                        width: rect.width + widthChange, height: rect.height)
-                                        case .right:
-                                            let widthChange = translation.x / updatedLine.scale
-                                            rect = CGRect(x: rect.minX, y: rect.minY,
-                                                        width: rect.width + widthChange, height: rect.height)
-                                        }
-                                        
-                                        // 验证新的尺寸
-                                        switch ShapeSizeValidator.validateRect(rect) {
-                                        case .success:
-                                            // 计算新的中心点
-                                            let newCenterX = rect.midX * updatedLine.scale
-                                            let newCenterY = rect.midY * updatedLine.scale
-                                            
-                                            // 调整位置以保持中心点不变
-                                            updatedLine.position.x = originalCenterX - newCenterX
-                                            updatedLine.position.y = originalCenterY - newCenterY
-                                            updatedLine.boundingRect = rect
-                                            
-                                            lines[lastIndex] = updatedLine
-                                        case .failure(let error):
-                                            showAlert(error.rawValue)
-                                        }
-                                    }
-                                }
-                                
+                                handleResizing(edge: edge, translation: translation)
                             case .tapping:
-                                if let lastIndex = lines.indices.last,
-                                   lines[lastIndex].isShape && !lines[lastIndex].isConfirmed {
-                                    var updatedLine = lines[lastIndex]
-                                    updatedLine.isConfirmed = true
-                                    lines[lastIndex] = updatedLine
-                                }
-                                
+                                handleTapping()
                             case .none:
                                 break
-                            
                             case .invalidSize(let message):
                                 showAlert(message)
-                                
                             case .prepareResizing:
-                                break  // 准备拉伸状态不需要额外处理，只需要更新视觉反馈
+                                break
                             }
                         }
                     )
@@ -576,47 +637,78 @@ struct DrawingCanvasView: View {
                                 if currentTool != .eraser {
                                     // 画笔和形状的属性设置
                                     HStack(spacing: 20) {
-                                        // 线条粗细滑块
-                                        HStack {
-                                            Image(systemName: "line.horizontal.3")
-                                                .foregroundColor(.white)
-                                            Slider(value: $brushSettings.lineWidth, in: 1...20)
-                                                .frame(width: 100)
-                                        }
-                                        
-                                        // 透明度滑块
-                                        HStack {
-                                            Image(systemName: "circle.bottomhalf.filled")
-                                                .foregroundColor(.white)
-                                            Slider(value: $brushSettings.opacity, in: 0.1...1)
-                                                .frame(width: 100)
-                                        }
-                                        
-                                        // 颜色选择按钮
-                                        Button(action: {
-                                            withAnimation(.easeInOut(duration: 0.2)) {
-                                                showColorPicker.toggle()
-                                                if showColorPicker {
-                                                    showShapePicker = false
-                                                }
+                                        // 线条粗细和不透明度控制
+                                        VStack(spacing: 12) {
+                                            // 线条粗细滑块
+                                            HStack {
+                                                Image(systemName: "line.horizontal.3")
+                                                    .foregroundColor(.white)
+                                                Slider(value: $brushSettings.lineWidth, in: 1...20)
+                                                    .frame(width: 100)
                                             }
-                                        }) {
-                                            Circle()
-                                                .fill(brushSettings.color)
-                                                .frame(width: 30, height: 30)
-                                                .overlay(
-                                                    Circle()
-                                                        .stroke(Color.white, lineWidth: 2)
-                                                )
-                                        }
-                                        .background(
-                                            GeometryReader { geo -> Color in
-                                                DispatchQueue.main.async {
-                                                    colorButtonFrame = geo.frame(in: .global)
-                                                }
-                                                return Color.clear
+                                            
+                                            // 透明度滑块
+                                            HStack {
+                                                Image(systemName: "circle.bottomhalf.filled")
+                                                    .foregroundColor(.white)
+                                                Slider(value: $brushSettings.opacity, in: 0.1...1)
+                                                    .frame(width: 100)
                                             }
-                                        )
+                                        }
+                                        .padding(.leading, 8)
+                                        
+                                        Spacer()
+                                        
+                                        // 功能按钮组
+                                        HStack(spacing: 20) {
+                                            // 颜色选择按钮
+                                            Button(action: {
+                                                withAnimation(.easeInOut(duration: 0.2)) {
+                                                    showColorPicker.toggle()
+                                                    if showColorPicker {
+                                                        showShapePicker = false
+                                                    }
+                                                }
+                                            }) {
+                                                Circle()
+                                                    .fill(brushSettings.color)
+                                                    .frame(width: 30, height: 30)
+                                                    .overlay(
+                                                        Circle()
+                                                            .stroke(Color.white, lineWidth: 2)
+                                                    )
+                                            }
+                                            .background(
+                                                GeometryReader { geo -> Color in
+                                                    DispatchQueue.main.async {
+                                                        colorButtonFrame = geo.frame(in: .global)
+                                                    }
+                                                    return Color.clear
+                                                }
+                                            )
+                                            
+                                            // 文字添加按钮
+                                            Button(action: {
+                                                textInputPosition = CGPoint(x: geometry.size.width/2, y: geometry.size.height/2)
+                                                showTextInput = true
+                                            }) {
+                                                Image(systemName: "text.bubble")
+                                                    .font(.system(size: 24))
+                                                    .foregroundColor(.white)
+                                            }
+                                            .disabled(hasUnconfirmedShape)
+                                            .opacity(hasUnconfirmedShape ? 0.5 : 1)
+                                            
+                                            // 模板选择按钮
+                                            Button(action: {
+                                                // TODO: 实现模板选择功能
+                                            }) {
+                                                Image(systemName: "square.on.square")
+                                                    .font(.system(size: 24))
+                                                    .foregroundColor(.white)
+                                            }
+                                        }
+                                        .padding(.trailing, 8)
                                     }
                                     .frame(maxWidth: .infinity)
                                 } else {
@@ -627,6 +719,7 @@ struct DrawingCanvasView: View {
                                         Slider(value: $brushSettings.lineWidth, in: 1...40)
                                             .frame(width: 200)
                                     }
+                                    .padding(.horizontal)
                                     .frame(maxWidth: .infinity)
                                 }
                             }
@@ -691,6 +784,69 @@ struct DrawingCanvasView: View {
             }
         }
         .ignoresSafeArea()
+        // 添加文字输入弹窗
+        .overlay(
+            Group {
+                if showTextInput {
+                    Color.black.opacity(0.3)
+                        .edgesIgnoringSafeArea(.all)
+                        .overlay(
+                            TextInputDialog(
+                                isPresented: $showTextInput,
+                                text: $inputText,
+                                onConfirm: { text, alignment in
+                                    // 创建文字形状
+                                    var line = Line(points: [textInputPosition], settings: brushSettings)
+                                    line.isShape = true
+                                    
+                                    // 计算文本行数
+                                    let textLines = text.components(separatedBy: "\n")
+                                    let maxCharsPerLine = 9 // 每行最大字符数
+                                    
+                                    // 计算实际需要的行数
+                                    var totalLines = 0
+                                    for textLine in textLines {
+                                        if textLine.isEmpty {
+                                            totalLines += 1
+                                        } else {
+                                            let chars = textLine.count
+                                            let linesForThisText = (chars + maxCharsPerLine - 1) / maxCharsPerLine
+                                            totalLines += linesForThisText
+                                        }
+                                    }
+                                    
+                                    // 计算合适的矩形尺寸
+                                    let charWidth: CGFloat = 10 // 每个字符的估计宽度
+                                    let lineHeight: CGFloat = 10 // 每行的估计高度
+                                    let horizontalPadding: CGFloat = 10 // 左右边距
+                                    let verticalPadding: CGFloat = 8 // 上下边距
+                                    
+                                    let width = charWidth * CGFloat(maxCharsPerLine) + horizontalPadding * 2
+                                    let height = lineHeight * CGFloat(totalLines) + verticalPadding * 2
+                                    
+                                    // 创建边界矩形
+                                    let rectX = textInputPosition.x - width/2
+                                    let rectY = textInputPosition.y - height/2
+                                    line.boundingRect = CGRect(x: rectX, y: rectY, width: width, height: height)
+                                    
+                                    line.settings.shapeType = .text(text)
+                                    line.settings.shapeDrawingMode = .stroke
+                                    line.settings.opacity = 1.0
+                                    line.settings.textAlignment = alignment
+                                    line.isConfirmed = false
+                                    lines.append(line)
+                                    inputText = ""
+                                    
+                                    // 切换到形状工具以便编辑
+                                    currentTool = .shape
+                                }
+                            )
+                            .frame(width: 250)  // 减小宽度
+                            .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height / 4)  // 移动到屏幕上方 1/4 处
+                        )
+                }
+            }
+        )
         // 添加确认弹窗
         .alert("确认退出", isPresented: $showExitAlert) {
             Button("取消", role: .cancel) { }
@@ -781,6 +937,8 @@ struct DrawingCanvasView: View {
             return "plus"
         case .star:
             return "icon-star"
+        case .text:
+            return "text.bubble"
         }
     }
     

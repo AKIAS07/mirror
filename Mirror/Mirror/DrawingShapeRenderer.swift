@@ -15,6 +15,10 @@ struct DrawingShapeRenderer {
         var path = Path()
         
         switch type {
+        case .text(let text):
+            TextRenderer.renderText(text, in: rect, with: settings, context: context, alignment: settings.textAlignment, scaleFactors: scaleFactors)
+            return
+            
         case .rectangle:
             path = Path(rect)
             
@@ -129,11 +133,15 @@ struct DrawingShapeRenderer {
     }
     
     // MARK: - UIKit Context 渲染
-    static func drawShape(_ shape: ShapeType, in rect: CGRect, with settings: BrushSettings, in context: CGContext) {
+    static func drawShape(_ shape: ShapeType, in rect: CGRect, with settings: BrushSettings, in context: CGContext, scaleFactors: (x: CGFloat, y: CGFloat) = (x: 1.0, y: 1.0)) {
         let uiColor = UIColor(settings.color)
         let colorWithAlpha = uiColor.withAlphaComponent(settings.opacity)
         
         switch shape {
+        case .text(let text):
+            TextRenderer.drawText(text, in: rect, with: settings, in: context, alignment: settings.textAlignment, scaleFactors: scaleFactors)
+            return
+            
         case .rectangle:
             let path = UIBezierPath(rect: rect)
             path.lineWidth = settings.lineWidth

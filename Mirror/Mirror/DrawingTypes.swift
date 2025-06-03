@@ -2,6 +2,72 @@ import SwiftUI
 import Foundation
 import UIKit
 
+// 文本对齐方式
+public enum CustomTextAlignment {
+    case left
+    case center
+    case right
+    
+    public var nsTextAlignment: NSTextAlignment {
+        switch self {
+        case .left: return .left
+        case .center: return .center
+        case .right: return .right
+        }
+    }
+}
+
+// 形状类型枚举
+public enum ShapeType: Equatable, Hashable {
+    case rectangle
+    case circle
+    case heart
+    case cross
+    case star
+    case text(String)  // 添加文字类型
+    
+    // 实现 Hashable
+    public func hash(into hasher: inout Hasher) {
+        switch self {
+        case .rectangle:
+            hasher.combine(0)
+        case .circle:
+            hasher.combine(1)
+        case .heart:
+            hasher.combine(2)
+        case .cross:
+            hasher.combine(3)
+        case .star:
+            hasher.combine(4)
+        case .text(let string):
+            hasher.combine(5)
+            hasher.combine(string)
+        }
+    }
+    
+    // 实现 Equatable
+    public static func == (lhs: ShapeType, rhs: ShapeType) -> Bool {
+        switch (lhs, rhs) {
+        case (.rectangle, .rectangle),
+             (.circle, .circle),
+             (.heart, .heart),
+             (.cross, .cross),
+             (.star, .star):
+            return true
+        case (.text(let lhs), .text(let rhs)):
+            return lhs == rhs
+        default:
+            return false
+        }
+    }
+}
+
+// 形状绘制模式
+public enum ShapeDrawingMode {
+    case stroke
+    case fill
+}
+
 // 绘图工具类型
 enum ImageSelectionTool: String, Codable {
     case brush      // 画笔
