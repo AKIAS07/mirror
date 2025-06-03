@@ -40,7 +40,7 @@ class BorderLightStyleManager: ObservableObject {
     private var savedWidth: CGFloat = BorderStyle.selectedWidth
     
     @Published var isDefaultGesture: Bool = true
-    @Published var iconColor: Color = .white
+    @Published var iconColor: Color = .white  // 恢复为白色
     @Published var splitScreenIconColor: Color = .purple {
         didSet {
             print("分屏蝴蝶颜色已更新：\(splitScreenIconColor)")
@@ -101,12 +101,12 @@ class BorderLightStyleManager: ObservableObject {
         } else {
             print("BorderLightStyleManager - 使用默认配置")
             // 使用默认设置
-            self.savedColor = .white  // 明确指定默认颜色
+            self.savedColor = Color(red: 241/255, green: 235/255, blue: 223/255)  // 白光色
             self.savedWidth = 16.0    // 明确指定默认宽度
             self.selectedColor = self.savedColor
             self.selectedWidth = self.savedWidth
             self.isDefaultGesture = true
-            self.iconColor = .white
+            self.iconColor = .white  // 恢复为白色
             self.splitScreenIconColor = .purple
             self.splitScreenIconImage = "icon-bf-color-1"
             

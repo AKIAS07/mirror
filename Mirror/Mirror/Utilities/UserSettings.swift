@@ -36,7 +36,7 @@ private enum UserSettingsKeys {
 
 // 添加默认白光颜色常量
 private struct DefaultColors {
-    static let whiteLight = Color(red: 241/255, green: 235/255, blue: 223/255)
+    static let whiteLight = Color(red: 241/255, green: 235/255, blue: 223/255)  // 白光
     static let warmLight = Color(red: 245/255, green: 217/255, blue: 155/255)
     static let coolLight = Color(red: 198/255, green: 223/255, blue: 239/255)
 }
@@ -301,7 +301,7 @@ class UserSettingsManager {
             return Color(UIColor(red: red, green: green, blue: blue, alpha: alpha))
         }
         
-        print("使用边框灯默认颜色")
+        print("使用边框灯默认颜色：白光")
         return DefaultColors.whiteLight  // 修改默认颜色为白光
     }
     
@@ -511,7 +511,7 @@ class UserSettingsManager {
     
     // MARK: - 全局参数重置
     
-    // 添加全局参数重置方法
+    // 修改全局参数重置方法
     func resetToDefaultSettings() {
         print("------------------------")
         print("[全局参数] 开始重置")
@@ -519,8 +519,8 @@ class UserSettingsManager {
         // 清除已有的用户配置标记
         defaults.set(false, forKey: UserSettingsKeys.hasUserConfig)
         
-        // 重置边框灯颜色 (白色)
-        let defaultColor = Color.white
+        // 重置边框灯颜色 (白光)
+        let defaultColor = DefaultColors.whiteLight
         let uiColor = UIColor(defaultColor)
         var red: CGFloat = 0
         var green: CGFloat = 0
@@ -532,7 +532,7 @@ class UserSettingsManager {
             defaults.set(green, forKey: UserSettingsKeys.borderLightColorGreen)
             defaults.set(blue, forKey: UserSettingsKeys.borderLightColorBlue)
             defaults.set(alpha, forKey: UserSettingsKeys.borderLightColorAlpha)
-            print("- 边框灯颜色已重置为白色")
+            print("- 边框灯颜色已重置为白光")
         }
         
         // 重置边框灯宽度 (16)
@@ -543,12 +543,12 @@ class UserSettingsManager {
         defaults.set(true, forKey: UserSettingsKeys.gestureMode)
         print("- 手势模式已重置为默认")
         
-        // 重置主屏图标颜色 (白色)
-        defaults.set(1.0, forKey: UserSettingsKeys.iconColorRed)
-        defaults.set(1.0, forKey: UserSettingsKeys.iconColorGreen)
-        defaults.set(1.0, forKey: UserSettingsKeys.iconColorBlue)
+        // 重置主屏图标颜色 (白光)
+        defaults.set(241/255, forKey: UserSettingsKeys.iconColorRed)
+        defaults.set(235/255, forKey: UserSettingsKeys.iconColorGreen)
+        defaults.set(223/255, forKey: UserSettingsKeys.iconColorBlue)
         defaults.set(1.0, forKey: UserSettingsKeys.iconColorAlpha)
-        print("- 主屏图标颜色已重置为白色")
+        print("- 主屏图标颜色已重置为白光")
         
         // 重置分屏图标颜色 (紫色)
         let defaultSplitColor = Color.purple

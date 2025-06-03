@@ -3,7 +3,7 @@ import SwiftUI
 struct BorderStyle {
     // 主页边框样式
     static let normalColor = Color.gray.opacity(0.3)
-    static var selectedColor = Color.white {
+    static var selectedColor = Color(red: 241/255, green: 235/255, blue: 223/255) {  // 白光色
         didSet {
             splitScreenSelectedColor = selectedColor
         }
@@ -19,7 +19,7 @@ struct BorderStyle {
     static let splitScreenNormalWidth: CGFloat = 0
     static var splitScreenSelectedWidth: CGFloat = 40
     static let splitScreenNormalColor = Color.gray.opacity(0.3)
-    static var splitScreenSelectedColor = Color.white
+    static var splitScreenSelectedColor = Color(red: 241/255, green: 235/255, blue: 223/255)  // 白光色
 }
 
 struct DragAnimationConfig {
