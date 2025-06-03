@@ -958,33 +958,6 @@ public struct SettingsPanel: View {
                             Text("Version 1.1")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
-                            
-                            // 添加评价按钮
-                            Button(action: {
-                                // App Store 链接占位符
-                                if let url = URL(string: "https://apps.apple.com/app/id6743115750") {
-                                    UIApplication.shared.open(url)
-                                }
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.yellow)
-                                    Text("评价我们")
-                                        .foregroundColor(.black)
-                                        .fontWeight(.medium)
-                                }
-                                .font(.system(size: 15))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.white)
-                                .cornerRadius(18)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 18)
-                                        .stroke(Color.yellow.opacity(0.5), lineWidth: 1.5)
-                                )
-                                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
-                                .padding(.top, 12)
-                            }
                         }
                         .padding(.top, SettingsTheme.buttonSpacing)
                         .padding(.bottom, SettingsTheme.buttonSpacing)
@@ -1197,7 +1170,7 @@ public struct SettingsPanel: View {
             闪光强度：\(flashIntensity)
             自动进入双屏：\(autoEnterTwoOfMe ? "是" : "否")
             网格间距：\(gridSpacing)
-            网格颜色：\(gridLineColor)
+            网格颜色：\(gridLineColor)")
             网格透明度：\(gridLineOpacity)
             水印：\(isWatermarkEnabled ? "开启" : "关闭")
             """

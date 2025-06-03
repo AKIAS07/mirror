@@ -110,6 +110,8 @@ struct ContentView: View {
     // 添加化妆视图方向提示状态
     @State private var showMakeupOrientationAlert = false
     
+    @State private var showRateAlert = false  // 添加评价弹窗状态
+
     var body: some View {
         GeometryReader { geometry in
             
@@ -255,7 +257,7 @@ struct ContentView: View {
                                                     .cornerRadius(4)
                                                     .padding(.top, -60)
                                                 
-                                                HStack(spacing: 60) {
+                                                HStack(spacing: 30) {
                                                     Spacer()
                                                     
                                                     // 使用创建函数替换直接创建
@@ -265,6 +267,25 @@ struct ContentView: View {
                                                             print("设置按钮颜色：\(getColorDetails(iconColor))")
                                                             print("容器背景透明度：0.35")
                                                         }
+                                                    
+                                                    // 添加评价按钮
+                                                    CircleButton(
+                                                        imageName: nil,
+                                                        systemName: "star.fill",
+                                                        title: "",
+                                                        action: {
+                                                            // 触发震动反馈
+                                                            lightFeedbackGenerator.impactOccurred()
+                                                            
+                                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                                showRateAlert = true
+                                                            }
+                                                        },
+                                                        deviceOrientation: orientationManager.currentOrientation,
+                                                        isDisabled: false,
+                                                        useCustomColor: true,
+                                                        customColor: styleManager.iconColor
+                                                    )
                                                     
                                                     createHelpButton(geometry: geometry)
                                                         .onAppear {
@@ -751,6 +772,19 @@ struct ContentView: View {
                     title: Text("提示"),
                     message: Text("请先将设备调整至竖屏"),
                     dismissButton: .default(Text("确定"))
+                )
+            }
+            // 添加评价弹窗
+            .alert(isPresented: $showRateAlert) {
+                Alert(
+                    title: Text("评价我们"),
+                    message: Text("您的评价对我们很重要"),
+                    primaryButton: .default(Text("去评价")) {
+                        if let url = URL(string: "https://apps.apple.com/app/id6743115750") {
+                            UIApplication.shared.open(url)
+                        }
+                    },
+                    secondaryButton: .cancel(Text("取消"))
                 )
             }
         }
